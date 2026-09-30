@@ -1,0 +1,14 @@
+# MATLAB / Simulink build artifacts
+*.asv
+*.autosave
+slprj/
+*.slxc
+*.mexw64
+codegen/
+
+# Office temporary files
+~$*
+
+# Secrets
+.env
+*.key
