@@ -8,6 +8,7 @@ classdef CSTR < Reactor
     % Created: March 14, 2020. Last update: April 20, 2020
     % Corrected: October 1, 2026 (T-101)
     % Updated: October 1, 2026 (T-102)
+    % Updated: October 1, 2026 (T-103)
     % =========================================================================
     properties (Hidden = true) % This property is not displayed on the property list
         heatFlux % Stores the value of Q >> Useful to compute OPEX
@@ -71,10 +72,12 @@ classdef CSTR < Reactor
             elseif strcmp(R.heatMode,'Specified Q')
                 R.heatFlux = R.specifiedQ ;
             else
-                [r_i,DH,componentCp] = reactionProperties(y) ;
+                [r_i,DH] = reactionProperties(y) ;
                 moles_inlet = Feed.molarFlow/(1+R.bypassRatio) ;
-                R.heatFlux = moles_inlet*componentCp' * ...
-                    (y(RS.nComponents+1)-Feed.T) + R.V*(r_i*DH') ;
+                sensibleEnthalpy = RS.compute_SensibleEnthalpy(Feed.T, ...
+                    y(RS.nComponents+1),y(RS.nComponents+2)) ;
+                R.heatFlux = moles_inlet*sensibleEnthalpy' + ...
+                    R.V*(r_i*DH') ;
             end
             R.heatDuty = R.heatFlux ;
             
@@ -86,9 +89,9 @@ classdef CSTR < Reactor
             P_out = y(RS.nComponents+2) ;
             % Energy balance in the mixer
             T_beforeMix = y(RS.nComponents+1) ;
-            componentCp_beforeMix = RS.compute_HeatCapacity(T_beforeMix,P_out) ;
-            componentCp_bypass    = RS.compute_HeatCapacity(Feed.T,Feed.P) ;
-            T_out = (componentCp_beforeMix*moles_beforeMix'*T_beforeMix + componentCp_bypass*moles_bypass'*Feed.T)/(componentCp_beforeMix*moles_beforeMix'+componentCp_bypass*moles_bypass');
+            T_out = Reactor.mixTemperature(RS, ...
+                [moles_beforeMix ; moles_bypass], ...
+                [T_beforeMix ; Feed.T],P_out) ;
             
             % Definition of the product stream
             Product = Stream ;
@@ -113,7 +116,7 @@ classdef CSTR < Reactor
                 T = x(RS.nComponents+1) ;
                 P = x(RS.nComponents+2) ;
                 
-                [r_i,DH,componentCp] = reactionProperties(x) ;
+                [r_i,DH] = reactionProperties(x) ;
                 r_j = r_i*RS.stochiometricMatrix ; %[1 x nComponents]
                                
                 % Mass balance
@@ -136,8 +139,10 @@ classdef CSTR < Reactor
 
                     % Table 1 of the ReactorApp article: sensible heat plus
                     % V*sum(r_i*DH_i), minus heat entering the reactor.
-                    y(RS.nComponents+1) = moles_inlet*componentCp' * ...
-                        (T-Feed.T) + R.V*(r_i*DH') - Q ;
+                    sensibleEnthalpy = RS.compute_SensibleEnthalpy( ...
+                        Feed.T,T,P) ;
+                    y(RS.nComponents+1) = moles_inlet * ...
+                        sensibleEnthalpy' + R.V*(r_i*DH') - Q ;
                 end
                 
                 % Momentum balance
@@ -149,13 +154,13 @@ classdef CSTR < Reactor
 
             function residual = fixedTemperatureMassBalance(moles)
                 state = [moles(:)' fixedTemperature Feed.P] ;
-                [r_i,~,~] = reactionProperties(state) ;
+                r_i = reactionProperties(state) ;
                 r_j = r_i*RS.stochiometricMatrix ;
                 moles_inlet = Feed.molarFlow/(1+R.bypassRatio) ;
                 residual = (moles_inlet-moles(:)' + r_j*R.V)' ;
             end
 
-            function [r_i,DH,componentCp] = reactionProperties(x)
+            function [r_i,DH] = reactionProperties(x)
                 moles = x(1:RS.nComponents) ;
                 T = x(RS.nComponents+1) ;
                 P = x(RS.nComponents+2) ;
@@ -169,9 +174,7 @@ classdef CSTR < Reactor
                 RS = RS.computeRate(concentration,T) ;
                 constant_WtoV = (1-R.porosityCatalyst)*R.densityCatalyst ;
                 r_i = constant_WtoV*RS.r_i ; % mol/(m^3*s)
-                componentCp = RS.compute_HeatCapacity(T,P) ; % J/(mol*K)
-                DH = RS.DHref + componentCp*RS.stochiometricMatrix' * ...
-                    (T-RS.Tref) ; % J/mol
+                DH = RS.compute_ReactionEnthalpy(T,P) ; % J/mol
             end
 
             function Q = computeHeatFlux(T)

@@ -7,6 +7,7 @@ classdef ReactionSys
 % Isabela Fons Moreno-Palancas
 % Last update: July 7, 2026
 % Corrected: October 1, 2026 (T-101)
+% Updated: October 1, 2026 (T-103)
 % =========================================================================
     properties
         componentNames
@@ -146,6 +147,42 @@ classdef ReactionSys
                     componentCp(i) = RS.componentCp.UserValues(i) ;
                 end
             end
+        end
+
+        function S = compute_SensibleEnthalpy(RS,T1,T2,P)
+            % Integrate component sensible enthalpy from T1 to T2 (J/mol).
+            if isequal(T1,T2)
+                S = zeros(1,RS.nComponents) ;
+                return
+            end
+
+            if strcmp(RS.componentCp.option,'User defined') || ...
+                    strcmp(RS.componentCp.option,'Average')
+                cpValues = RS.compute_HeatCapacity(T1,P) ;
+                S = cpValues*(T2-T1) ;
+                return
+            end
+
+            % Five-point Gauss-Legendre quadrature. This is exact for the
+            % polynomial heat-capacity correlations used by call_DataBase.
+            nodes = [-0.906179845938664 -0.538469310105683 0 ...
+                0.538469310105683 0.906179845938664] ;
+            weights = [0.236926885056189 0.478628670499366 ...
+                0.568888888888889 0.478628670499366 0.236926885056189] ;
+            halfInterval = (T2-T1)/2 ;
+            midpoint = (T1+T2)/2 ;
+            S = zeros(1,RS.nComponents) ;
+            for i = 1:numel(nodes)
+                T = midpoint+halfInterval*nodes(i) ;
+                S = S+weights(i)*RS.compute_HeatCapacity(T,P) ;
+            end
+            S = halfInterval*S ;
+        end
+
+        function DH = compute_ReactionEnthalpy(RS,T,P)
+            % Compute reaction enthalpies at T and P from DHref (J/mol).
+            sensibleEnthalpy = RS.compute_SensibleEnthalpy(RS.Tref,T,P) ;
+            DH = RS.DHref+sensibleEnthalpy*RS.stochiometricMatrix' ;
         end
 
         function RS = set.k0(RS,k0)

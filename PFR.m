@@ -8,6 +8,7 @@ classdef PFR < Reactor
     % Last update: April 1, 2020
     % Corrected: October 1, 2026 (T-101)
     % Updated: October 1, 2026 (T-102)
+    % Updated: October 1, 2026 (T-103)
     % =========================================================================
     
     properties
@@ -95,8 +96,9 @@ classdef PFR < Reactor
                 integratedHeat = R.specifiedQ ;
             end
             if strcmp(R.heatMode,'Specified T')
-                inletCp = RS.compute_HeatCapacity(R.specifiedT,Feed.P) ;
-                inletStep = moles_inlet*inletCp'*(R.specifiedT-Feed.T) ;
+                sensibleEnthalpy = RS.compute_SensibleEnthalpy(Feed.T, ...
+                    R.specifiedT,Feed.P) ;
+                inletStep = moles_inlet*sensibleEnthalpy' ;
                 R.heatDuty = inletStep + integratedHeat ;
             elseif strcmp(R.heatMode,'Specified Q')
                 R.heatDuty = R.specifiedQ ;
@@ -111,9 +113,9 @@ classdef PFR < Reactor
             P_out = y(end,RS.nComponents+2);
             % Energy balance in the mixer
             T_beforeMix = y(end,(RS.nComponents+1)) ; % Temperature of the stream leaving the reactor before entering the mixer
-            componentCp_beforeMix = RS.compute_HeatCapacity(T_beforeMix,P_out) ;
-            componentCp_bypass    = RS.compute_HeatCapacity(Feed.T,Feed.P) ;
-            T_out = (componentCp_beforeMix*moles_beforeMix'*T_beforeMix + componentCp_bypass*(moles_inlet'*R.bypassRatio)*Feed.T)/(componentCp_beforeMix*moles_beforeMix'+ componentCp_bypass*(moles_inlet*R.bypassRatio)') ;
+            T_out = Reactor.mixTemperature(RS, ...
+                [moles_beforeMix ; moles_inlet*R.bypassRatio], ...
+                [T_beforeMix ; Feed.T],P_out) ;
             
             % Definition of the product stream
             Product = Stream ;
@@ -182,7 +184,7 @@ classdef PFR < Reactor
                 
                 %Energy balance
                 componentCp = RS.compute_HeatCapacity(T,P) ;
-                DH = RS.DHref + (componentCp*RS.stochiometricMatrix')*(T-RS.Tref) ; %J/mol [1xnReactions]
+                DH = RS.compute_ReactionEnthalpy(T,P) ; % J/mol [1xnReactions]
                 
                 if strcmp(R.heatMode,'Isothermal') == 1 || ...
                         strcmp(R.heatMode,'Specified T')
@@ -264,9 +266,7 @@ classdef PFR < Reactor
                 RS = RS.computeRate(moles/Qv,T) ;
                 constant_WtoV = (1-R.porosityCatalyst)*R.densityCatalyst ;
                 r_i = constant_WtoV*RS.r_i ;
-                componentCp = RS.compute_HeatCapacity(T,P) ;
-                DH = RS.DHref + (componentCp*RS.stochiometricMatrix') * ...
-                    (T-RS.Tref) ; % J/mol
+                DH = RS.compute_ReactionEnthalpy(T,P) ; % J/mol
 
                 if strcmp(R.heatMode,'Isothermal') || ...
                         strcmp(R.heatMode,'Specified T')

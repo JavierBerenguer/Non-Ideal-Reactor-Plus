@@ -8,6 +8,7 @@ classdef Reactor
 % Isabela Fons Moreno-Palancas
 % Created: March 14, 2020. Last update: July 4th, 2020
 % Updated: October 1, 2026 (T-102)
+% Updated: October 1, 2026 (T-103)
 % =========================================================================
 
     properties
@@ -131,21 +132,12 @@ classdef Reactor
             
             %Define the new feed & compute the output stream of each reactor
             n_mix = 0 ;
-            energyBalanceNumerator = 0 ;
-            energyBalanceDenominator = 0 ;
             for i = 1:length(split)
                 newFeed(i) = Feed ;
                 newFeed(i).molarFlow = Feed.molarFlow*split(i) ;
                 newFeed(i).volumetricFlow = Feed.volumetricFlow*split(i) ;
                 [individualProduct(i),sequence{i}] = compute_output(sequence{i},newFeed(i),RS) ;
                 n_mix = n_mix + individualProduct(i).molarFlow;
-                
-                % Molar Heat Capacity 
-                T = individualProduct(i).T ;
-                P = individualProduct(i).P ;
-                componentCp = compute_HeatCapacity(RS,T,P) ;
-                energyBalanceNumerator = energyBalanceNumerator + componentCp*individualProduct(i).molarFlow'*individualProduct(i).T ;
-                energyBalanceDenominator = energyBalanceDenominator + componentCp*individualProduct(i).molarFlow' ;
             end
             
             %Compute the final output stream (mix of the output of each reactor)
@@ -155,8 +147,10 @@ classdef Reactor
             if strcmp(Product.phase,'L')
                 Product.volumetricFlow = Feed.volumetricFlow ;
             end
-            Product.T = energyBalanceNumerator / energyBalanceDenominator ;
             Product.P = min(individualProduct.P) ; 
+            molarFlows = vertcat(individualProduct.molarFlow) ;
+            temperatures = vertcat(individualProduct.T) ;
+            Product.T = Reactor.mixTemperature(RS,molarFlows,temperatures,Product.P) ;
         end
         
                 function [Product,R] = compute_recycling(R,Feed,RS,recycleRatio)
@@ -198,13 +192,13 @@ classdef Reactor
                 P          = x(RS.nComponents+2) ;
                 
                 % PREVIOUS OPERATIONS
-                componentCp_Feed    = compute_HeatCapacity(RS,Feed.T,Feed.P) ;
-                componentCp_Recycle = compute_HeatCapacity(RS,T,P) ;
-                
                 ninReactor = Feed.molarFlow(:) + recycleRatio/(1+recycleRatio) * n ;
 %                 TinReactor = Feed.T ; 
-                TinReactor = (Feed.molarFlow*componentCp_Feed'*Feed.T + componentCp_Recycle*n*T)/(Feed.molarFlow*componentCp_Feed' + componentCp_Recycle*n) ;
                 PinReactor = Feed.P ;
+                mixingFlows = [Feed.molarFlow ; ...
+                    (recycleRatio/(1+recycleRatio)*n)'] ;
+                TinReactor = Reactor.mixTemperature(RS,mixingFlows, ...
+                    [Feed.T ; T],PinReactor) ;
                 
                 F_new               = Feed ;
                 F_new.molarFlow     = ninReactor' ; 
@@ -460,6 +454,50 @@ classdef Reactor
         end
         
         
+    end
+
+    methods (Static)
+        function [T,ok] = mixTemperature(RS,molarFlows,temperatures,P)
+            % Solve the adiabatic mixing temperature from sensible enthalpy.
+            % molarFlows is nStreams-by-nComponents (mol/s), temperatures
+            % is nStreams-by-1 (K), and P is the mixing pressure (Pa).
+            temperatures = temperatures(:) ;
+            if ~any(molarFlows(:))
+                T = temperatures(1) ;
+                ok = false ;
+                return
+            end
+
+            if strcmp(RS.componentCp.option,'User defined') || ...
+                    strcmp(RS.componentCp.option,'Average')
+                componentCp = RS.compute_HeatCapacity(temperatures(1),P) ;
+                streamHeatCapacity = molarFlows*componentCp' ;
+                T = sum(streamHeatCapacity.*temperatures) / ...
+                    sum(streamHeatCapacity) ;
+                ok = true ;
+                return
+            end
+
+            totalMolarFlow = sum(molarFlows,1) ;
+            inletEnthalpy = 0 ;
+            for i = 1:size(molarFlows,1)
+                sensibleEnthalpy = RS.compute_SensibleEnthalpy( ...
+                    RS.Tref,temperatures(i),P) ;
+                inletEnthalpy = inletEnthalpy+ ...
+                    molarFlows(i,:)*sensibleEnthalpy' ;
+            end
+            residual = @(temperature) totalMolarFlow * ...
+                RS.compute_SensibleEnthalpy(RS.Tref,temperature,P)' - ...
+                inletEnthalpy ;
+            lowerTemperature = min(temperatures) ;
+            upperTemperature = max(temperatures) ;
+            if isequal(lowerTemperature,upperTemperature)
+                T = lowerTemperature ;
+            else
+                T = fzero(residual,[lowerTemperature upperTemperature]) ;
+            end
+            ok = true ;
+        end
     end
 end
 
