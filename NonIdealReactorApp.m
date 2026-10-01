@@ -46,6 +46,12 @@ classdef NonIdealReactorApp < handle
         RTD_EqTimeUnitDropdown
         RTD_EqNptsLabel
         RTD_EqNptsField
+        RTD_EqRow7Grid          % Sub-grid: time unit + N points (C(t) Equation)
+        RTD_EqRow8Grid          % Sub-grid: data type + C0 (C(t) Equation)
+        RTD_EqDataTypeLabel
+        RTD_EqDataTypeDropdown  % Dropdown: 'Pulse C(t)' or 'Step C(t)' for C(t) Equation
+        RTD_EqC0Label
+        RTD_EqC0Field           % Step height C0 for C(t) Equation (same units as C(t))
         RTD_GenerateButton
         RTD_ExportButton
         RTD_ExportNameField
@@ -944,6 +950,8 @@ classdef NonIdealReactorApp < handle
             snapshot.rtd.equationTable = app.RTD_EqTable.Data ;
             snapshot.rtd.equationTimeUnit = app.RTD_EqTimeUnitDropdown.Value ;
             snapshot.rtd.equationNpts = app.RTD_EqNptsField.Value ;
+            snapshot.rtd.equationDataType = app.RTD_EqDataTypeDropdown.Value ;
+            snapshot.rtd.equationC0 = app.RTD_EqC0Field.Value ;
             snapshot.rtd.dataType = app.RTD_DataTypeDropdown.Value ;
             snapshot.rtd.dataTable = app.RTD_DataTable.Data ;
             snapshot.rtd.exportName = app.RTD_ExportNameField.Value ;
@@ -1047,6 +1055,10 @@ classdef NonIdealReactorApp < handle
             app.RTD_EqTable.Data = app.getRTDEquationTableDataFromSnapshot(rtdSnapshot) ;
             app.setDropdownValueIfValid(app.RTD_EqTimeUnitDropdown, app.getStructField(rtdSnapshot, 'equationTimeUnit', app.RTD_EqTimeUnitDropdown.Value)) ;
             app.RTD_EqNptsField.Value = app.getStructField(rtdSnapshot, 'equationNpts', app.RTD_EqNptsField.Value) ;
+            % Sessions saved before the pulse/step selector existed are pulse responses
+            app.setDropdownValueIfValid(app.RTD_EqDataTypeDropdown, app.getStructField(rtdSnapshot, 'equationDataType', 'Pulse C(t)')) ;
+            app.RTD_EqC0Field.Value = app.getStructField(rtdSnapshot, 'equationC0', 1) ;
+            app.RTD_eqDataTypeChanged() ;
             app.setDropdownValueIfValid(app.RTD_DataTypeDropdown, app.getStructField(rtdSnapshot, 'dataType', app.RTD_DataTypeDropdown.Value)) ;
             app.RTD_dataTypeChanged() ;
             app.RTD_DataTable.Data = app.getStructField(rtdSnapshot, 'dataTable', app.RTD_DataTable.Data) ;
@@ -3536,28 +3548,64 @@ classdef NonIdealReactorApp < handle
             app.RTD_EqTable.Layout.Column = [1 2] ;
             app.RTD_EqTable.Visible = 'off' ;
 
-            app.RTD_EqTimeUnitLabel = uilabel(leftGrid, 'Text', 'Time unit:') ;
-            app.RTD_EqTimeUnitLabel.Layout.Row = 7 ; app.RTD_EqTimeUnitLabel.Layout.Column = 1 ;
+            % Row 7: time unit + N points (compact sub-grid, C(t) Equation only)
+            app.RTD_EqRow7Grid = uigridlayout(leftGrid, [1 4], ...
+                'ColumnWidth', {'fit', '1x', 'fit', '1x'}, ...
+                'Padding', [0 0 0 0], ...
+                'ColumnSpacing', 4) ;
+            app.RTD_EqRow7Grid.Layout.Row = 7 ; app.RTD_EqRow7Grid.Layout.Column = [1 2] ;
+            app.RTD_EqRow7Grid.Visible = 'off' ;
+
+            app.RTD_EqTimeUnitLabel = uilabel(app.RTD_EqRow7Grid, 'Text', 'Time unit:') ;
+            app.RTD_EqTimeUnitLabel.Layout.Row = 1 ; app.RTD_EqTimeUnitLabel.Layout.Column = 1 ;
             app.RTD_EqTimeUnitLabel.Visible = 'off' ;
-            app.RTD_EqTimeUnitDropdown = uidropdown(leftGrid, ...
+            app.RTD_EqTimeUnitDropdown = uidropdown(app.RTD_EqRow7Grid, ...
                 'Items', UnitConverterHelper.getUnits('Time'), ...
                 'Value', 's', ...
                 'Tooltip', 'Defines the units shared by all t start, t end, and t values used in the piecewise C(t) table.') ;
-            app.RTD_EqTimeUnitDropdown.Layout.Row = 7 ;
+            app.RTD_EqTimeUnitDropdown.Layout.Row = 1 ;
             app.RTD_EqTimeUnitDropdown.Layout.Column = 2 ;
             app.setTooltip('Time unit used by every piecewise C(t) segment and by the generated RTD timeline.', ...
                 app.RTD_EqTimeUnitLabel, app.RTD_EqTimeUnitDropdown) ;
             app.RTD_EqTimeUnitDropdown.Visible = 'off' ;
 
-            app.RTD_EqNptsLabel = uilabel(leftGrid, 'Text', 'N points:') ;
-            app.RTD_EqNptsLabel.Layout.Row = 8 ; app.RTD_EqNptsLabel.Layout.Column = 1 ;
+            app.RTD_EqNptsLabel = uilabel(app.RTD_EqRow7Grid, 'Text', 'N points:') ;
+            app.RTD_EqNptsLabel.Layout.Row = 1 ; app.RTD_EqNptsLabel.Layout.Column = 3 ;
             app.RTD_EqNptsLabel.Visible = 'off' ;
-            app.RTD_EqNptsField = uieditfield(leftGrid, 'numeric', ...
+            app.RTD_EqNptsField = uieditfield(app.RTD_EqRow7Grid, 'numeric', ...
                 'Value', 500, 'Limits', [10 10000]) ;
-            app.RTD_EqNptsField.Layout.Row = 8 ; app.RTD_EqNptsField.Layout.Column = 2 ;
+            app.RTD_EqNptsField.Layout.Row = 1 ; app.RTD_EqNptsField.Layout.Column = 4 ;
             app.setTooltip('Approximate total number of points used to discretize all piecewise C(t) segments before building the RTD.', ...
                 app.RTD_EqNptsLabel, app.RTD_EqNptsField) ;
             app.RTD_EqNptsField.Visible = 'off' ;
+
+            % Row 8: signal type (pulse/step) + C0 (compact sub-grid, C(t) Equation only)
+            app.RTD_EqRow8Grid = uigridlayout(leftGrid, [1 4], ...
+                'ColumnWidth', {'fit', '1x', 'fit', '1x'}, ...
+                'Padding', [0 0 0 0], ...
+                'ColumnSpacing', 4) ;
+            app.RTD_EqRow8Grid.Layout.Row = 8 ; app.RTD_EqRow8Grid.Layout.Column = [1 2] ;
+            app.RTD_EqRow8Grid.Visible = 'off' ;
+
+            app.RTD_EqDataTypeLabel = uilabel(app.RTD_EqRow8Grid, 'Text', 'Data type:') ;
+            app.RTD_EqDataTypeLabel.Layout.Row = 1 ; app.RTD_EqDataTypeLabel.Layout.Column = 1 ;
+            app.RTD_EqDataTypeDropdown = uidropdown(app.RTD_EqRow8Grid, ...
+                'Items', {'Pulse C(t)', 'Step C(t)'}, ...
+                'Value', 'Pulse C(t)', ...
+                'ValueChangedFcn', @(~,~) app.RTD_eqDataTypeChanged()) ;
+            app.RTD_EqDataTypeDropdown.Layout.Row = 1 ; app.RTD_EqDataTypeDropdown.Layout.Column = 2 ;
+            app.setTooltip(['Pulse: the piecewise C(t) is the response to an ideal pulse, E(t) = C(t)/integral(C dt). ' ...
+                'Step: it is the response to an ideal step of height C0, F(t) = C(t)/C0 and E(t) = dF/dt.'], ...
+                app.RTD_EqDataTypeLabel, app.RTD_EqDataTypeDropdown) ;
+
+            app.RTD_EqC0Label = uilabel(app.RTD_EqRow8Grid, 'Text', '$C_0$:', 'Interpreter', 'latex') ;
+            app.RTD_EqC0Label.Layout.Row = 1 ; app.RTD_EqC0Label.Layout.Column = 3 ;
+            app.RTD_EqC0Field = uieditfield(app.RTD_EqRow8Grid, 'numeric', ...
+                'Value', 1, 'Limits', [0 Inf], 'LowerLimitInclusive', 'off') ;
+            app.RTD_EqC0Field.Layout.Row = 1 ; app.RTD_EqC0Field.Layout.Column = 4 ;
+            app.setTooltip('Height of the inlet step, in the same units as the piecewise C(t). Only used with Step C(t).', ...
+                app.RTD_EqC0Label, app.RTD_EqC0Field) ;
+            app.RTD_eqDataTypeChanged() ;
 
             % Rows 4-9: Tabular Input components (hidden by default)
             % These share rows with N/Bo, Exp, and Equation fields
@@ -3897,6 +3945,8 @@ classdef NonIdealReactorApp < handle
             app.RTD_EqTimeUnitDropdown.Visible = 'off' ;
             app.RTD_EqNptsLabel.Visible = 'off' ;
             app.RTD_EqNptsField.Visible = 'off' ;
+            app.RTD_EqRow7Grid.Visible = 'off' ;
+            app.RTD_EqRow8Grid.Visible = 'off' ;
             app.RTD_DataTypeLabel.Visible = 'off' ;
             app.RTD_DataTypeDropdown.Visible = 'off' ;
             app.RTD_DataTable.Visible = 'off' ;
@@ -3948,6 +3998,8 @@ classdef NonIdealReactorApp < handle
                     app.RTD_EqTimeUnitDropdown.Visible = 'on' ;
                     app.RTD_EqNptsLabel.Visible = 'on' ;
                     app.RTD_EqNptsField.Visible = 'on' ;
+                    app.RTD_EqRow7Grid.Visible = 'on' ;
+                    app.RTD_EqRow8Grid.Visible = 'on' ;
                     app.RTD_AddRowButton.Visible = 'on' ;
                     app.RTD_RemoveRowButton.Visible = 'on' ;
                     app.RTD_AddRowButton.Text = '+ Segment' ;
@@ -3984,6 +4036,16 @@ classdef NonIdealReactorApp < handle
                     app.RTD_ExpC0Field.Parent.Visible = 'off' ;
                 end
             end
+        end
+
+        function RTD_eqDataTypeChanged(app)
+            % Enable C0 only when the piecewise C(t) is a step response
+            state = 'off' ;
+            if strcmp(app.RTD_EqDataTypeDropdown.Value, 'Step C(t)')
+                state = 'on' ;
+            end
+            app.RTD_EqC0Label.Enable = state ;
+            app.RTD_EqC0Field.Enable = state ;
         end
 
         function RTD_addTableRow(app)
@@ -4068,7 +4130,11 @@ classdef NonIdealReactorApp < handle
                         t_unit = app.RTD_EqTimeUnitDropdown.Value ;
                         [t, C_data] = app.buildRTDEquationSignal() ;
                         t_si = UnitConverterHelper.convertToSI('Time', t, t_unit) ;
-                        app.rtd = RTD.from_pulse(t_si, C_data) ;
+                        if strcmp(app.RTD_EqDataTypeDropdown.Value, 'Step C(t)')
+                            app.rtd = RTD.from_step(t_si, C_data, app.RTD_EqC0Field.Value) ;
+                        else
+                            app.rtd = RTD.from_pulse(t_si, C_data) ;
+                        end
 
                     case 'Tabular Input'
                         % Read data from the editable table
