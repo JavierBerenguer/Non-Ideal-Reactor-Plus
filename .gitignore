@@ -6,6 +6,11 @@ slprj/
 *.mexw64
 codegen/
 
+# Regenerated NIRP Simulink models and dictionaries
+simulink/NirpLibrary.slx
+simulink/examples/*.slx
+simulink/examples/*.sldd
+
 # Office temporary files
 ~$*
 

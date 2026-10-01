@@ -157,7 +157,7 @@ classdef NirpPackageTest < matlab.unittest.TestCase
             pkg = nirp.pkg.examples.firstOrderLiquid() ;
             rs = nirp.pkg.toReactionSys(pkg) ;
             feed = nirp.pkg.feedStream(pkg,"F1") ;
-            [out,info] = nirp.units.cstr(struct('V',1, ...
+            [out,info] = nirp.units.cstr(struct('V',0.1, ... % T-101 base data: k = 0.01 1/s, V = 0.1 m^3
                 'heatMode','Adiabatic'),feed,rs) ;
             conversion = (feed.F(1)-out.F(1))/feed.F(1) ;
             testCase.verifyEqual(conversion,0.5,'AbsTol',1e-8) ;
