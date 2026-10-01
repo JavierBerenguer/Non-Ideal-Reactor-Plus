@@ -490,6 +490,49 @@ classdef UnitConverterHelper < handle
             m('BTU/lbmol')  = 2.326 ;
             cats.EnergyPerMol.factors = m ;
 
+            % ----- Power -----
+            % Thermochemical calorie: 1 cal = 4.184 J exactly. The IT
+            % British thermal unit is 1055.05585262 J (NIST SP 811).
+            m = containers.Map() ;
+            m('W')      = 1 ;
+            m('kW')     = 1e3 ;
+            m('J/s')    = 1 ;
+            m('kJ/h')   = 1e3 / 3600 ;
+            m('kcal/h') = 4184 / 3600 ;
+            m('cal/s')  = 4.184 ;
+            m('BTU/h')  = 1055.05585262 / 3600 ;
+            cats.Power.factors = m ;
+
+            % ----- Molar heat capacity -----
+            % Calorie factors use the exact thermochemical calorie above.
+            m = containers.Map() ;
+            m('J/(mol*K)')     = 1 ;
+            m('kJ/(kmol*K)')   = 1 ;
+            m('kJ/(mol*K)')    = 1e3 ;
+            m('cal/(mol*K)')   = 4.184 ;
+            m('kcal/(kmol*K)') = 4.184 ;
+            cats.MolarHeatCapacity.factors = m ;
+
+            % ----- Heat-transfer coefficient -----
+            % The BTU factor is based on the IT BTU above and 1 ft exact
+            % = 0.3048 m; a Fahrenheit degree interval is 5/9 K.
+            m = containers.Map() ;
+            m('W/(m^2*K)')       = 1 ;
+            m('kW/(m^2*K)')      = 1e3 ;
+            m('kJ/(h*m^2*K)')    = 1e3 / 3600 ;
+            m('kcal/(h*m^2*K)')  = 4184 / 3600 ;
+            m('BTU/(h*ft^2*F)')  = 1055.05585262 / 3600 / 0.3048^2 * 9 / 5 ;
+            cats.HeatTransferCoefficient.factors = m ;
+
+            % ----- Mass flow -----
+            m = containers.Map() ;
+            m('kg/s')  = 1 ;
+            m('kg/h')  = 1 / 3600 ;
+            m('g/s')   = 1e-3 ;
+            m('g/min') = 1e-3 / 60 ;
+            m('t/h')   = 1e3 / 3600 ;
+            cats.MassFlow.factors = m ;
+
             % ----- Diffusivity -----
             m = containers.Map() ;
             m('m^2/s')   = 1 ;
