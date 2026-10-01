@@ -7,6 +7,7 @@ classdef CSTR < Reactor
     % Isabela Fons Moreno-Palancas
     % Created: March 14, 2020. Last update: April 20, 2020
     % Corrected: October 1, 2026 (T-101)
+    % Updated: October 1, 2026 (T-102)
     % =========================================================================
     properties (Hidden = true) % This property is not displayed on the property list
         heatFlux % Stores the value of Q >> Useful to compute OPEX
@@ -23,8 +24,33 @@ classdef CSTR < Reactor
             % Last update: March 27, 2020
             % =========================================================================%
             
+            if strcmp(R.heatMode,'Specified T') && isempty(R.specifiedT)
+                error('Reactor:missingSpecification', ...
+                    'specifiedT is required for heat mode ''Specified T''.') ;
+            elseif strcmp(R.heatMode,'Specified Q') && isempty(R.specifiedQ)
+                error('Reactor:missingSpecification', ...
+                    'specifiedQ is required for heat mode ''Specified Q''.') ;
+            end
+
             %%
             Guess = [Feed.molarFlow , Feed.T, Feed.P] ;
+            if ~isempty(R.initialTemperatureGuess)
+                fixedTemperature = R.initialTemperatureGuess ; % K
+                matterGuess = Feed.molarFlow ; % mol/s
+                matterScale = max(abs(matterGuess),1e-8) ;
+                matterOptions = optimoptions('fsolve','Display','none', ...
+                    'FunctionTolerance',1e-12,'StepTolerance',1e-12, ...
+                    'OptimalityTolerance',1e-12,'TypicalX',matterScale(:)) ;
+                [matterGuess,matterResidual,matterExitflag] = fsolve( ...
+                    @fixedTemperatureMassBalance,matterGuess,matterOptions) ;
+                if matterExitflag <= 0
+                    warning('CSTR:initialGuessNotConverged', ...
+                        ['The fixed-temperature material balance did not converge ' ...
+                        '(exitflag %d, maximum residual %.3e).'], ...
+                        matterExitflag,norm(matterResidual,inf)) ;
+                end
+                Guess = [matterGuess(:)' fixedTemperature Feed.P] ;
+            end
             typicalX = abs(Guess) ;
             flowScale = max(max(abs(Feed.molarFlow)),1e-8) ;
             typicalX(typicalX == 0) = flowScale ;
@@ -42,12 +68,15 @@ classdef CSTR < Reactor
                 R.heatFlux = 0 ;
             elseif strcmp(R.heatMode,'Other')
                 R.heatFlux = computeHeatFlux(y(RS.nComponents+1)) ;
+            elseif strcmp(R.heatMode,'Specified Q')
+                R.heatFlux = R.specifiedQ ;
             else
                 [r_i,DH,componentCp] = reactionProperties(y) ;
                 moles_inlet = Feed.molarFlow/(1+R.bypassRatio) ;
                 R.heatFlux = moles_inlet*componentCp' * ...
                     (y(RS.nComponents+1)-Feed.T) + R.V*(r_i*DH') ;
             end
+            R.heatDuty = R.heatFlux ;
             
             % Mass balance in the mixer
             moles_beforeMix = y(1:RS.nComponents) ;
@@ -92,13 +121,17 @@ classdef CSTR < Reactor
                 y(1:RS.nComponents) = moles_inlet - moles + r_j*R.V ;
                 
                 %Energy balance
-                if strcmp(R.heatMode,'Isothermal') == 1
+                if strcmp(R.heatMode,'Isothermal')
                     y(RS.nComponents+1) = T - Feed.T ;
+                elseif strcmp(R.heatMode,'Specified T')
+                    y(RS.nComponents+1) = T - R.specifiedT ;
                 else
-                    if strcmp(R.heatMode,'Adiabatic') == 1
+                    if strcmp(R.heatMode,'Adiabatic')
                         Q = 0;
-                    elseif strcmp(R.heatMode,'Other') == 1
+                    elseif strcmp(R.heatMode,'Other')
                         Q = computeHeatFlux(T) ;
+                    elseif strcmp(R.heatMode,'Specified Q')
+                        Q = R.specifiedQ ;
                     end
 
                     % Table 1 of the ReactorApp article: sensible heat plus
@@ -112,6 +145,14 @@ classdef CSTR < Reactor
                 
                 y = y';
                 
+            end
+
+            function residual = fixedTemperatureMassBalance(moles)
+                state = [moles(:)' fixedTemperature Feed.P] ;
+                [r_i,~,~] = reactionProperties(state) ;
+                r_j = r_i*RS.stochiometricMatrix ;
+                moles_inlet = Feed.molarFlow/(1+R.bypassRatio) ;
+                residual = (moles_inlet-moles(:)' + r_j*R.V)' ;
             end
 
             function [r_i,DH,componentCp] = reactionProperties(x)

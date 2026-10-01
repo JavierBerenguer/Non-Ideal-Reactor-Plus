@@ -7,6 +7,7 @@ classdef Reactor
 % =========================================================================
 % Isabela Fons Moreno-Palancas
 % Created: March 14, 2020. Last update: July 4th, 2020
+% Updated: October 1, 2026 (T-102)
 % =========================================================================
 
     properties
@@ -18,6 +19,10 @@ classdef Reactor
         porosityCatalyst = 0 ;
         
         heatMode
+        specifiedT = [] ; % Specified reactor temperature (K)
+        specifiedQ = [] ; % Specified total heat entering the reactor (W)
+        initialTemperatureGuess = [] ; % CSTR initial temperature estimate (K)
+        heatDuty = [] ; % Total heat entering the reactor in the last calculation (W)
         U = 0 ;
         heatTransferArea = 1 ;
         inletUtilityTemperature = 1 ;
@@ -68,7 +73,8 @@ classdef Reactor
         end
         
         function R = set.heatMode(R,heatMode)
-            heatMode_options = {'Isothermal' 'Adiabatic' 'Other'};
+            heatMode_options = {'Isothermal' 'Adiabatic' 'Other' ...
+                'Specified T' 'Specified Q'};
             switch heatMode
                 case heatMode_options
                     R.heatMode = heatMode ;
