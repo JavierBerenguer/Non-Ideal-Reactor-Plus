@@ -24,10 +24,8 @@ function [modelFile,dictionaryFile] = new(modelName,pkg,folder)
     try
         save_system(name,modelFile) ;
         set_param(name,'DataDictionary',[name '.sldd']) ;
+        nirp.flowsheet.addBlock(name,'Flowsheet',[60 50 180 105],200) ;
         nirp.flowsheet.configure(name) ;
-        add_block('simulink/User-Defined Functions/MATLAB System', ...
-            [name '/Flowsheet'],'System','nirp.blocks.Flowsheet', ...
-            'Position',[60 50 170 100]) ;
         save_system(name) ;
         open_system(name) ;
     catch exception

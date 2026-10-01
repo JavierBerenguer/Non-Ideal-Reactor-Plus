@@ -14,6 +14,28 @@ function configure(modelName)
     elseif ~bdIsLoaded(model)
         load_system(model) ;
     end
+    iterative = [find_system(model,'LookUnderMasks','all','FollowLinks','on', ...
+        'System','nirp.blocks.Recycle'); ...
+        find_system(model,'LookUnderMasks','all','FollowLinks','on', ...
+        'System','nirp.blocks.Adjust')] ;
+    flowsheets = find_system(model,'SearchDepth',1,'BlockType','SubSystem') ;
+    maxIterations = 200 ;
+    for i = 1:numel(flowsheets)
+        if strcmp(get_param(flowsheets{i},'Mask'),'on') && ...
+                any(strcmp(get_param(flowsheets{i},'MaskNames'),'MaxIterations'))
+            value = str2double(get_param(flowsheets{i},'MaxIterations')) ;
+            if isfinite(value) && value >= 1 && value == fix(value)
+                maxIterations = value ;
+            else
+                error('nirp:flowsheet:invalidMaxIterations', ...
+                    'MaxIterations must be a positive integer.') ;
+            end
+            break
+        end
+    end
+    if isempty(iterative), stopTime = 0 ; else, stopTime = maxIterations ; end
     set_param(model,'SolverType','Fixed-step','Solver','FixedStepDiscrete', ...
-        'FixedStep','1','StopTime','0') ;
+        'FixedStep','1','StopTime',num2str(stopTime), ...
+        'InitFcn',sprintf('nirp.flowsheet.registry(''clear'',''%s'');',model), ...
+        'StopFcn',sprintf('nirp.flowsheet.finish(''%s'');',model)) ;
 end

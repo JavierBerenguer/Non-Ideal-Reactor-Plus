@@ -13,12 +13,13 @@ function libraryFile = build_library(folder)
     if isfile(libraryFile),delete(libraryFile);end
     new_system(name,'Library');
     cleanup=onCleanup(@() closeLoaded(name));
-    classes={'Flowsheet','Feed','Product','CSTR','PFR','Mixer','Splitter','Heater'};
+    classes={'Feed','Product','CSTR','PFR','Mixer','Splitter','Heater','Recycle','Adjust'};
     for i=1:numel(classes)
         row=mod(i-1,4); col=floor((i-1)/4);
         add_block('simulink/User-Defined Functions/MATLAB System',[name '/' classes{i}], ...
             'System',['nirp.blocks.' classes{i}],'Position',[50+col*180 40+row*100 170+col*180 100+row*100]);
     end
+    nirp.flowsheet.addBlock(name,'Flowsheet',[410 340 530 395],200);
     set_param(name,'Lock','on'); save_system(name,libraryFile); clear cleanup; close_system(name,0);
 end
 

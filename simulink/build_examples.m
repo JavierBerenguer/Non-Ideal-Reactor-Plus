@@ -1,5 +1,5 @@
 function modelFiles = build_examples(folder)
-%BUILD_EXAMPLES Generate the four milestone-1 NIRP example flowsheets.
+%BUILD_EXAMPLES Generate the seven milestone-1 NIRP example flowsheets.
 % =========================================================================
 % Javier Berenguer Sabater
 % Created: October 2, 2026. Last update: October 2, 2026
@@ -14,7 +14,10 @@ function modelFiles = build_examples(folder)
         'ex1_cstr_isothermal',referencePkg,@buildEx1; ...
         'ex2_cstr_adiabatic_cooler',referencePkg,@buildEx2; ...
         'ex3_pfr_adiabatic',referencePkg,@buildEx3; ...
-        'ex4_problem40b_parallel',nirp.pkg.examples.problem40Gas(),@buildEx4};
+        'ex4_problem40b_parallel',nirp.pkg.examples.problem40Gas(),@buildEx4; ...
+        'ex5_recycle_cstr',referencePkg,@buildEx5; ...
+        'ex6_adjust_volume',referencePkg,@buildEx6; ...
+        'ex7_problem44c',problem44Package(),@buildEx7};
     modelFiles=strings(size(definitions,1),1);
     for i=1:size(definitions,1)
         name=definitions{i,1}; pkg=definitions{i,2}; builder=definitions{i,3};
@@ -23,11 +26,33 @@ function modelFiles = build_examples(folder)
         if isfile(modelFile),delete(modelFile);end
         if isfile(dictionaryFile),delete(dictionaryFile);end
         nirp.pkg.writeDictionary(pkg,dictionaryFile); new_system(name); save_system(name,modelFile);
-        set_param(name,'DataDictionary',[name '.sldd']); nirp.flowsheet.configure(name);
-        addSystem(name,'Flowsheet','nirp.blocks.Flowsheet',[20 20 120 65]);
-        builder(name); save_system(name,modelFile); close_system(name,0); modelFiles(i)=string(modelFile);
+        set_param(name,'DataDictionary',[name '.sldd']);
+        nirp.flowsheet.addBlock(name,'Flowsheet',[20 20 140 75],200);
+        builder(name); nirp.flowsheet.configure(name);
+        save_system(name,modelFile); close_system(name,0); modelFiles(i)=string(modelFile);
         Simulink.data.dictionary.closeAll('-discard');
     end
+end
+
+function pkg=problem44Package()
+    pkg.meta=struct('formatVersion',1,'name',"Problem 44c");
+    cpA=struct('type',"constant",'value',15,'unit',"cal/(mol*K)");
+    cpC=struct('type',"constant",'value',30,'unit',"cal/(mol*K)");
+    pkg.components=struct('name',{"A","B","C"},'Mw',{[],[],[]}, ...
+        'cp',{cpA,cpA,cpC},'hf',{[],[],[]});
+    pkg.reactions.stoich=[-1 -1 1];
+    pkg.reactions.DH=struct('value',-6,'unit',"kcal/mol");
+    pkg.reactions.Tref=struct('value',273.15,'unit',"K");
+    pkg.reactions.rateUnits=struct('concentration',"mol/L",'time',"s");
+    k0=0.01*exp(10000*4.184/(8.314*300.15));
+    pkg.reactions.kinetics=struct('type',"powerlaw",'k0',k0, ...
+        'Ea',struct('value',10000,'unit',"cal/mol"),'orders',[1 1 0], ...
+        'reverse',[],'expression',"");
+    pkg.feeds=struct('name',"F1",'phase',"L", ...
+        'T',struct('value',27,'unit',"C"),'P',struct('value',1,'unit',"atm"), ...
+        'basis',"concentrations",'values',[1 1 0], ...
+        'valuesUnit',"mol/L",'Q',struct('value',2,'unit',"L/s"));
+    nirp.pkg.validate(pkg);
 end
 
 function pkg=firstOrderReferencePackage()
@@ -69,6 +94,50 @@ function buildEx4(model)
     addSystem(model,'Product','nirp.blocks.Product',[680 180 790 230],'ResultName','Product','ReferenceFeed','F1','KeyComponent','A');
     add_line(model,'Feed/1','Splitter/1');add_line(model,'Splitter/1','CSTR 1/1');add_line(model,'Splitter/2','CSTR 2/1');
     add_line(model,'CSTR 1/1','Mixer/1');add_line(model,'CSTR 2/1','Mixer/2');add_line(model,'Mixer/1','Product/1');
+end
+
+function buildEx5(model)
+    addSystem(model,'Feed','nirp.blocks.Feed',[30 170 110 220],'FeedName','F1');
+    addSystem(model,'Mixer','nirp.blocks.Mixer',[170 145 280 225],'NumInputs','2');
+    addSystem(model,'CSTR','nirp.blocks.CSTR',[340 150 460 220],'V','0.1','VUnit','m^3');
+    addSystem(model,'Splitter','nirp.blocks.Splitter',[520 140 630 230],'Fractions','[0.1 0.9]');
+    addSystem(model,'Recycle','nirp.blocks.Recycle',[520 290 650 350],'Method','Wegstein');
+    addSystem(model,'Product','nirp.blocks.Product',[700 155 810 215], ...
+        'ResultName','Product','ReferenceFeed','F1','KeyComponent','A');
+    add_line(model,'Feed/1','Mixer/1');add_line(model,'Recycle/1','Mixer/2');
+    add_line(model,'Mixer/1','CSTR/1');add_line(model,'CSTR/1','Splitter/1');
+    add_line(model,'Splitter/1','Product/1');add_line(model,'Splitter/2','Recycle/1');
+end
+
+function buildEx6(model)
+    addSystem(model,'Feed','nirp.blocks.Feed',[30 150 110 200],'FeedName','F1');
+    addSystem(model,'CSTR','nirp.blocks.CSTR',[280 135 410 210], ...
+        'VSource','Input port','HeatMode','Isothermal');
+    addSystem(model,'Adjust','nirp.blocks.Adjust',[60 280 230 350], ...
+        'TargetVariable','Conversion','KeyComponent','A','ReferenceFeed','F1', ...
+        'TargetValue','0.8','InitialValue','0.1','MinValue','0.001', ...
+        'MaxValue','1','ParameterUnit','m^3');
+    addSystem(model,'Product','nirp.blocks.Product',[500 150 610 200], ...
+        'ResultName','Product','ReferenceFeed','F1','KeyComponent','A');
+    add_line(model,'Feed/1','CSTR/1');add_line(model,'Adjust/1','CSTR/2');
+    add_line(model,'CSTR/1','Adjust/1');add_line(model,'CSTR/1','Product/1');
+end
+
+function buildEx7(model)
+    addSystem(model,'Feed','nirp.blocks.Feed',[30 210 110 260],'FeedName','F1');
+    addSystem(model,'CSTR 500 L','nirp.blocks.CSTR',[190 90 330 165], ...
+        'V','500','VUnit','L','HeatMode','Adiabatic','InitialTGuess','495','InitialTGuessUnit','K');
+    addSystem(model,'CSTR 250 L 1','nirp.blocks.CSTR',[190 300 330 375], ...
+        'V','250','VUnit','L','HeatMode','Adiabatic','InitialTGuess','490','InitialTGuessUnit','K');
+    addSystem(model,'CSTR 250 L 2','nirp.blocks.CSTR',[400 300 540 375], ...
+        'V','250','VUnit','L','HeatMode','Adiabatic','InitialTGuess','499','InitialTGuessUnit','K');
+    addSystem(model,'Product500','nirp.blocks.Product',[600 100 720 155], ...
+        'ResultName','Product500','ReferenceFeed','F1','KeyComponent','A');
+    addSystem(model,'ProductSeries','nirp.blocks.Product',[600 310 720 365], ...
+        'ResultName','ProductSeries','ReferenceFeed','F1','KeyComponent','A');
+    add_line(model,'Feed/1','CSTR 500 L/1');add_line(model,'CSTR 500 L/1','Product500/1');
+    add_line(model,'Feed/1','CSTR 250 L 1/1');add_line(model,'CSTR 250 L 1/1','CSTR 250 L 2/1');
+    add_line(model,'CSTR 250 L 2/1','ProductSeries/1');
 end
 
 function addSystem(model,name,className,position,varargin)

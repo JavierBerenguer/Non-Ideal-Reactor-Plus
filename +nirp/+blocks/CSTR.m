@@ -8,6 +8,8 @@ classdef CSTR < matlab.System
     properties (Nontunable)
         % Reactor volume.
         V = 0.1
+        % Source of reactor volume.
+        VSource = 'Dialog'
         % Reactor-volume unit.
         VUnit = 'm^3'
         % Thermal operating mode.
@@ -46,6 +48,7 @@ classdef CSTR < matlab.System
 
     properties (Constant, Hidden)
         VUnitSet = matlab.system.StringSet(UnitConverterHelper.getUnits('Volume'))
+        VSourceSet = matlab.system.StringSet({'Dialog','Input port'})
         HeatModeSet = matlab.system.StringSet({'Isothermal','Adiabatic', ...
             'Heat exchange','Specified T','Specified Q'})
         SpecifiedTUnitSet = matlab.system.StringSet({'K',[char(176) 'C']})
@@ -82,13 +85,23 @@ classdef CSTR < matlab.System
             obj.CalculationCount = 0 ;
         end
 
-        function varargout = stepImpl(obj,in)
+        function varargout = stepImpl(obj,in,varargin)
             nirp.stream.validate(in,obj.RS.nComponents) ;
-            if obj.HasCache && isequaln(in,obj.LastInput)
+            params = obj.Params ;
+            if strcmp(obj.VSource,'Input port')
+                value = varargin{1} ;
+                if ~isnumeric(value) || ~isscalar(value) || ~isfinite(value) || value <= 0
+                    error('nirp:blocks:invalidParameterPort','CSTR V input must be positive m^3.') ;
+                end
+                params.V = value ;
+            end
+            cacheInput = {in,varargin{:}} ;
+            if obj.HasCache && isequaln(cacheInput,obj.LastInput)
                 out = obj.LastOutput ; info = obj.LastInfo ;
             else
-                [out,info] = nirp.units.cstr(obj.Params,in,obj.RS) ;
-                obj.LastInput = in ; obj.LastOutput = out ; obj.LastInfo = info ;
+                [out,info] = nirp.units.cstr(params,in,obj.RS) ;
+                info.V = params.V ;
+                obj.LastInput = cacheInput ; obj.LastOutput = out ; obj.LastInfo = info ;
                 obj.HasCache = true ; obj.CalculationCount = obj.CalculationCount+1 ;
                 nirp.blocks.internal.diagnostic(obj.Model,obj.Block,obj.CalculationCount,out,info) ;
             end
@@ -96,6 +109,7 @@ classdef CSTR < matlab.System
             if obj.ShowHeatPort, varargout{2} = info.heatDuty ; end
         end
 
+        function n = getNumInputsImpl(obj), n = 1+strcmp(obj.VSource,'Input port') ; end
         function n = getNumOutputsImpl(obj), n = 1+double(obj.ShowHeatPort) ; end
         function varargout = getOutputDataTypeImpl(obj)
             varargout{1} = 'NirpStream' ;
@@ -110,7 +124,10 @@ classdef CSTR < matlab.System
         function varargout = isOutputComplexImpl(obj)
             varargout = repmat({false},1,1+double(obj.ShowHeatPort)) ;
         end
-        function name = getInputNamesImpl(~), name = 'Feed' ; end
+        function varargout = getInputNamesImpl(obj)
+            varargout{1} = 'Feed' ;
+            if strcmp(obj.VSource,'Input port'), varargout{2} = 'V (m^3)' ; end
+        end
         function varargout = getOutputNamesImpl(obj)
             varargout{1} = 'Product' ;
             if obj.ShowHeatPort, varargout{2} = 'Heat (W)' ; end
@@ -121,7 +138,7 @@ classdef CSTR < matlab.System
     methods (Static, Access = protected)
         function groups = getPropertyGroupsImpl()
             groups = matlab.system.display.Section('Title','CSTR', ...
-                'PropertyList',{'V','VUnit','HeatMode','SpecifiedT', ...
+                'PropertyList',{'VSource','V','VUnit','HeatMode','SpecifiedT', ...
                 'SpecifiedTUnit','SpecifiedQ','SpecifiedQUnit','U','UUnit', ...
                 'A','AUnit','UtilityTin','UtilityTinUnit','UtilityTout', ...
                 'UtilityToutUnit','InitialTGuess','InitialTGuessUnit','ShowHeatPort'}) ;

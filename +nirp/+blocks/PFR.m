@@ -10,6 +10,8 @@ classdef PFR < matlab.System
         GeometryMode = 'Volume'
         % Reactor volume.
         V = 0.1
+        % Source of reactor volume.
+        VSource = 'Dialog'
         % Reactor-volume unit.
         VUnit = 'm^3'
         % Tube length.
@@ -74,6 +76,7 @@ classdef PFR < matlab.System
     properties (Constant, Hidden)
         GeometryModeSet=matlab.system.StringSet({'Volume','Length'})
         VUnitSet=matlab.system.StringSet(UnitConverterHelper.getUnits('Volume'))
+        VSourceSet=matlab.system.StringSet({'Dialog','Input port'})
         LUnitSet=matlab.system.StringSet(UnitConverterHelper.getUnits('Length'))
         DUnitSet=matlab.system.StringSet(UnitConverterHelper.getUnits('Length'))
         HeatModeSet=matlab.system.StringSet({'Isothermal','Adiabatic','Heat exchange','Specified T','Specified Q'})
@@ -112,28 +115,36 @@ classdef PFR < matlab.System
             obj.Params.viscosity=UnitConverterHelper.convertToSI('Viscosity',obj.Viscosity,char(obj.ViscosityUnit));
             obj.HasCache=false; obj.CalculationCount=0;
         end
-        function varargout=stepImpl(obj,in)
+        function varargout=stepImpl(obj,in,varargin)
             nirp.stream.validate(in,obj.RS.nComponents);
-            if obj.HasCache && isequaln(in,obj.LastInput), out=obj.LastOutput; info=obj.LastInfo;
+            params=obj.Params;
+            if strcmp(obj.VSource,'Input port')
+                value=varargin{1};
+                if ~isnumeric(value)||~isscalar(value)||~isfinite(value)||value<=0,error('nirp:blocks:invalidParameterPort','PFR V input must be positive m^3.');end
+                params.V=value;
+            end
+            cacheInput={in,varargin{:}};
+            if obj.HasCache && isequaln(cacheInput,obj.LastInput), out=obj.LastOutput; info=obj.LastInfo;
             else
-                [out,info]=nirp.units.pfr(obj.Params,in,obj.RS); obj.LastInput=in; obj.LastOutput=out; obj.LastInfo=info;
+                [out,info]=nirp.units.pfr(params,in,obj.RS); obj.LastInput=cacheInput; obj.LastOutput=out; obj.LastInfo=info;
                 obj.HasCache=true; obj.CalculationCount=obj.CalculationCount+1;
                 nirp.blocks.internal.diagnostic(obj.Model,obj.Block,obj.CalculationCount,out,info);
             end
             varargout{1}=out; if obj.ShowHeatPort, varargout{2}=info.heatDuty; end
         end
+        function n=getNumInputsImpl(obj),n=1+strcmp(obj.VSource,'Input port');end
         function n=getNumOutputsImpl(obj), n=1+double(obj.ShowHeatPort); end
         function varargout=getOutputDataTypeImpl(obj), varargout{1}='NirpStream'; if obj.ShowHeatPort,varargout{2}='double';end,end
         function varargout=getOutputSizeImpl(obj),varargout=repmat({[1 1]},1,1+double(obj.ShowHeatPort));end
         function varargout=isOutputFixedSizeImpl(obj),varargout=repmat({true},1,1+double(obj.ShowHeatPort));end
         function varargout=isOutputComplexImpl(obj),varargout=repmat({false},1,1+double(obj.ShowHeatPort));end
-        function name=getInputNamesImpl(~),name='Feed';end
+        function varargout=getInputNamesImpl(obj),varargout{1}='Feed';if strcmp(obj.VSource,'Input port'),varargout{2}='V (m^3)';end,end
         function varargout=getOutputNamesImpl(obj),varargout{1}='Product';if obj.ShowHeatPort,varargout{2}='Heat (W)';end,end
         function icon=getIconImpl(~),icon='PFR';end
     end
     methods (Static,Access=protected)
         function groups=getPropertyGroupsImpl()
-            groups=matlab.system.display.Section('Title','PFR','PropertyList',{'GeometryMode','V','VUnit','L','LUnit','D','DUnit','NTubes','HeatMode','SpecifiedT','SpecifiedTUnit','SpecifiedQ','SpecifiedQUnit','U','UUnit','A','AUnit','UtilityTin','UtilityTinUnit','UtilityTout','UtilityToutUnit','InitialTGuess','InitialTGuessUnit','PressureMode','PressureDropEqn','ParticleDiameter','ParticleDiameterUnit','Density','DensityUnit','Viscosity','ViscosityUnit','ShowHeatPort'});
+            groups=matlab.system.display.Section('Title','PFR','PropertyList',{'GeometryMode','VSource','V','VUnit','L','LUnit','D','DUnit','NTubes','HeatMode','SpecifiedT','SpecifiedTUnit','SpecifiedQ','SpecifiedQUnit','U','UUnit','A','AUnit','UtilityTin','UtilityTinUnit','UtilityTout','UtilityToutUnit','InitialTGuess','InitialTGuessUnit','PressureMode','PressureDropEqn','ParticleDiameter','ParticleDiameterUnit','Density','DensityUnit','Viscosity','ViscosityUnit','ShowHeatPort'});
         end
         function mode=getSimulateUsingImpl(),mode='Interpreted execution';end
         function flag=showSimulateUsingImpl(),flag=false;end
