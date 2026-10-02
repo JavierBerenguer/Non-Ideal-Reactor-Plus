@@ -48,6 +48,27 @@ classdef NirpUnitDialogsTest < matlab.unittest.TestCase
             addUnit('dialog_model','CSTR','nirp.blocks.CSTR',[260 120 370 190]);addStream('dialog_model','Middle','Intermediate',[430 130 540 180]);add_line('dialog_model','F1/1','CSTR/1');add_line('dialog_model','CSTR/1','Middle/1');
             d=nirp.flowsheet.ReactorDialog('dialog_model/CSTR','Visible','off');testCase.addTeardown(@() deleteValid(d));data=d.getConnections();testCase.verifyTrue(any(strcmp(data(:,3),'F1')));testCase.verifyTrue(any(strcmp(data(:,3),'Middle')));
         end
+        function reactorVisibleControlsStayInsideAndDoNotOverlap(testCase)
+            addUnit('dialog_model','PFR','nirp.blocks.PFR',[240 120 350 190]);
+            d=nirp.flowsheet.ReactorDialog('dialog_model/PFR','Visible','off');testCase.addTeardown(@() deleteValid(d));
+            d.Figure.Visible='on';d.setHeatMode('Heat exchange');select(d.PressureModeGroup,'Non constant');select(d.PressureEquationGroup,'Ergun');drawnow;
+            verifyVisibleLayout(testCase,d.Figure,'Reactor');
+            d.setHeatMode('Specified T');drawnow;verifyVisibleLayout(testCase,d.Figure,'Reactor');
+            d.Figure.Visible='off';
+        end
+        function dialogButtonsAreEqualAndRightAligned(testCase)
+            addUnit('dialog_model','CSTR','nirp.blocks.CSTR',[240 120 350 190]);
+            dialogs={nirp.flowsheet.ReactorDialog('dialog_model/CSTR','Visible','off')};
+            testCase.addTeardown(@() deleteValid(dialogs{1}));dialogs{1}.Figure.Visible='on';drawnow;
+            buttons=findall(dialogs{1}.Figure,'Type','uibutton');
+            action=buttons(ismember(string({buttons.Text}),["OK" "Apply" "Cancel"]));
+            columns=arrayfun(@(button) button.Layout.Column(1),action);
+            [columns,order]=sort(columns);parent=action(1).Parent;
+            testCase.verifyEqual(reshape(columns,1,[]),[2 3 4]);
+            testCase.verifyEqual(cell2mat(parent.ColumnWidth(2:4)),[90 90 90]);
+            testCase.verifyEqual(reshape(string({action(order).Text}),1,[]),["OK" "Apply" "Cancel"]);
+            dialogs{1}.Figure.Visible='off';
+        end
         function callbacksOpenStructuredDialogs(testCase)
             classes={'CSTR','PFR','Heater','Splitter','Mixer'};for i=1:numel(classes),addUnit('dialog_model',classes{i},['nirp.blocks.' classes{i}],[220 40+60*i 340 90+60*i]);testCase.verifySubstring(get_param(['dialog_model/' classes{i}],'OpenFcn'),'Dialog.open');end
             flow=find_system('dialog_model','SearchDepth',1,'BlockType','SubSystem');testCase.verifySubstring(get_param(flow{1},'OpenFcn'),'ReactiveSystemDialog');
@@ -63,3 +84,37 @@ function addStream(model,name,role,pos),add_block('simulink/User-Defined Functio
 function select(group,value),b=group.Children;i=find(strcmp({b.Text},value),1);group.SelectedObject=b(i);feval(group.SelectionChangedFcn,group,[]);end
 function cleanup(testCase),bdclose('all');Simulink.data.dictionary.closeAll('-discard');f=findall(groot,'Type','Figure');if ~isempty(f),delete(f);end;evalin('base','clear nirpResults');rmpath(testCase.Folder);Simulink.fileGenControl('setConfig','config',testCase.FileGenerationConfig);end
 function deleteValid(value),try,if isvalid(value),delete(value);end,catch,end,end
+function verifyVisibleLayout(testCase,figure,title)
+tabs=findall(figure,'Type','uitab','Title',title);controls=findall(tabs(1),'-property','Position');
+keep=false(size(controls));
+for i=1:numel(controls)
+    keep(i)=~isprop(controls(i),'Children')&&strcmp(string(controls(i).Visible),"on");
+end
+controls=controls(keep);tolerance=1;outside=[];overlaps=[];
+for i=1:numel(controls)
+    for j=i+1:numel(controls)
+        if controls(i).Parent~=controls(j).Parent,continue,end
+        parent=controls(i).Parent;
+        if isa(parent,'matlab.ui.container.GridLayout')
+            aRow=controls(i).Layout.Row;aCol=controls(i).Layout.Column;
+            bRow=controls(j).Layout.Row;bCol=controls(j).Layout.Column;
+            rowOverlap=max(aRow(1),bRow(1))<=min(aRow(end),bRow(end));
+            colOverlap=max(aCol(1),bCol(1))<=min(aCol(end),bCol(end));
+            if rowOverlap&&colOverlap,overlaps(end+1,:)=[i j];end %#ok<AGROW>
+        else
+            a=controls(i).Position;b=controls(j).Position;
+            overlap=min(a(1:2)+a(3:4),b(1:2)+b(3:4))-max(a(1:2),b(1:2));
+            if all(overlap>tolerance),overlaps(end+1,:)=[i j];end %#ok<AGROW>
+        end
+    end
+end
+for i=1:numel(controls)
+    parent=controls(i).Parent;
+    if isa(parent,'matlab.ui.container.GridLayout')
+        row=controls(i).Layout.Row;column=controls(i).Layout.Column;
+        if row(1)<1||row(end)>numel(parent.RowHeight)||column(1)<1||column(end)>numel(parent.ColumnWidth),outside(end+1)=i;end %#ok<AGROW>
+    end
+end
+testCase.verifyEmpty(outside,sprintf('Visible controls outside the figure: %s.',mat2str(outside)));
+testCase.verifyEmpty(overlaps,sprintf('Visible control pairs overlap: %s.',mat2str(overlaps)));
+end

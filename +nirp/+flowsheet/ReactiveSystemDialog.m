@@ -25,6 +25,21 @@ classdef ReactiveSystemDialog < handle
         StoichTable
         ThermoComponentTable
         ThermoReactionTable
+        GeneralComponentTable
+        ReactionListBox
+        KineticTypeDropDown
+        K0Field
+        EaField
+        EaUnitDropDown
+        OrdersField
+        ReverseK0Field
+        ReverseEaField
+        ReverseEaUnitDropDown
+        ReverseOrdersField
+        ExpressionField
+        OKButton
+        ApplyButton
+        CancelButton
     end
 
     properties (Access = private)
@@ -34,6 +49,9 @@ classdef ReactiveSystemDialog < handle
         ComponentTab
         ReactionTab
         FeedTab
+        KineticDetailGrid
+        SelectedReaction = 1
+        UpdatingKinetics = false
     end
 
     methods
@@ -132,6 +150,7 @@ classdef ReactiveSystemDialog < handle
             obj.FeedTable.Data = feedData(:,1:11) ;
             obj.ComponentCountSpinner.Value = nComp ;
             obj.ReactionCountSpinner.Value = nReactions ;
+            obj.refreshDerivedTables() ;
             obj.StatusLabel.Text = 'Package loaded.' ;
         end
 
@@ -292,6 +311,29 @@ classdef ReactiveSystemDialog < handle
                 obj.StatusLabel.Text = 'Package saved to model.' ;
             end
         end
+
+        function selectReaction(obj,index)
+            nReactions=size(obj.ReactionTable.Data,1);
+            if index<1 || index>nReactions || index~=fix(index)
+                error('nirp:flowsheet:invalidReaction','Reaction index is out of range.') ;
+            end
+            obj.SelectedReaction=index;
+            if ~isempty(obj.ReactionListBox.Items)
+                obj.ReactionListBox.Value=obj.ReactionListBox.Items{index};
+            end
+            obj.loadKineticDetail();
+        end
+
+        function setKineticType(obj,type)
+            type=lower(char(string(type)));
+            if ~any(strcmp(type,{'powerlaw','reversible','expression'}))
+                error('nirp:flowsheet:invalidKinetics','Unknown kinetics type.') ;
+            end
+            obj.KineticTypeDropDown.Value=type;
+            data=obj.ReactionTable.Data;nComp=size(obj.ComponentTable.Data,1);
+            data{obj.SelectedReaction,nComp+3}=type;obj.ReactionTable.Data=data;
+            obj.updateKineticVisibility();obj.refreshReactionList();
+        end
     end
 
     methods (Static)
@@ -306,13 +348,13 @@ classdef ReactiveSystemDialog < handle
                 'Tag','NirpReactiveSystemDialog','Position',[100 100 1260 720], ...
                 'Visible',visible) ;
             main = uigridlayout(obj.Figure,[4 1]) ;
-            main.RowHeight = {'1x',34,42,30} ;
+            main.RowHeight = {'1x',38,42,26} ;
             tabs = uitabgroup(main) ;
             obj.ComponentTab = uitab(tabs,'Title','General') ;
             obj.ReactionTab = uitab(tabs,'Title','Kinetics') ;
             obj.FeedTab = uitab(tabs,'Title','Thermodynamics') ;
             obj.buildComponents() ; obj.buildReactions() ; obj.buildFeeds() ;
-            settings=uigridlayout(main,[1 7],'ColumnWidth',{135,90,170,90,'1x',110,110});
+            settings=uigridlayout(main,[1 8],'ColumnWidth',{135,90,170,110,'1x',110,110,10});
             uilabel(settings,'Text','Maximum iterations');
             obj.MaxIterationsField=uieditfield(settings,'numeric','Limits',[1 Inf], ...
                 'RoundFractionalValues','on','Value',200);
@@ -322,9 +364,9 @@ classdef ReactiveSystemDialog < handle
                 if ~isempty(block),obj.MaxIterationsField.Value=str2double(get_param(block,'MaxIterations'));obj.ShowResultsCheckBox.Value=strcmp(get_param(block,'ShowResultsAfterRun'),'on');end
                 uibutton(settings,'Text','Show results','ButtonPushedFcn',@(~,~) nirp.flowsheet.showResults(obj.Model));
             end
-            controls = uigridlayout(main,[1 8]) ;
+            controls = uigridlayout(main,[1 10]) ;
             controls.Padding = [10 4 10 4] ;
-            controls.ColumnWidth = {115,180,90,'1x',115,115,115,115} ;
+            controls.ColumnWidth = {70,180,100,'1x',110,110,90,90,90,10} ;
             uilabel(controls,'Text','Example') ;
             obj.ExampleDropDown = uidropdown(controls,'Items', ...
                 {'firstOrderLiquid','problem40Gas'}) ;
@@ -340,22 +382,30 @@ classdef ReactiveSystemDialog < handle
                 uibutton(controls,'Text','Create flowsheet...','ButtonPushedFcn', ...
                     @(~,~) obj.createInteractive()) ;
             end
+            obj.OKButton=uibutton(controls,'Text','OK','ButtonPushedFcn', ...
+                @(~,~) obj.acceptDialog()) ;
+            obj.ApplyButton=uibutton(controls,'Text','Apply','ButtonPushedFcn', ...
+                @(~,~) obj.applyDialog()) ;
+            obj.CancelButton=uibutton(controls,'Text','Cancel','ButtonPushedFcn', ...
+                @(~,~) delete(obj)) ;
             obj.StatusLabel = uilabel(main,'Text','Ready.','FontAngle','italic') ;
         end
 
         function buildComponents(obj)
             layout = uigridlayout(obj.ComponentTab,[5 1]) ;
-            layout.RowHeight = {34,'0.55x',32,26,'0.45x'} ;
-            header=uigridlayout(layout,[1 4]);uilabel(header,'Text','Number of components');
+            layout.RowHeight = {38,'0.48x',32,26,'0.52x'} ;
+            header=uigridlayout(layout,[1 5],'ColumnWidth',{150,110,140,110,'1x'});
+            uilabel(header,'Text','Number of components');
             obj.ComponentCountSpinner=uispinner(header,'Limits',[1 Inf], ...
                 'RoundFractionalValues','on','ValueChangedFcn',@(~,~) obj.countsChanged());
+            uilabel(header,'Text','Number of reactions');
+            obj.ReactionCountSpinner=uispinner(header,'Limits',[1 Inf], ...
+                'RoundFractionalValues','on','ValueChangedFcn',@(~,~) obj.countsChanged());
             uilabel(header,'Text','Stoichiometry columns follow component names.','FontAngle','italic');
-            obj.ComponentTable = uitable(layout,'ColumnName', ...
-                {'Name','Mw (g/mol)','Cp type','Cp','Cp unit'}, ...
-                'ColumnEditable',true(1,5),'ColumnFormat', ...
-                {'char','numeric',{'constant','polynomial'},'char', ...
-                UnitConverterHelper.getUnits('MolarHeatCapacity')}, ...
-                'CellEditCallback',@(~,event) obj.componentEdited(event)) ;
+            obj.GeneralComponentTable = uitable(layout,'ColumnName', ...
+                {'Name','Mw (g/mol)'},'ColumnEditable',[true true], ...
+                'CellEditCallback',@(~,event) obj.generalComponentEdited(event)) ;
+            obj.ComponentTable=uitable(obj.Figure,'Visible','off');
             buttons = uigridlayout(layout,[1 3]) ; buttons.ColumnWidth={80,80,'1x'} ;
             buttons.Padding = [0 0 0 0] ;
             uibutton(buttons,'Text','Add','ButtonPushedFcn',@(~,~) obj.addComponent()) ;
@@ -367,9 +417,9 @@ classdef ReactiveSystemDialog < handle
         end
 
         function buildReactions(obj)
-            layout = uigridlayout(obj.ReactionTab,[3 1]) ;
-            layout.RowHeight = {34,'1x',32} ;
-            header = uigridlayout(layout,[1 6]) ;
+            layout = uigridlayout(obj.ReactionTab,[2 1]) ;
+            layout.RowHeight = {38,'1x'} ;
+            header = uigridlayout(layout,[1 4],'ColumnWidth',{130,'1x',80,'1x'}) ;
             header.Padding = [0 0 0 0] ;
             uilabel(header,'Text','Concentration unit') ;
             obj.ConcentrationUnitDropDown = uidropdown(header,'Items', ...
@@ -377,15 +427,33 @@ classdef ReactiveSystemDialog < handle
             uilabel(header,'Text','Time unit') ;
             obj.TimeUnitDropDown = uidropdown(header,'Items', ...
                 UnitConverterHelper.getUnits('Time')) ;
-            uilabel(header,'Text','Reactions') ;
-            obj.ReactionCountSpinner=uispinner(header,'Limits',[1 Inf], ...
-                'RoundFractionalValues','on','ValueChangedFcn',@(~,~) obj.countsChanged());
-            obj.ReactionTable = uitable(layout,'ColumnEditable',true, ...
-                'CellEditCallback',@(~,~) obj.refreshDerivedTables()) ;
-            buttons = uigridlayout(layout,[1 3]) ; buttons.ColumnWidth={80,80,'1x'} ;
-            buttons.Padding = [0 0 0 0] ;
-            uibutton(buttons,'Text','Add','ButtonPushedFcn',@(~,~) obj.addReaction()) ;
-            uibutton(buttons,'Text','Remove','ButtonPushedFcn',@(~,~) obj.removeLast('reaction')) ;
+            content=uigridlayout(layout,[1 2],'ColumnWidth',{310,'1x'});
+            listPanel=uipanel(content,'Title','Reactions');listGrid=uigridlayout(listPanel,[2 1], ...
+                'RowHeight',{'1x',32});
+            obj.ReactionListBox=uilistbox(listGrid,'ValueChangedFcn', ...
+                @(~,~) obj.reactionSelected());
+            buttons=uigridlayout(listGrid,[1 3],'ColumnWidth',{80,80,'1x'},'Padding',[0 0 0 0]);
+            uibutton(buttons,'Text','Add','ButtonPushedFcn',@(~,~) obj.addReaction());
+            uibutton(buttons,'Text','Remove','ButtonPushedFcn',@(~,~) obj.removeLast('reaction'));
+            detailPanel=uipanel(content,'Title','Kinetic details');
+            obj.KineticDetailGrid=uigridlayout(detailPanel,[7 3], ...
+                'ColumnWidth',{130,'1x',170},'RowHeight',{32,32,32,32,32,32,'1x'});
+            obj.KineticTypeDropDown=detailDrop(obj.KineticDetailGrid,1,'Kinetics', ...
+                {'powerlaw','reversible','expression'},@(~,~) obj.kineticTypeChanged());
+            [obj.K0Field,~]=detailText(obj.KineticDetailGrid,2,'k0',false);
+            [obj.EaField,obj.EaUnitDropDown]=detailQuantity(obj.KineticDetailGrid,3,'Ea','EnergyPerMol');
+            [obj.OrdersField,~]=detailText(obj.KineticDetailGrid,4,'Orders',false);
+            [obj.ReverseK0Field,~]=detailText(obj.KineticDetailGrid,5,'Reverse k0',false);
+            [obj.ReverseEaField,obj.ReverseEaUnitDropDown]=detailQuantity(obj.KineticDetailGrid,6,'Reverse Ea','EnergyPerMol');
+            [obj.ReverseOrdersField,~]=detailText(obj.KineticDetailGrid,7,'Reverse orders',false);
+            expressionLabel=uilabel(obj.KineticDetailGrid,'Text','Expression','HorizontalAlignment','right');
+            expressionLabel.Layout.Row=[2 3];expressionLabel.Layout.Column=1;
+            obj.ExpressionField=uitextarea(obj.KineticDetailGrid,'ValueChangedFcn',@(~,~) obj.kineticDetailEdited());
+            obj.ExpressionField.Layout.Row=[2 7];obj.ExpressionField.Layout.Column=[2 3];
+            fields={obj.K0Field,obj.EaField,obj.EaUnitDropDown,obj.OrdersField, ...
+                obj.ReverseK0Field,obj.ReverseEaField,obj.ReverseEaUnitDropDown,obj.ReverseOrdersField};
+            for i=1:numel(fields),fields{i}.ValueChangedFcn=@(~,~) obj.kineticDetailEdited();end
+            obj.ReactionTable=uitable(obj.Figure,'Visible','off');
         end
 
         function buildFeeds(obj)
@@ -414,6 +482,14 @@ classdef ReactiveSystemDialog < handle
         function stoichEdited(obj,event)
             data=obj.ReactionTable.Data ; data{event.Indices(1),event.Indices(2)}=event.NewData ;
             obj.ReactionTable.Data=data ;
+            obj.refreshDerivedTables() ;
+        end
+
+        function generalComponentEdited(obj,event)
+            data=obj.ComponentTable.Data;
+            data{event.Indices(1),event.Indices(2)}=event.NewData;
+            obj.ComponentTable.Data=data;
+            obj.componentEdited(event);
         end
 
         function thermoComponentEdited(obj,event)
@@ -513,13 +589,94 @@ classdef ReactiveSystemDialog < handle
             reactions=obj.ReactionTable.Data;nReactions=size(reactions,1);
             obj.StoichTable.ColumnName=components(:,1)';
             obj.StoichTable.Data=reactions(:,1:nComp);
+            obj.GeneralComponentTable.Data=components(:,1:2);
             thermo=cell(nComp,4);
             for i=1:nComp,thermo(i,:)={components{i,1},components{i,3},components{i,4},components{i,5}};end
             obj.ThermoComponentTable.Data=thermo;
             dh=cell(nReactions,3);
-            for i=1:nReactions,dh(i,:)={sprintf('Reaction %d',i),reactions{i,nComp+1},reactions{i,nComp+2}};end
+            labels=obj.reactionLabels();
+            for i=1:nReactions,dh(i,:)={labels{i},reactions{i,nComp+1},reactions{i,nComp+2}};end
             obj.ThermoReactionTable.Data=dh;
             obj.ComponentCountSpinner.Value=nComp;obj.ReactionCountSpinner.Value=nReactions;
+            obj.refreshReactionList();
+        end
+
+        function refreshReactionList(obj)
+            labels=obj.reactionLabels();
+            if isempty(labels),return,end
+            obj.SelectedReaction=min(max(obj.SelectedReaction,1),numel(labels));
+            obj.ReactionListBox.Items=labels;
+            obj.ReactionListBox.Value=labels{obj.SelectedReaction};
+            obj.loadKineticDetail();
+        end
+
+        function labels=reactionLabels(obj)
+            components=string(obj.ComponentTable.Data(:,1));data=obj.ReactionTable.Data;
+            labels=cell(1,size(data,1));arrow=char(8594);
+            for row=1:size(data,1)
+                coefficients=cell2mat(data(row,1:numel(components)));
+                reactants=sideText(-min(coefficients,0),components);
+                products=sideText(max(coefficients,0),components);
+                labels{row}=sprintf('R%d: %s %s %s',row,reactants,arrow,products);
+            end
+        end
+
+        function reactionSelected(obj)
+            index=find(strcmp(obj.ReactionListBox.Items,obj.ReactionListBox.Value),1);
+            if ~isempty(index),obj.selectReaction(index);end
+        end
+
+        function loadKineticDetail(obj)
+            if obj.UpdatingKinetics || isempty(obj.ReactionTable.Data),return,end
+            obj.UpdatingKinetics=true;cleanup=onCleanup(@() obj.finishKineticUpdate());
+            data=obj.ReactionTable.Data;nComp=size(obj.ComponentTable.Data,1);row=obj.SelectedReaction;
+            obj.KineticTypeDropDown.Value=data{row,nComp+3};
+            obj.K0Field.Value=scalarText(data{row,nComp+4});
+            obj.EaField.Value=scalarText(data{row,nComp+5});setDropdownValue(obj.EaUnitDropDown,data{row,nComp+6});
+            obj.OrdersField.Value=char(string(data{row,nComp+7}));
+            obj.ReverseK0Field.Value=scalarText(data{row,nComp+8});
+            obj.ReverseEaField.Value=scalarText(data{row,nComp+9});
+            setDropdownValue(obj.ReverseEaUnitDropDown,data{row,nComp+10});
+            obj.ReverseOrdersField.Value=char(string(data{row,nComp+11}));
+            obj.ExpressionField.Value=cellstr(string(data{row,nComp+12}));
+            obj.updateKineticVisibility();
+        end
+
+        function finishKineticUpdate(obj),obj.UpdatingKinetics=false;end
+
+        function kineticTypeChanged(obj)
+            if obj.UpdatingKinetics,return,end
+            obj.setKineticType(obj.KineticTypeDropDown.Value);
+        end
+
+        function kineticDetailEdited(obj)
+            if obj.UpdatingKinetics,return,end
+            data=obj.ReactionTable.Data;nComp=size(obj.ComponentTable.Data,1);row=obj.SelectedReaction;
+            data(row,nComp+(4:12))={textScalar(obj.K0Field.Value),textScalar(obj.EaField.Value), ...
+                obj.EaUnitDropDown.Value,obj.OrdersField.Value,textScalar(obj.ReverseK0Field.Value), ...
+                textScalar(obj.ReverseEaField.Value),obj.ReverseEaUnitDropDown.Value, ...
+                obj.ReverseOrdersField.Value,strjoin(string(obj.ExpressionField.Value),newline)};
+            obj.ReactionTable.Data=data;
+        end
+
+        function updateKineticVisibility(obj)
+            type=string(obj.KineticTypeDropDown.Value);
+            setDetailRows(obj.KineticDetailGrid,2:7,type~="expression");
+            if type=="powerlaw",setDetailRows(obj.KineticDetailGrid,5:7,false);end
+            expression=findobj(obj.KineticDetailGrid,'Type','uilabel','Text','Expression');
+            expression.Visible=onOff(type=="expression");obj.ExpressionField.Visible=onOff(type=="expression");
+        end
+
+        function applyDialog(obj)
+            obj.kineticDetailEdited();
+            if obj.Mode=="edit",obj.saveToModel();else,obj.validate();end
+        end
+
+        function acceptDialog(obj)
+            obj.kineticDetailEdited();
+            [valid,~]=obj.validate();if ~valid,return,end
+            if obj.Mode=="edit",obj.saveToModel();end
+            delete(obj);
         end
 
         function loadExample(obj)
@@ -613,4 +770,60 @@ end
 
 function value=onOff(flag)
     if flag,value='on';else,value='off';end
+end
+
+function field=detailDrop(grid,row,label,items,callback)
+    text=uilabel(grid,'Text',label,'HorizontalAlignment','right');
+    text.Layout.Row=row;text.Layout.Column=1;
+    field=uidropdown(grid,'Items',items,'ValueChangedFcn',callback);
+    field.Layout.Row=row;field.Layout.Column=[2 3];
+end
+
+function [field,units]=detailQuantity(grid,row,label,category)
+    text=uilabel(grid,'Text',label,'HorizontalAlignment','right');
+    text.Layout.Row=row;text.Layout.Column=1;
+    field=uieditfield(grid,'text');field.Layout.Row=row;field.Layout.Column=2;
+    units=uidropdown(grid,'Items',UnitConverterHelper.getUnits(category));
+    units.Layout.Row=row;units.Layout.Column=3;
+end
+
+function [field,unused]=detailText(grid,row,label,unused)
+    text=uilabel(grid,'Text',label,'HorizontalAlignment','right');
+    text.Layout.Row=row;text.Layout.Column=1;
+    field=uieditfield(grid,'text');field.Layout.Row=row;field.Layout.Column=[2 3];
+end
+
+function setDetailRows(grid,rows,flag)
+    children=grid.Children;
+    for i=1:numel(children)
+        if any(ismember(children(i).Layout.Row,rows))
+            children(i).Visible=onOff(flag);
+        end
+    end
+end
+
+function text=sideText(coefficients,names)
+    terms=strings(0,1);
+    for i=1:numel(coefficients)
+        coefficient=coefficients(i);
+        if coefficient<=0,continue,end
+        if abs(coefficient-1)<1e-12
+            terms(end+1)=names(i); %#ok<AGROW>
+        else
+            terms(end+1)=string(sprintf('%g %s',coefficient,names(i))); %#ok<AGROW>
+        end
+    end
+    if isempty(terms),text=char(8709);else,text=char(strjoin(terms,' + '));end
+end
+
+function text=scalarText(value)
+    if isempty(value),text='';elseif isnumeric(value),text=num2str(value,17);else,text=char(string(value));end
+end
+
+function value=textScalar(text)
+    if isempty(text)||strlength(string(text))==0,value=[];else,value=str2double(text);end
+end
+
+function setDropdownValue(control,value)
+    if any(strcmp(control.Items,char(string(value)))),control.Value=char(string(value));end
 end

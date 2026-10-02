@@ -65,6 +65,39 @@ classdef NirpReactiveSystemDialogTest < matlab.unittest.TestCase
             testCase.verifyFalse(valid) ; testCase.verifySubstring(message,'components(1).name') ;
         end
 
+        function kineticsShowsOnlyFieldsForSelectedType(testCase)
+            ed=nirp.flowsheet.ReactiveSystemDialog('Visible','off') ;
+            testCase.addTeardown(@() deleteValid(ed)) ;
+            nComp=size(ed.ComponentTable.Data,1) ; data=ed.ReactionTable.Data ;
+            data{1,nComp+3}='expression' ; data{1,nComp+12}='0.25*CA' ;
+            ed.ReactionTable.Data=data ; ed.selectReaction(1) ;
+            testCase.verifyEqual(string(ed.ExpressionField.Visible),"on") ;
+            testCase.verifyEqual(string(ed.K0Field.Visible),"off") ;
+            testCase.verifyEqual(string(ed.EaField.Visible),"off") ;
+            testCase.verifyEqual(strjoin(string(ed.ExpressionField.Value),newline),"0.25*CA") ;
+
+            data=ed.ReactionTable.Data ; data{1,nComp+3}='reversible' ;
+            data{1,nComp+8}=2 ; data{1,nComp+9}=1000 ;
+            data{1,nComp+10}='J/mol' ; data{1,nComp+11}='0 1' ;
+            ed.ReactionTable.Data=data ; ed.selectReaction(1) ;
+            testCase.verifyEqual(string(ed.ReverseK0Field.Visible),"on") ;
+            testCase.verifyEqual(string(ed.ReverseEaField.Visible),"on") ;
+            testCase.verifyEqual(string(ed.ReverseOrdersField.Visible),"on") ;
+            testCase.verifyEqual(string(ed.ExpressionField.Visible),"off") ;
+        end
+
+        function reactionCountRefreshesKineticsAndThermodynamics(testCase)
+            ed=nirp.flowsheet.ReactiveSystemDialog('Visible','off') ;
+            testCase.addTeardown(@() deleteValid(ed)) ;
+            ed.setCounts(3,4) ;
+            testCase.verifyNumElements(ed.ReactionListBox.Items,4) ;
+            testCase.verifySize(ed.ThermoReactionTable.Data,[4 3]) ;
+            testCase.verifySize(ed.StoichTable.Data,[4 3]) ;
+            testCase.verifyEqual(ed.ReactionCountSpinner.Value,4) ;
+            testCase.verifyEqual(ed.ComponentCountSpinner.Value,3) ;
+            testCase.verifySize(ed.GeneralComponentTable.Data,[3 2]) ;
+        end
+
         function createsAndSimulatesFlowsheet(testCase)
             ed=nirp.flowsheet.ReactiveSystemDialog('Visible','off') ;
             testCase.addTeardown(@() deleteValid(ed)) ;
