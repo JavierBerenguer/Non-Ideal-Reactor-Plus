@@ -5,6 +5,7 @@ slprj/
 *.slxc
 *.mexw64
 codegen/
+release/
 
 # Regenerated NIRP Simulink models and dictionaries
 simulink/NirpLibrary.slx

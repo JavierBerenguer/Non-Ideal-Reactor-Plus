@@ -1,9 +1,9 @@
 function modelFile = openExample(name,varargin)
-%OPENEXAMPLE Build, load, and optionally display a NIRP example model.
-%   MODELFILE = nirp.flowsheet.openExample(NAME) generates the examples
-%   when NAME is not present and opens it when MATLAB has a desktop.
-%   ...openExample(NAME,'Folder',FOLDER,'NoWindow',true) supports headless
-%   callers and tests without changing the example definition.
+%OPENEXAMPLE Copy a packaged NIRP example to a writable user folder.
+%   MODELFILE = nirp.flowsheet.openExample(NAME) copies the model and its
+%   data dictionary to NIRP_examples under the first userpath folder.
+%   ...openExample(NAME,'Folder',FOLDER,'NoWindow',true) selects a writable
+%   destination and replaces existing files without displaying dialogs.
 % =========================================================================
 % Javier Berenguer Sabater
 % Created: October 2, 2026. Last update: October 2, 2026
@@ -17,21 +17,77 @@ function modelFile = openExample(name,varargin)
             char(name),strjoin(cellstr(names),', ')) ;
     end
     options = parseOptions(varargin{:}) ;
-    if isempty(options.Folder)
-        repoRoot = fileparts(fileparts(fileparts(mfilename('fullpath')))) ;
-        options.Folder = fullfile(repoRoot,'simulink','examples') ;
-    end
+    repoRoot = fileparts(fileparts(fileparts(mfilename('fullpath')))) ;
+    if isempty(options.Folder), options.Folder = defaultExampleFolder() ; end
     if ~isfolder(options.Folder), mkdir(options.Folder) ; end
-    if ~contains([path pathsep],[options.Folder pathsep]), addpath(options.Folder) ; end
     modelFile = fullfile(options.Folder,[char(name) '.slx']) ;
-    if ~isfile(modelFile)
-        simulinkFolder = fullfile(fileparts(fileparts(fileparts( ...
-            mfilename('fullpath')))),'simulink') ;
-        if ~contains([path pathsep],[simulinkFolder pathsep]), addpath(simulinkFolder) ; end
-        build_examples(options.Folder) ;
+    dictionaryFile = fullfile(options.Folder,[char(name) '.sldd']) ;
+    replace = options.NoWindow || ~usejava('desktop') ;
+    if isfile(modelFile) || isfile(dictionaryFile)
+        if ~replace
+            answer = questdlg(sprintf(['Example "%s" already exists in:\n%s\n\n' ...
+                'Replace it or open the existing copy?'],name,options.Folder), ...
+                'Open NIRP example','Replace','Open existing','Cancel','Open existing') ;
+            if strcmp(answer,'Cancel') || isempty(answer), modelFile = ''; return; end
+            replace = strcmp(answer,'Replace') ;
+        end
+        if ~replace
+            loadAndOpen(modelFile,name,options.NoWindow) ;
+            return
+        end
     end
+
+    [sourceFolder,cleanup] = exampleSourceFolder(repoRoot) ; %#ok<ASGLU>
+    sourceModel = fullfile(sourceFolder,[char(name) '.slx']) ;
+    sourceDictionary = fullfile(sourceFolder,[char(name) '.sldd']) ;
+    copyfile(sourceModel,modelFile,'f') ;
+    copyfile(sourceDictionary,dictionaryFile,'f') ;
+    addFolder(options.Folder) ;
+    loadAndOpen(modelFile,name,options.NoWindow) ;
+end
+
+function folder = defaultExampleFolder()
+    folder = char(userpath) ;
+    if contains(folder,pathsep), folder = extractBefore(string(folder),pathsep) ; end
+    folder = char(folder) ;
+    if isempty(folder), folder = tempdir ; end
+    folder = fullfile(folder,'NIRP_examples') ;
+end
+
+function [folder,cleanup] = exampleSourceFolder(repoRoot)
+    folder = fullfile(repoRoot,'simulink','examples') ;
+    cleanup = [] ;
+    [names,~] = nirp.flowsheet.exampleNames() ;
+    complete = all(arrayfun(@(name) isfile(fullfile(folder,name+".slx")) && ...
+        isfile(fullfile(folder,name+".sldd")),names)) ;
+    if complete, return; end
+
+    folder = tempname ;
+    mkdir(folder) ;
+    cleanup = onCleanup(@() removeTemporaryFolder(folder)) ;
+    simulinkFolder = fullfile(repoRoot,'simulink') ;
+    addFolder(simulinkFolder) ;
+    build_examples(folder) ;
+end
+
+function loadAndOpen(modelFile,name,noWindow)
+    prioritizeFolder(fileparts(modelFile)) ;
     load_system(modelFile) ;
-    if ~options.NoWindow && usejava('desktop'), open_system(char(name)) ; end
+    if ~noWindow && usejava('desktop'), open_system(char(name)) ; end
+end
+
+function prioritizeFolder(folder)
+    if contains([path pathsep],[folder pathsep]), rmpath(folder) ; end
+    addpath(folder,'-begin') ;
+end
+
+function addFolder(folder)
+    if ~contains([path pathsep],[folder pathsep]), addpath(folder) ; end
+end
+
+function removeTemporaryFolder(folder)
+    if contains([path pathsep],[folder pathsep]), rmpath(folder) ; end
+    if isfolder(folder), rmdir(folder,'s') ; end
 end
 
 function options = parseOptions(varargin)
@@ -44,6 +100,9 @@ function options = parseOptions(varargin)
         switch lower(option)
             case 'folder'
                 options.Folder = char(string(varargin{i+1})) ;
+                if isempty(options.Folder)
+                    error('nirp:flowsheet:invalidOption','Folder must not be empty.') ;
+                end
             case 'nowindow'
                 value = varargin{i+1} ;
                 if ~isscalar(value) || (~islogical(value) && ~isnumeric(value))

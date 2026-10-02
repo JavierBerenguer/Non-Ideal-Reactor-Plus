@@ -14,7 +14,7 @@ function modelFile = chooseExample()
     labels = descriptions+" ("+names+")" ;
     [selection,accepted] = listdlg('PromptString','Select an example:', ...
         'SelectionMode','single','ListString',cellstr(labels), ...
-        'Name','Open NIRP example') ;
+        'Name','Open NIRP example','ListSize',[650 230]) ;
     if accepted
         modelFile = nirp.flowsheet.openExample(names(selection)) ;
     end
