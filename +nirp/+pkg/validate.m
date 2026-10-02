@@ -173,6 +173,51 @@ function validate(pkg)
     if numel(unique(feedNameValues)) ~= numel(feeds)
         fail('feeds.name','unique nonempty names') ;
     end
+    if isfield(pkg,'streamSpecs')
+        validateStreamSpecs(pkg.streamSpecs) ;
+    end
+end
+
+function validateStreamSpecs(specs)
+    if ~isstruct(specs) || ~isscalar(specs)
+        fail('streamSpecs','a scalar struct indexed by stream name') ;
+    end
+    streams = fieldnames(specs) ;
+    categoryMap = struct('F','MolarFlow','MolarFlow','MolarFlow', ...
+        'C','Concentration','Concentration','Concentration', ...
+        'T','Temperature','P','Pressure','Q','VolumetricFlow', ...
+        'Density','Density','Viscosity','Viscosity') ;
+    for i = 1:numel(streams)
+        stream = specs.(streams{i}) ;
+        path = ['streamSpecs.' streams{i}] ;
+        if ~isstruct(stream) || ~isscalar(stream)
+            fail(path,'a scalar struct of magnitude specifications') ;
+        end
+        magnitudes = fieldnames(stream) ;
+        for j = 1:numel(magnitudes)
+            magnitude = stream.(magnitudes{j}) ;
+            magnitudePath = [path '.' magnitudes{j}] ;
+            if ~isstruct(magnitude) || ~isscalar(magnitude) || ...
+                    ~all(isfield(magnitude,{'value','unit','origin'}))
+                fail(magnitudePath,'a scalar struct with value, unit, and origin') ;
+            end
+            if ~isnumeric(magnitude.value) || ~isreal(magnitude.value) || ...
+                    isempty(magnitude.value) || any(~isfinite(magnitude.value(:)))
+                fail([magnitudePath '.value'],'finite numeric data') ;
+            end
+            origin = lower(requireTextField(magnitude,'origin', ...
+                [magnitudePath '.origin'])) ;
+            if origin ~= "specified" && origin ~= "calculated"
+                fail([magnitudePath '.origin'],'"specified" or "calculated"') ;
+            end
+            if isfield(categoryMap,magnitudes{j})
+                requireUnit(categoryMap.(magnitudes{j}),magnitude.unit, ...
+                    [magnitudePath '.unit']) ;
+            else
+                requireTextField(magnitude,'unit',[magnitudePath '.unit']) ;
+            end
+        end
+    end
 end
 
 function validateRateTerm(term,path,nComp)

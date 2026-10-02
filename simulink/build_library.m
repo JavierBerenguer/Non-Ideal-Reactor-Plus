@@ -14,12 +14,18 @@ function libraryFile = build_library(folder)
     new_system(name,'Library');
     cleanup=onCleanup(@() closeLoaded(name));
     set_param(name,'EnableLBRepository','on');
-    classes={'Feed','Product','CSTR','PFR','Mixer','Splitter','Heater','Recycle','Adjust'};
+    labels={'Feed stream','Stream','Product stream','CSTR','PFR','Mixer','Splitter','Heater','Recycle','Adjust'};
+    classes={'Stream','Stream','Stream','CSTR','PFR','Mixer','Splitter','Heater','Recycle','Adjust'};
+    roles={'Feed','Intermediate','Product','','','','','','',''};
     for i=1:numel(classes)
         row=mod(i-1,3); col=floor((i-1)/3);
-        add_block('simulink/User-Defined Functions/MATLAB System',[name '/' classes{i}], ...
+        block=[name '/' labels{i}];
+        add_block('simulink/User-Defined Functions/MATLAB System',block, ...
             'System',['nirp.blocks.' classes{i}],'Position', ...
             [40+col*320 50+row*115 320+col*320 125+row*115]);
+        if strcmp(classes{i},'Stream')
+            set_param(block,'Role',roles{i});nirp.flowsheet.setupStreamBlock(block);
+        end
     end
     nirp.flowsheet.addBlock(name,'Flowsheet',[680 395 960 470],200);
     [exampleNames,descriptions]=nirp.flowsheet.exampleNames();

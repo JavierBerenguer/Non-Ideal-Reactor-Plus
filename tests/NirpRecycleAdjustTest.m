@@ -29,7 +29,7 @@ classdef NirpRecycleAdjustTest < matlab.unittest.TestCase
             alphas=[0.5 0.9 0.99];
             for i=1:numel(alphas)
                 name=sprintf('recycle_%d',i);NirpRecycleAdjustTest.buildRecycle(testCase.Folder,name,alphas(i),200,'Wegstein');
-                simulation=sim(name);results=evalin('base','nirpResults');actual=results.Product.streamSI.F(1);
+                simulation=sim(name);results=evalin('base','nirpResults');actual=results.Streams.Product.streamSI.F(1);
                 qin=1e-3/(1-alphas(i));reference=(1-alphas(i))/(1+0.01*0.1/qin-alphas(i));
                 testCase.verifyEqual(actual,reference,'RelTol',1e-8);
                 entries=nirp.flowsheet.registry('list',name);recycle=entries(strcmp({entries.kind},'Recycle'));
@@ -44,7 +44,7 @@ classdef NirpRecycleAdjustTest < matlab.unittest.TestCase
                 name=['two_' char(topology)];NirpRecycleAdjustTest.buildTwoRecycle(testCase.Folder,name,topology);
                 sim(name);results=evalin('base','nirpResults');
                 if topology=="nested",reference=0.337837837837838;else,reference=0.277777777777778;end
-                testCase.verifyEqual(results.Product.streamSI.F(1),reference,'RelTol',1e-8);
+                testCase.verifyEqual(results.Streams.Product.streamSI.F(1),reference,'RelTol',1e-8);
                 close_system(name,0);Simulink.data.dictionary.closeAll('-discard');
             end
         end
@@ -53,13 +53,13 @@ classdef NirpRecycleAdjustTest < matlab.unittest.TestCase
             for strategy=["Simultaneous","Nested"]
                 name=['adjust_' lower(char(strategy))];NirpRecycleAdjustTest.buildAdjustRecycle(testCase.Folder,name,strategy);
                 sim(name);results=evalin('base','nirpResults');
-                testCase.verifyEqual(results.Product.conversion,0.9,'AbsTol',1e-8);
+                testCase.verifyEqual(results.Streams.Product.conversion,0.9,'AbsTol',1e-8);
                 testCase.verifyEqual(results.Diagnostics.([name '_CSTR']).lastInfo.V,0.9,'RelTol',1e-8);
                 close_system(name,0);Simulink.data.dictionary.closeAll('-discard');
             end
             files=build_examples(testCase.Folder);load_system(char(files(6)));sim('ex6_adjust_volume');
             results=evalin('base','nirpResults');
-            testCase.verifyEqual(results.Product.conversion,0.8,'AbsTol',1e-8);
+            testCase.verifyEqual(results.Streams.Product.conversion,0.8,'AbsTol',1e-8);
             testCase.verifyEqual(results.Diagnostics.ex6_adjust_volume_CSTR.lastInfo.V,0.4,'RelTol',1e-8);
         end
 
@@ -73,15 +73,15 @@ classdef NirpRecycleAdjustTest < matlab.unittest.TestCase
             testCase.verifyEqual(failedInfo.status,-1);testCase.verifyTrue(nirp.stream.isValid(failed));
             files=build_examples(testCase.Folder);load_system(char(files(7)));sim('ex7_problem44c');
             results=evalin('base','nirpResults');
-            testCase.verifyEqual(results.Product500.conversion,0.977074,'AbsTol',1e-6);
-            testCase.verifyEqual(results.ProductSeries.conversion,0.994737,'AbsTol',1e-6);
+            testCase.verifyEqual(results.Streams.Product500.conversion,0.977074,'AbsTol',1e-6);
+            testCase.verifyEqual(results.Streams.ProductSeries.conversion,0.994737,'AbsTol',1e-6);
         end
 
         function maximumIterationsWarnsAndMarksResults(testCase)
             name='not_converged';NirpRecycleAdjustTest.buildRecycle(testCase.Folder,name,0.99,3,'Direct');
             testCase.verifyWarning(@() sim(name),'nirp:flowsheet:notConverged');
             results=evalin('base','nirpResults');testCase.verifyEqual(results.Flowsheet.status,-1);
-            testCase.verifyEqual(results.Product.status,-1);
+            testCase.verifyEqual(results.Streams.Product.status,-1);
         end
     end
     methods (Static,Access=private)
@@ -96,20 +96,20 @@ classdef NirpRecycleAdjustTest < matlab.unittest.TestCase
         end
         function buildRecycle(folder,name,alpha,maxIterations,method)
             NirpRecycleAdjustTest.createModel(folder,name,nirp.pkg.examples.firstOrderLiquid(),maxIterations);
-            NirpRecycleAdjustTest.add(name,'Feed','nirp.blocks.Feed',[20 150 100 200]);
+            NirpRecycleAdjustTest.add(name,'F1','nirp.blocks.Stream',[20 150 100 200],'Role','Feed');
             NirpRecycleAdjustTest.add(name,'Mixer','nirp.blocks.Mixer',[150 130 250 210]);
             NirpRecycleAdjustTest.add(name,'CSTR','nirp.blocks.CSTR',[300 135 410 205],'V','0.1');
             NirpRecycleAdjustTest.add(name,'Splitter','nirp.blocks.Splitter',[460 125 570 215],'Fractions',mat2str([1-alpha alpha],17));
             NirpRecycleAdjustTest.add(name,'Recycle','nirp.blocks.Recycle',[450 270 590 330], ...
                 'Method',method,'QMin','-1000');
-            NirpRecycleAdjustTest.add(name,'Product','nirp.blocks.Product',[640 145 740 195],'ResultName','Product');
-            add_line(name,'Feed/1','Mixer/1');add_line(name,'Recycle/1','Mixer/2');add_line(name,'Mixer/1','CSTR/1');
+            NirpRecycleAdjustTest.add(name,'Product','nirp.blocks.Stream',[640 145 740 195],'Role','Product');
+            add_line(name,'F1/1','Mixer/1');add_line(name,'Recycle/1','Mixer/2');add_line(name,'Mixer/1','CSTR/1');
             add_line(name,'CSTR/1','Splitter/1');add_line(name,'Splitter/1','Product/1');add_line(name,'Splitter/2','Recycle/1');
             nirp.flowsheet.configure(name);save_system(name);
         end
         function buildTwoRecycle(folder,name,topology)
             NirpRecycleAdjustTest.createModel(folder,name,nirp.pkg.examples.firstOrderLiquid(),200);
-            NirpRecycleAdjustTest.add(name,'Feed','nirp.blocks.Feed',[20 180 90 225]);
+            NirpRecycleAdjustTest.add(name,'F1','nirp.blocks.Stream',[20 180 90 225],'Role','Feed');
             volumes=[0.1 0.08];fractions=[0.5 0.8];
             for i=1:2
                 NirpRecycleAdjustTest.add(name,sprintf('Mixer%d',i),'nirp.blocks.Mixer',[130+360*(i-1) 150 220+360*(i-1) 220]);
@@ -119,19 +119,19 @@ classdef NirpRecycleAdjustTest < matlab.unittest.TestCase
                     'Method','Wegstein','QMin','-1000');
             end
             if topology=="series"
-                add_line(name,'Feed/1','Mixer1/1');add_line(name,'Recycle1/1','Mixer1/2');add_line(name,'Mixer1/1','CSTR1/1');add_line(name,'CSTR1/1','Splitter1/1');add_line(name,'Splitter1/2','Recycle1/1');
+                add_line(name,'F1/1','Mixer1/1');add_line(name,'Recycle1/1','Mixer1/2');add_line(name,'Mixer1/1','CSTR1/1');add_line(name,'CSTR1/1','Splitter1/1');add_line(name,'Splitter1/2','Recycle1/1');
                 add_line(name,'Splitter1/1','Mixer2/1');add_line(name,'Recycle2/1','Mixer2/2');
             else
-                add_line(name,'Feed/1','Mixer2/1');add_line(name,'Recycle2/1','Mixer2/2');add_line(name,'Mixer2/1','Mixer1/1');add_line(name,'Recycle1/1','Mixer1/2');add_line(name,'Mixer1/1','CSTR1/1');add_line(name,'CSTR1/1','Splitter1/1');add_line(name,'Splitter1/2','Recycle1/1');add_line(name,'Splitter1/1','CSTR2/1');
+                add_line(name,'F1/1','Mixer2/1');add_line(name,'Recycle2/1','Mixer2/2');add_line(name,'Mixer2/1','Mixer1/1');add_line(name,'Recycle1/1','Mixer1/2');add_line(name,'Mixer1/1','CSTR1/1');add_line(name,'CSTR1/1','Splitter1/1');add_line(name,'Splitter1/2','Recycle1/1');add_line(name,'Splitter1/1','CSTR2/1');
             end
             if topology=="series",add_line(name,'Mixer2/1','CSTR2/1');end
             add_line(name,'CSTR2/1','Splitter2/1');add_line(name,'Splitter2/2','Recycle2/1');
-            NirpRecycleAdjustTest.add(name,'Product','nirp.blocks.Product',[850 160 950 210],'ResultName','Product');add_line(name,'Splitter2/1','Product/1');
+            NirpRecycleAdjustTest.add(name,'Product','nirp.blocks.Stream',[850 160 950 210],'Role','Product');add_line(name,'Splitter2/1','Product/1');
             nirp.flowsheet.configure(name);save_system(name);
         end
         function buildAdjustRecycle(folder,name,strategy)
             NirpRecycleAdjustTest.createModel(folder,name,nirp.pkg.examples.firstOrderLiquid(),1000);
-            NirpRecycleAdjustTest.add(name,'Feed','nirp.blocks.Feed',[20 160 90 205]);
+            NirpRecycleAdjustTest.add(name,'F1','nirp.blocks.Stream',[20 160 90 205],'Role','Feed');
             NirpRecycleAdjustTest.add(name,'Mixer','nirp.blocks.Mixer',[130 140 220 215]);
             NirpRecycleAdjustTest.add(name,'CSTR','nirp.blocks.CSTR',[300 140 410 215],'VSource','Input port');
             NirpRecycleAdjustTest.add(name,'Splitter','nirp.blocks.Splitter',[470 130 570 220],'Fractions','[0.5 0.5]');
@@ -140,9 +140,9 @@ classdef NirpRecycleAdjustTest < matlab.unittest.TestCase
             NirpRecycleAdjustTest.add(name,'Adjust','nirp.blocks.Adjust',[230 290 380 355], ...
                 'TargetValue','0.9','InitialValue','0.2','MinValue','0.01','MaxValue','2','ParameterUnit','m^3', ...
                 'Damping','0.35','Tolerance','1e-10','Strategy',char(strategy));
-            NirpRecycleAdjustTest.add(name,'Product','nirp.blocks.Product',[650 145 750 200], ...
-                'ResultName','Product','ReferenceFeed','F1','KeyComponent','A');
-            add_line(name,'Feed/1','Mixer/1');add_line(name,'Recycle/1','Mixer/2');add_line(name,'Mixer/1','CSTR/1');
+            NirpRecycleAdjustTest.add(name,'Product','nirp.blocks.Stream',[650 145 750 200], ...
+                'Role','Product','ReferenceFeed','F1','KeyComponent','A');
+            add_line(name,'F1/1','Mixer/1');add_line(name,'Recycle/1','Mixer/2');add_line(name,'Mixer/1','CSTR/1');
             add_line(name,'Adjust/1','CSTR/2');add_line(name,'CSTR/1','Splitter/1');add_line(name,'Splitter/1','Adjust/1');
             add_line(name,'Splitter/1','Product/1');add_line(name,'Splitter/2','Recycle/1');
             nirp.flowsheet.configure(name);save_system(name);

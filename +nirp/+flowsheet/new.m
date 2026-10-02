@@ -29,6 +29,12 @@ function [modelFile,dictionaryFile] = new(modelName,pkg,folder,varargin)
         save_system(name,modelFile) ;
         set_param(name,'DataDictionary',[name '.sldd']) ;
         nirp.flowsheet.addBlock(name,'Flowsheet',[60 50 180 105],200) ;
+        feedName = char(string(pkg.feeds(1).name)) ;
+        feedBlock = [name '/' feedName] ;
+        add_block('simulink/User-Defined Functions/MATLAB System',feedBlock, ...
+            'System','nirp.blocks.Stream','Role','Feed', ...
+            'Position',[60 150 180 205]) ;
+        nirp.flowsheet.setupStreamBlock(feedBlock) ;
         nirp.flowsheet.configure(name) ;
         save_system(name) ;
         if parser.Results.OpenModel, open_system(name) ; end

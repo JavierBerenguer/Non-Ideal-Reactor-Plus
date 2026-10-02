@@ -70,18 +70,15 @@ classdef NirpPackageEditorTest < matlab.unittest.TestCase
             testCase.addTeardown(@() deleteValid(ed)) ;
             ed.createFlowsheet('editor_model',testCase.Folder,'OpenModel',false) ;
             load_system(fullfile(testCase.Folder,'editor_model.slx')) ;
-            add_block('simulink/User-Defined Functions/MATLAB System','editor_model/Feed', ...
-                'System','nirp.blocks.Feed','Position',[40 140 160 200], ...
-                'FeedName','F1') ;
             add_block('simulink/User-Defined Functions/MATLAB System','editor_model/CSTR', ...
                 'System','nirp.blocks.CSTR','Position',[210 140 310 200]) ;
             set_param('editor_model/CSTR','V','100','VUnit','L','HeatMode','Isothermal') ;
             add_block('simulink/User-Defined Functions/MATLAB System','editor_model/Product', ...
-                'System','nirp.blocks.Product','Position',[380 140 520 200], ...
-                'ResultName','Product','ReferenceFeed','F1','KeyComponent','A') ;
-            add_line('editor_model','Feed/1','CSTR/1') ; add_line('editor_model','CSTR/1','Product/1') ;
+                'System','nirp.blocks.Stream','Position',[380 140 520 200], ...
+                'Role','Product','ReferenceFeed','F1','KeyComponent','A') ;
+            add_line('editor_model','F1/1','CSTR/1') ; add_line('editor_model','CSTR/1','Product/1') ;
             save_system('editor_model') ; sim('editor_model') ;
-            result=evalin('base','nirpResults.Product') ;
+            result=evalin('base','nirpResults.Streams.Product') ;
             testCase.verifyEqual(result.conversion,0.5,'AbsTol',1e-8) ;
         end
 

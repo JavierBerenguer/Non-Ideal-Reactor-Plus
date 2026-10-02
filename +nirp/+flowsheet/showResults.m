@@ -1,7 +1,7 @@
 function tables = showResults(model,varargin)
-%SHOWRESULTS Return and optionally display Product result tables.
-%   TABLES = nirp.flowsheet.showResults(MODEL) returns one table per Product
-%   in nirpResults. Flow and concentration values use each Product block's
+%SHOWRESULTS Return and optionally display all Stream result tables.
+%   TABLES = nirp.flowsheet.showResults(MODEL) returns one table per Stream
+%   in nirpResults.Streams. Flow and concentration values use each block's
 %   selected units; temperature and pressure are repeated per component.
 %   ...showResults(MODEL,'NoWindow',true) never creates a UI window.
 % =========================================================================
@@ -13,13 +13,25 @@ function tables = showResults(model,varargin)
     noWindow = parseNoWindow(varargin{:}) ;
     if ~evalin('base','exist(''nirpResults'',''var'')')
         error('nirp:flowsheet:noResults', ...
-            'No Product results are available. Run the flowsheet first.') ;
+            'No Stream results are available. Run the flowsheet first.') ;
     end
     results = evalin('base','nirpResults') ;
-    fields = fieldnames(results) ;
+    if ~isstruct(results) || ~isfield(results,'Streams') || ...
+            ~isstruct(results.Streams)
+        error('nirp:flowsheet:noResults', ...
+            'nirpResults contains no Stream results.') ;
+    end
+    fields = fieldnames(results.Streams) ;
+    try
+        graph = nirp.flowsheet.topology(model) ;
+        ordered = matlab.lang.makeValidName(cellstr(graph.Order)) ;
+        fields = [intersect(ordered,fields,'stable'); ...
+            setdiff(fields,ordered,'stable')] ;
+    catch
+    end
     tables = struct() ;
     for i = 1:numel(fields)
-        item = results.(fields{i}) ;
+        item = results.Streams.(fields{i}) ;
         if ~isstruct(item) || ~isfield(item,'streamTable'), continue, end
         n = height(item.streamTable) ;
         conversion = NaN ;
@@ -37,7 +49,7 @@ function tables = showResults(model,varargin)
         tables.(fields{i}) = tableValue ;
     end
     if isempty(fieldnames(tables))
-        error('nirp:flowsheet:noResults','nirpResults contains no Product results.') ;
+        error('nirp:flowsheet:noResults','nirpResults contains no Stream results.') ;
     end
     if noWindow || ~usejava('desktop'), return, end
 

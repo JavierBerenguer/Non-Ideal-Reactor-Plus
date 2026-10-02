@@ -15,13 +15,16 @@ function finish(model)
         results = struct() ;
     end
     if ~isstruct(results), results = struct() ; end
-    fields = fieldnames(results) ;
+    if ~isfield(results,'Streams') || ~isstruct(results.Streams)
+        results.Streams = struct() ;
+    end
+    fields = fieldnames(results.Streams) ;
     for i = 1:numel(fields)
-        item = results.(fields{i}) ;
+        item = results.Streams.(fields{i}) ;
         if isstruct(item) && isfield(item,'streamSI')
             item.status = -1 ;
             item.streamSI.status = -1 ;
-            results.(fields{i}) = item ;
+            results.Streams.(fields{i}) = item ;
         end
     end
     results.Flowsheet = struct('status',-1,'notConverged',{missing}) ;

@@ -21,10 +21,10 @@ for i=1:numel(names)
     results=evalin('base','nirpResults');
     [expected,secondary]=scriptResult(i);
     if i==7
-        actual=results.ProductSeries.streamSI; actualSecondary=results.Product500.streamSI;
+        actual=results.Streams.ProductSeries.streamSI; actualSecondary=results.Streams.Product500.streamSI;
         difference(i)=max([streamDifference(actual,expected),streamDifference(actualSecondary,secondary)]);
     else
-        actual=results.Product.streamSI;
+        actual=results.Streams.Product.streamSI;
         difference(i)=streamDifference(actual,expected);
     end
     diagramF(i)=actual.F(1);scriptF(i)=expected.F(1);diagramT(i)=actual.T;scriptT(i)=expected.T;

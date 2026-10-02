@@ -62,93 +62,109 @@ function pkg=firstOrderReferencePackage()
 end
 
 function buildEx1(model)
-    addSystem(model,'Feed','nirp.blocks.Feed',[40 120 130 170],'FeedName','F1');
+    addSystem(model,'F1','nirp.blocks.Stream',[40 120 160 170],'Role','Feed');
     addSystem(model,'CSTR','nirp.blocks.CSTR',[200 110 320 180],'V','100','VUnit','L','HeatMode','Isothermal');
-    addSystem(model,'Product','nirp.blocks.Product',[390 120 500 170], ...
-        'ResultName','Product','ReferenceFeed','F1','KeyComponent','A');
-    add_line(model,'Feed/1','CSTR/1'); add_line(model,'CSTR/1','Product/1');
+    addSystem(model,'Product','nirp.blocks.Stream',[390 120 520 170], ...
+        'Role','Product','ReferenceFeed','F1','KeyComponent','A');
+    add_line(model,'F1/1','CSTR/1'); add_line(model,'CSTR/1','Product/1');
 end
 
 function buildEx2(model)
-    addSystem(model,'Feed','nirp.blocks.Feed',[30 120 120 170],'FeedName','F1');
+    addSystem(model,'F1','nirp.blocks.Stream',[20 120 130 170],'Role','Feed');
     addSystem(model,'CSTR','nirp.blocks.CSTR',[180 110 300 180],'V','100','VUnit','L','HeatMode','Adiabatic');
-    addSystem(model,'Cooler','nirp.blocks.Heater',[360 110 480 180],'Mode','Outlet T','Tout','300','ToutUnit','K','ShowHeatPort','on');
-    addSystem(model,'Product','nirp.blocks.Product',[550 120 660 170],'ResultName','Product','ReferenceFeed','F1','KeyComponent','A');
-    add_block('simulink/Sinks/Terminator',[model '/Cooler duty'],'Position',[540 205 560 225]);
-    add_line(model,'Feed/1','CSTR/1');add_line(model,'CSTR/1','Cooler/1');add_line(model,'Cooler/1','Product/1');add_line(model,'Cooler/2','Cooler duty/1');
+    addSystem(model,'CSTR outlet','nirp.blocks.Stream',[340 120 460 170],'Role','Intermediate');
+    addSystem(model,'Cooler','nirp.blocks.Heater',[510 110 630 180],'Mode','Outlet T','Tout','300','ToutUnit','K','ShowHeatPort','on');
+    addSystem(model,'Product','nirp.blocks.Stream',[690 120 810 170],'Role','Product','ReferenceFeed','F1','KeyComponent','A');
+    add_block('simulink/Sinks/Terminator',[model '/Cooler duty'],'Position',[680 205 700 225]);
+    add_line(model,'F1/1','CSTR/1');add_line(model,'CSTR/1','CSTR outlet/1');add_line(model,'CSTR outlet/1','Cooler/1');add_line(model,'Cooler/1','Product/1');add_line(model,'Cooler/2','Cooler duty/1');
 end
 
 function buildEx3(model)
-    addSystem(model,'Feed','nirp.blocks.Feed',[40 120 130 170],'FeedName','F1');
+    addSystem(model,'F1','nirp.blocks.Stream',[40 120 160 170],'Role','Feed');
     addSystem(model,'PFR','nirp.blocks.PFR',[200 105 330 185],'GeometryMode','Volume','V','0.1','VUnit','m^3','D','0.1','DUnit','m','HeatMode','Adiabatic');
-    addSystem(model,'Product','nirp.blocks.Product',[400 120 510 170],'ResultName','Product','ReferenceFeed','F1','KeyComponent','A');
-    add_line(model,'Feed/1','PFR/1');add_line(model,'PFR/1','Product/1');
+    addSystem(model,'Product','nirp.blocks.Stream',[400 120 530 170],'Role','Product','ReferenceFeed','F1','KeyComponent','A');
+    add_line(model,'F1/1','PFR/1');add_line(model,'PFR/1','Product/1');
 end
 
 function buildEx4(model)
-    addSystem(model,'Feed','nirp.blocks.Feed',[30 180 110 230],'FeedName','F1');
+    addSystem(model,'F1','nirp.blocks.Stream',[20 180 130 230],'Role','Feed');
     addSystem(model,'Splitter','nirp.blocks.Splitter',[160 165 270 245],'Fractions','[0.5 0.5]');
-    addSystem(model,'CSTR 1','nirp.blocks.CSTR',[330 100 450 170],'V','400','VUnit','L','HeatMode','Isothermal');
-    addSystem(model,'CSTR 2','nirp.blocks.CSTR',[330 250 450 320],'V','400','VUnit','L','HeatMode','Isothermal');
-    addSystem(model,'Mixer','nirp.blocks.Mixer',[510 165 620 245],'NumInputs','2');
-    addSystem(model,'Product','nirp.blocks.Product',[680 180 790 230],'ResultName','Product','ReferenceFeed','F1','KeyComponent','A');
-    add_line(model,'Feed/1','Splitter/1');add_line(model,'Splitter/1','CSTR 1/1');add_line(model,'Splitter/2','CSTR 2/1');
-    add_line(model,'CSTR 1/1','Mixer/1');add_line(model,'CSTR 2/1','Mixer/2');add_line(model,'Mixer/1','Product/1');
+    addSystem(model,'Branch 1','nirp.blocks.Stream',[310 90 420 140],'Role','Intermediate');
+    addSystem(model,'Branch 2','nirp.blocks.Stream',[310 275 420 325],'Role','Intermediate');
+    addSystem(model,'CSTR 1','nirp.blocks.CSTR',[460 80 580 150],'V','400','VUnit','L','HeatMode','Isothermal');
+    addSystem(model,'CSTR 2','nirp.blocks.CSTR',[460 265 580 335],'V','400','VUnit','L','HeatMode','Isothermal');
+    addSystem(model,'CSTR 1 outlet','nirp.blocks.Stream',[620 90 750 140],'Role','Intermediate');
+    addSystem(model,'CSTR 2 outlet','nirp.blocks.Stream',[620 275 750 325],'Role','Intermediate');
+    addSystem(model,'Mixer','nirp.blocks.Mixer',[790 165 900 245],'NumInputs','2');
+    addSystem(model,'Product','nirp.blocks.Stream',[950 180 1070 230],'Role','Product','ReferenceFeed','F1','KeyComponent','A');
+    add_line(model,'F1/1','Splitter/1');add_line(model,'Splitter/1','Branch 1/1');add_line(model,'Splitter/2','Branch 2/1');
+    add_line(model,'Branch 1/1','CSTR 1/1');add_line(model,'Branch 2/1','CSTR 2/1');
+    add_line(model,'CSTR 1/1','CSTR 1 outlet/1');add_line(model,'CSTR 2/1','CSTR 2 outlet/1');
+    add_line(model,'CSTR 1 outlet/1','Mixer/1');add_line(model,'CSTR 2 outlet/1','Mixer/2');add_line(model,'Mixer/1','Product/1');
 end
 
 function buildEx5(model)
-    addSystem(model,'Feed','nirp.blocks.Feed',[30 160 130 220],'FeedName','F1');
+    addSystem(model,'F1','nirp.blocks.Stream',[20 160 130 215],'Role','Feed');
     addSystem(model,'Mixer','nirp.blocks.Mixer',[180 145 310 225],'NumInputs','2');
-    addSystem(model,'CSTR','nirp.blocks.CSTR',[370 150 510 220],'V','0.1','VUnit','m^3');
-    addSystem(model,'Splitter','nirp.blocks.Splitter',[570 140 700 230],'Fractions','[0.1 0.9]');
-    addSystem(model,'Recycle','nirp.blocks.Recycle',[370 300 520 365], ...
+    addSystem(model,'Mixer outlet','nirp.blocks.Stream',[350 160 470 215],'Role','Intermediate');
+    addSystem(model,'CSTR','nirp.blocks.CSTR',[510 150 640 220],'V','0.1','VUnit','m^3');
+    addSystem(model,'CSTR outlet','nirp.blocks.Stream',[680 160 800 215],'Role','Intermediate');
+    addSystem(model,'Splitter','nirp.blocks.Splitter',[840 140 970 230],'Fractions','[0.1 0.9]');
+    addSystem(model,'Recycle feed','nirp.blocks.Stream',[790 300 920 355],'Role','Intermediate','Orientation','left');
+    addSystem(model,'Recycle','nirp.blocks.Recycle',[570 300 720 365], ...
         'Method','Wegstein','Orientation','left');
-    addSystem(model,'Product','nirp.blocks.Product',[760 150 890 220], ...
-        'ResultName','Product','ReferenceFeed','F1','KeyComponent','A');
-    add_line(model,'Feed/1','Mixer/1','autorouting','on');
-    add_line(model,'Recycle/1','Mixer/2','autorouting','on');
-    add_line(model,'Mixer/1','CSTR/1','autorouting','on');
-    add_line(model,'CSTR/1','Splitter/1','autorouting','on');
+    addSystem(model,'Recycle outlet','nirp.blocks.Stream',[350 300 490 355],'Role','Intermediate','Orientation','left');
+    addSystem(model,'Product','nirp.blocks.Stream',[1020 150 1150 220], ...
+        'Role','Product','ReferenceFeed','F1','KeyComponent','A');
+    add_line(model,'F1/1','Mixer/1','autorouting','on');
+    add_line(model,'Recycle outlet/1','Mixer/2','autorouting','on');
+    add_line(model,'Mixer/1','Mixer outlet/1','autorouting','on');
+    add_line(model,'Mixer outlet/1','CSTR/1','autorouting','on');
+    add_line(model,'CSTR/1','CSTR outlet/1','autorouting','on');
+    add_line(model,'CSTR outlet/1','Splitter/1','autorouting','on');
     add_line(model,'Splitter/1','Product/1','autorouting','on');
-    add_line(model,'Splitter/2','Recycle/1','autorouting','on');
+    add_line(model,'Splitter/2','Recycle feed/1','autorouting','on');
+    add_line(model,'Recycle feed/1','Recycle/1','autorouting','on');
+    add_line(model,'Recycle/1','Recycle outlet/1','autorouting','on');
 end
 
 function buildEx6(model)
-    addSystem(model,'Feed','nirp.blocks.Feed',[30 150 110 200],'FeedName','F1');
+    addSystem(model,'F1','nirp.blocks.Stream',[30 150 140 200],'Role','Feed');
     addSystem(model,'CSTR','nirp.blocks.CSTR',[280 135 410 210], ...
         'VSource','Input port','HeatMode','Isothermal');
     addSystem(model,'Adjust','nirp.blocks.Adjust',[60 280 230 350], ...
         'TargetVariable','Conversion','KeyComponent','A','ReferenceFeed','F1', ...
         'TargetValue','0.8','InitialValue','0.1','MinValue','0.001', ...
         'MaxValue','1','ParameterUnit','m^3');
-    addSystem(model,'Product','nirp.blocks.Product',[500 150 610 200], ...
-        'ResultName','Product','ReferenceFeed','F1','KeyComponent','A');
-    add_line(model,'Feed/1','CSTR/1');add_line(model,'Adjust/1','CSTR/2');
+    addSystem(model,'Product','nirp.blocks.Stream',[500 150 630 200], ...
+        'Role','Product','ReferenceFeed','F1','KeyComponent','A');
+    add_line(model,'F1/1','CSTR/1');add_line(model,'Adjust/1','CSTR/2');
     add_line(model,'CSTR/1','Adjust/1');add_line(model,'CSTR/1','Product/1');
 end
 
 function buildEx7(model)
-    addSystem(model,'Feed','nirp.blocks.Feed',[30 210 110 260],'FeedName','F1');
+    addSystem(model,'F1','nirp.blocks.Stream',[20 210 130 260],'Role','Feed');
     addSystem(model,'CSTR 500 L','nirp.blocks.CSTR',[190 90 330 165], ...
         'V','500','VUnit','L','HeatMode','Adiabatic','InitialTGuess','495','InitialTGuessUnit','K');
     addSystem(model,'CSTR 250 L 1','nirp.blocks.CSTR',[190 300 330 375], ...
         'V','250','VUnit','L','HeatMode','Adiabatic','InitialTGuess','490','InitialTGuessUnit','K');
     addSystem(model,'CSTR 250 L 2','nirp.blocks.CSTR',[400 300 540 375], ...
         'V','250','VUnit','L','HeatMode','Adiabatic','InitialTGuess','499','InitialTGuessUnit','K');
-    addSystem(model,'Product500','nirp.blocks.Product',[600 100 720 155], ...
-        'ResultName','Product500','ReferenceFeed','F1','KeyComponent','A');
-    addSystem(model,'ProductSeries','nirp.blocks.Product',[600 310 720 365], ...
-        'ResultName','ProductSeries','ReferenceFeed','F1','KeyComponent','A');
-    add_line(model,'Feed/1','CSTR 500 L/1');add_line(model,'CSTR 500 L/1','Product500/1');
-    add_line(model,'Feed/1','CSTR 250 L 1/1');add_line(model,'CSTR 250 L 1/1','CSTR 250 L 2/1');
+    addSystem(model,'Product500','nirp.blocks.Stream',[650 100 780 155], ...
+        'Role','Product','ReferenceFeed','F1','KeyComponent','A');
+    addSystem(model,'Series intermediate','nirp.blocks.Stream',[370 300 520 355],'Role','Intermediate');
+    addSystem(model,'ProductSeries','nirp.blocks.Stream',[650 310 790 365], ...
+        'Role','Product','ReferenceFeed','F1','KeyComponent','A');
+    add_line(model,'F1/1','CSTR 500 L/1');add_line(model,'CSTR 500 L/1','Product500/1');
+    add_line(model,'F1/1','CSTR 250 L 1/1');add_line(model,'CSTR 250 L 1/1','Series intermediate/1');
+    add_line(model,'Series intermediate/1','CSTR 250 L 2/1');
     add_line(model,'CSTR 250 L 2/1','ProductSeries/1');
 end
 
 function addSystem(model,name,className,position,varargin)
     minimumWidth=0;
     switch className
-        case 'nirp.blocks.Feed',minimumWidth=120;
-        case 'nirp.blocks.Product',minimumWidth=140;
+        case 'nirp.blocks.Stream',minimumWidth=120;
         case 'nirp.blocks.Heater',minimumWidth=150;
         case 'nirp.blocks.Recycle',minimumWidth=180;
         case 'nirp.blocks.Adjust',minimumWidth=280;

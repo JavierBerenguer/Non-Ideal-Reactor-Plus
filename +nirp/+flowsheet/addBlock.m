@@ -29,7 +29,7 @@ function block = addBlock(model,path,position,maxIterations)
         'Prompt','Show results after simulation','Value','on') ;
     button = mask.addDialogControl('Type','pushbutton','Name','ShowResults') ;
     button.Prompt = 'Show results' ;
-    button.Tooltip = 'Display the latest Product block results.' ;
+    button.Tooltip = 'Display the latest Stream block results.' ;
     button.Callback = 'nirp.flowsheet.showResults(bdroot(gcb));' ;
     editButton = mask.addDialogControl('Type','pushbutton','Name','EditPackage') ;
     editButton.Prompt = 'Edit package...' ;

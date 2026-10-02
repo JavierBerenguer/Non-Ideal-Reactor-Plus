@@ -86,7 +86,8 @@ classdef NirpUiAccessTest < matlab.unittest.TestCase
         function missingFeedMessageListsValidFeeds(testCase)
             build_examples(testCase.Folder) ;
             load_system(fullfile(testCase.Folder,'ex1_cstr_isothermal.slx')) ;
-            set_param('ex1_cstr_isothermal/Feed','FeedName','missing') ;
+            set_param('ex1_cstr_isothermal/F1','NameChangeFcn','') ;
+            set_param('ex1_cstr_isothermal/F1','Name','missing') ;
             try
                 sim('ex1_cstr_isothermal') ;
                 testCase.assertFail('Expected simulation to fail.') ;
@@ -94,7 +95,7 @@ classdef NirpUiAccessTest < matlab.unittest.TestCase
                 messages = string(exception.message) ;
                 causes = exception.cause ;
                 if ~isempty(causes), messages(end+1) = string(causes{1}.message) ; end
-                testCase.verifyTrue(any(contains(messages,'Valid names: F1')), ...
+                testCase.verifyTrue(any(contains(messages,'Open this block')), ...
                     strjoin(cellstr(messages),newline)) ;
             end
         end
