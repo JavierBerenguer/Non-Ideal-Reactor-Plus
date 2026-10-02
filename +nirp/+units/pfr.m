@@ -5,6 +5,10 @@ function [out,info] = pfr(params,in,rs)
 %   and pressureDropEqn to Pipe. Thermal parameters and defaults match
 %   nirp.units.cstr. Nonconstant liquid pressure requires density (kg/m^3)
 %   and viscosity (Pa*s); Ergun also requires particleDiameter (m).
+%   Degrees of freedom: geometry supplies one size specification (V, or L
+%   with D and nTubes), while the selected thermal and pressure modes add
+%   their equations and required data. With the inlet fixed, every current
+%   mode has zero remaining DOF after its displayed values are specified.
 % =========================================================================
 % Javier Berenguer Sabater
 % Created: October 1, 2026. Last update: October 1, 2026

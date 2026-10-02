@@ -4,6 +4,9 @@ function [out,info] = heater(params,in,rs)
 %   computes duty (W). Duty requires Q (W) and solves outlet temperature.
 %   Optional dP is a nonnegative pressure loss in Pa (default 0). Positive
 %   duty means heat enters the stream. IN and all calculations use SI.
+%   Degrees of freedom: the energy balance relates outlet T and duty, so
+%   exactly one is specified. Pressure loss is independent. With the inlet
+%   fixed, both current modes have zero remaining DOF.
 % =========================================================================
 % Javier Berenguer Sabater
 % Created: October 1, 2026. Last update: October 1, 2026

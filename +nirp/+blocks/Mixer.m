@@ -1,11 +1,13 @@
 classdef Mixer < matlab.System
-    % Mixer combines two to six SI streams through nirp.units.mixer.
+    % Mixer combines two or more SI streams through nirp.units.mixer.
+    % Degrees of freedom: all inlet streams determine the single outlet;
+    % there are no additional unit specifications.
     % =========================================================================
     % Javier Berenguer Sabater
     % Created: October 2, 2026. Last update: October 2, 2026
     % =========================================================================
     properties (Nontunable)
-        % Number of inlet streams (2 to 6).
+        % Number of inlet streams (2 to 20; UI safety limit).
         NumInputs = 2
     end
     properties (Access=private)
@@ -13,8 +15,8 @@ classdef Mixer < matlab.System
     end
     methods (Access=protected)
         function setupImpl(obj)
-            if obj.NumInputs<2 || obj.NumInputs>6 || obj.NumInputs~=fix(obj.NumInputs)
-                error('nirp:blocks:invalidPorts','NumInputs must be an integer from 2 to 6.');
+            if obj.NumInputs<2 || obj.NumInputs>20 || obj.NumInputs~=fix(obj.NumInputs)
+                error('nirp:blocks:invalidPorts','NumInputs must be an integer from 2 to 20.');
             end
             [obj.Model,~,obj.RS]=nirp.blocks.internal.modelPackage(); obj.Block=get_param(gcb,'Name');
             obj.HasCache=false; obj.CalculationCount=0;

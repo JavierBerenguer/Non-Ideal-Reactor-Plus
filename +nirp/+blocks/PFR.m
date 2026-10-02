@@ -1,5 +1,7 @@
 classdef PFR < matlab.System
     % PFR wraps nirp.units.pfr with display-unit conversion and caching.
+    % Degrees of freedom: specify V or tube geometry, one thermal mode, and
+    % pressure-correlation data when pressure is nonconstant.
     % =========================================================================
     % Javier Berenguer Sabater
     % Created: October 2, 2026. Last update: October 2, 2026
@@ -24,6 +26,12 @@ classdef PFR < matlab.System
         DUnit = 'm'
         % Number of equal parallel tubes.
         NTubes = 1
+        % Feed-to-reactor bypass ratio (bypass flow/reactor flow).
+        BypassRatio = 0
+        % Catalyst bulk density.
+        CatalystDensity = 1
+        % Catalyst void fraction.
+        CatalystPorosity = 0
         % Thermal operating mode.
         HeatMode = 'Isothermal'
         % Specified outlet temperature.
@@ -144,7 +152,7 @@ classdef PFR < matlab.System
     end
     methods (Static,Access=protected)
         function groups=getPropertyGroupsImpl()
-            groups=matlab.system.display.Section('Title','PFR','PropertyList',{'GeometryMode','VSource','V','VUnit','L','LUnit','D','DUnit','NTubes','HeatMode','SpecifiedT','SpecifiedTUnit','SpecifiedQ','SpecifiedQUnit','U','UUnit','A','AUnit','UtilityTin','UtilityTinUnit','UtilityTout','UtilityToutUnit','InitialTGuess','InitialTGuessUnit','PressureMode','PressureDropEqn','ParticleDiameter','ParticleDiameterUnit','Density','DensityUnit','Viscosity','ViscosityUnit','ShowHeatPort'});
+            groups=matlab.system.display.Section('Title','PFR','PropertyList',{'GeometryMode','VSource','V','VUnit','L','LUnit','D','DUnit','NTubes','HeatMode','SpecifiedT','SpecifiedTUnit','SpecifiedQ','SpecifiedQUnit','U','UUnit','A','AUnit','UtilityTin','UtilityTinUnit','UtilityTout','UtilityToutUnit','BypassRatio','CatalystDensity','CatalystPorosity','InitialTGuess','InitialTGuessUnit','PressureMode','PressureDropEqn','ParticleDiameter','ParticleDiameterUnit','Density','DensityUnit','Viscosity','ViscosityUnit','ShowHeatPort'});
         end
         function mode=getSimulateUsingImpl(),mode='Interpreted execution';end
         function flag=showSimulateUsingImpl(),flag=false;end

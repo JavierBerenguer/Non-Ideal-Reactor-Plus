@@ -25,6 +25,8 @@ function libraryFile = build_library(folder)
             [40+col*320 50+row*115 320+col*320 125+row*115]);
         if strcmp(classes{i},'Stream')
             set_param(block,'Role',roles{i});nirp.flowsheet.setupStreamBlock(block);
+        else
+            nirp.flowsheet.setupUnitBlock(block);
         end
     end
     nirp.flowsheet.addBlock(name,'Flowsheet',[680 395 960 470],200);

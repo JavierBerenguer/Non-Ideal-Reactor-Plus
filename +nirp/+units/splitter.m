@@ -4,6 +4,9 @@ function [out,info] = splitter(params,in,rs)
 %   1e-12. Each output preserves T (K), P (Pa), phase, and input status;
 %   F (mol/s) and liquid Q (m^3/s) are split proportionally. RS is used
 %   only to validate the component count.
+%   Degrees of freedom: N fractions have one sum equation, so N-1 are
+%   independent specifications. Outlet states and flows then follow from
+%   the inlet and the current mode has zero remaining DOF.
 % =========================================================================
 % Javier Berenguer Sabater
 % Created: October 1, 2026. Last update: October 1, 2026

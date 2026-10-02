@@ -1,6 +1,6 @@
-classdef PackageEditor < handle
-%PACKAGEEDITOR Graphical editor for version-1 NIRP packages.
-%   ED = nirp.flowsheet.PackageEditor('Visible','off') creates an editor
+classdef ReactiveSystemDialog < handle
+%REACTIVESYSTEMDIALOG Graphical editor for components and reactions.
+%   ED = nirp.flowsheet.ReactiveSystemDialog('Visible','off') creates an editor
 %   that can also be driven by scripts through its public tables.
 % =========================================================================
 % Javier Berenguer Sabater
@@ -18,6 +18,13 @@ classdef PackageEditor < handle
         TrefUnitDropDown
         ExampleDropDown
         StatusLabel
+        ComponentCountSpinner
+        ReactionCountSpinner
+        MaxIterationsField
+        ShowResultsCheckBox
+        StoichTable
+        ThermoComponentTable
+        ThermoReactionTable
     end
 
     properties (Access = private)
@@ -30,7 +37,7 @@ classdef PackageEditor < handle
     end
 
     methods
-        function obj = PackageEditor(varargin)
+        function obj = ReactiveSystemDialog(varargin)
             parser = inputParser ;
             addParameter(parser,'Visible','on') ;
             addParameter(parser,'Mode','new') ;
@@ -94,11 +101,25 @@ classdef PackageEditor < handle
                 reactionData{i,nComp+12} = char(string(kinetic.expression)) ;
             end
             obj.ReactionTable.Data = reactionData ;
+            obj.StoichTable.ColumnName = cellstr(string({pkg.components.name})) ;
+            obj.StoichTable.Data = num2cell(pkg.reactions.stoich) ;
             obj.ConcentrationUnitDropDown.Value = char(string( ...
                 pkg.reactions.rateUnits.concentration)) ;
             obj.TimeUnitDropDown.Value = char(string(pkg.reactions.rateUnits.time)) ;
             obj.TrefField.Value = pkg.reactions.Tref.value ;
             obj.TrefUnitDropDown.Value = obj.temperatureUnit(pkg.reactions.Tref.unit) ;
+            thermoComponents=cell(nComp,4) ;
+            for i=1:nComp
+                thermoComponents(i,:)={char(string(pkg.components(i).name)), ...
+                    componentData{i,3},componentData{i,4},componentData{i,5}} ;
+            end
+            obj.ThermoComponentTable.Data=thermoComponents ;
+            thermoReactions=cell(nReactions,3) ;
+            for i=1:nReactions
+                thermoReactions(i,:)={sprintf('Reaction %d',i), ...
+                    pkg.reactions.DH.value(i),char(string(pkg.reactions.DH.unit))} ;
+            end
+            obj.ThermoReactionTable.Data=thermoReactions ;
             feedData = cell(numel(pkg.feeds),12) ;
             for i = 1:numel(pkg.feeds)
                 feed = pkg.feeds(i) ;
@@ -109,6 +130,8 @@ classdef PackageEditor < handle
                     obj.quantityValue(feed.Q),obj.quantityUnit(feed.Q),''} ;
             end
             obj.FeedTable.Data = feedData(:,1:11) ;
+            obj.ComponentCountSpinner.Value = nComp ;
+            obj.ReactionCountSpinner.Value = nReactions ;
             obj.StatusLabel.Text = 'Package loaded.' ;
         end
 
@@ -186,6 +209,14 @@ classdef PackageEditor < handle
                 feeds(i).basis = string(feedData{i,7}) ;
                 feeds(i).values = obj.parseVector(feedData{i,8}) ;
                 feeds(i).valuesUnit = string(feedData{i,9}) ;
+                if lower(feeds(i).basis)=="totalandfractions"
+                    total=feeds(i).values(1);fractions=feeds(i).values(2:end);
+                    fractions=resizeVector(fractions,nComp);s=sum(fractions);
+                    if s<=0,fractions(1)=1;else,fractions=fractions/s;end
+                    feeds(i).values=[total fractions];
+                else
+                    feeds(i).values=resizeVector(feeds(i).values,nComp);
+                end
                 if isempty(feedData{i,10}) || string(feedData{i,10}) == ""
                     feeds(i).Q = [] ;
                 else
@@ -213,6 +244,26 @@ classdef PackageEditor < handle
             end
             [modelFile,dictionaryFile] = nirp.flowsheet.new( ...
                 name,obj.getPackage(),folder,varargin{:}) ;
+            load_system(modelFile) ; block=findFlowsheet(name) ;
+            if ~isempty(block)
+                set_param(block,'MaxIterations',num2str(obj.MaxIterationsField.Value), ...
+                    'ShowResultsAfterRun',onOff(obj.ShowResultsCheckBox.Value)) ;
+                nirp.flowsheet.configure(name) ; save_system(name) ;
+            end
+        end
+
+        function setCounts(obj,nComponents,nReactions)
+            if nComponents < 1 || nComponents ~= fix(nComponents) || ...
+                    nReactions < 1 || nReactions ~= fix(nReactions)
+                error('nirp:flowsheet:invalidCount', ...
+                    'Component and reaction counts must be positive integers.') ;
+            end
+            while size(obj.ComponentTable.Data,1) < nComponents, obj.addComponent() ; end
+            while size(obj.ComponentTable.Data,1) > nComponents, obj.removeLast('component') ; end
+            while size(obj.ReactionTable.Data,1) < nReactions, obj.addReaction() ; end
+            while size(obj.ReactionTable.Data,1) > nReactions, obj.removeLast('reaction') ; end
+            obj.ComponentCountSpinner.Value = nComponents ;
+            obj.ReactionCountSpinner.Value = nReactions ;
         end
 
         function changed = saveToModel(obj,model)
@@ -222,6 +273,18 @@ classdef PackageEditor < handle
             nirp.pkg.validate(pkg) ;
             changed = numel(oldPkg.components) ~= numel(pkg.components) ;
             nirp.pkg.writeDictionary(pkg,obj.dictionaryPath(model)) ;
+            flowsheets=find_system(char(string(model)),'SearchDepth',1, ...
+                'BlockType','SubSystem') ;
+            for i=1:numel(flowsheets)
+                if strcmp(get_param(flowsheets{i},'Mask'),'on') && ...
+                        any(strcmp(get_param(flowsheets{i},'MaskNames'),'MaxIterations'))
+                    set_param(flowsheets{i},'MaxIterations', ...
+                        num2str(obj.MaxIterationsField.Value), ...
+                        'ShowResultsAfterRun',onOff(obj.ShowResultsCheckBox.Value)) ;
+                    break
+                end
+            end
+            nirp.flowsheet.configure(char(string(model))) ;
             if changed
                 obj.StatusLabel.Text = ['Package saved. The component count changed; ' ...
                     'NirpStream was regenerated. Run the model again.'] ;
@@ -233,22 +296,32 @@ classdef PackageEditor < handle
 
     methods (Static)
         function obj = openForModel(model)
-            obj = nirp.flowsheet.PackageEditor('Mode','edit','Model',model) ;
+            obj = nirp.flowsheet.ReactiveSystemDialog('Mode','edit','Model',model) ;
         end
     end
 
     methods (Access = private)
         function buildUi(obj,visible)
-            obj.Figure = uifigure('Name','NIRP Package Editor', ...
-                'Tag','NirpPackageEditor','Position',[100 100 1260 720], ...
+            obj.Figure = uifigure('Name','Reactive System', ...
+                'Tag','NirpReactiveSystemDialog','Position',[100 100 1260 720], ...
                 'Visible',visible) ;
-            main = uigridlayout(obj.Figure,[3 1]) ;
-            main.RowHeight = {'1x',42,30} ;
+            main = uigridlayout(obj.Figure,[4 1]) ;
+            main.RowHeight = {'1x',34,42,30} ;
             tabs = uitabgroup(main) ;
-            obj.ComponentTab = uitab(tabs,'Title','Components') ;
-            obj.ReactionTab = uitab(tabs,'Title','Reactions') ;
-            obj.FeedTab = uitab(tabs,'Title','Feeds') ;
+            obj.ComponentTab = uitab(tabs,'Title','General') ;
+            obj.ReactionTab = uitab(tabs,'Title','Kinetics') ;
+            obj.FeedTab = uitab(tabs,'Title','Thermodynamics') ;
             obj.buildComponents() ; obj.buildReactions() ; obj.buildFeeds() ;
+            settings=uigridlayout(main,[1 7],'ColumnWidth',{135,90,170,90,'1x',110,110});
+            uilabel(settings,'Text','Maximum iterations');
+            obj.MaxIterationsField=uieditfield(settings,'numeric','Limits',[1 Inf], ...
+                'RoundFractionalValues','on','Value',200);
+            obj.ShowResultsCheckBox=uicheckbox(settings,'Text','Show results after run','Value',true);
+            if obj.Mode=="edit"
+                block=findFlowsheet(obj.Model);
+                if ~isempty(block),obj.MaxIterationsField.Value=str2double(get_param(block,'MaxIterations'));obj.ShowResultsCheckBox.Value=strcmp(get_param(block,'ShowResultsAfterRun'),'on');end
+                uibutton(settings,'Text','Show results','ButtonPushedFcn',@(~,~) nirp.flowsheet.showResults(obj.Model));
+            end
             controls = uigridlayout(main,[1 8]) ;
             controls.Padding = [10 4 10 4] ;
             controls.ColumnWidth = {115,180,90,'1x',115,115,115,115} ;
@@ -271,8 +344,12 @@ classdef PackageEditor < handle
         end
 
         function buildComponents(obj)
-            layout = uigridlayout(obj.ComponentTab,[2 1]) ;
-            layout.RowHeight = {'1x',32} ;
+            layout = uigridlayout(obj.ComponentTab,[5 1]) ;
+            layout.RowHeight = {34,'0.55x',32,26,'0.45x'} ;
+            header=uigridlayout(layout,[1 4]);uilabel(header,'Text','Number of components');
+            obj.ComponentCountSpinner=uispinner(header,'Limits',[1 Inf], ...
+                'RoundFractionalValues','on','ValueChangedFcn',@(~,~) obj.countsChanged());
+            uilabel(header,'Text','Stoichiometry columns follow component names.','FontAngle','italic');
             obj.ComponentTable = uitable(layout,'ColumnName', ...
                 {'Name','Mw (g/mol)','Cp type','Cp','Cp unit'}, ...
                 'ColumnEditable',true(1,5),'ColumnFormat', ...
@@ -283,12 +360,16 @@ classdef PackageEditor < handle
             buttons.Padding = [0 0 0 0] ;
             uibutton(buttons,'Text','Add','ButtonPushedFcn',@(~,~) obj.addComponent()) ;
             uibutton(buttons,'Text','Remove','ButtonPushedFcn',@(~,~) obj.removeLast('component')) ;
+            uilabel(layout,'Text','Stoichiometric matrix [reactions x components]', ...
+                'FontWeight','bold','HorizontalAlignment','center') ;
+            obj.StoichTable=uitable(layout,'ColumnEditable',true, ...
+                'CellEditCallback',@(~,event) obj.stoichEdited(event)) ;
         end
 
         function buildReactions(obj)
             layout = uigridlayout(obj.ReactionTab,[3 1]) ;
             layout.RowHeight = {34,'1x',32} ;
-            header = uigridlayout(layout,[1 7]) ;
+            header = uigridlayout(layout,[1 6]) ;
             header.Padding = [0 0 0 0] ;
             uilabel(header,'Text','Concentration unit') ;
             obj.ConcentrationUnitDropDown = uidropdown(header,'Items', ...
@@ -296,10 +377,11 @@ classdef PackageEditor < handle
             uilabel(header,'Text','Time unit') ;
             obj.TimeUnitDropDown = uidropdown(header,'Items', ...
                 UnitConverterHelper.getUnits('Time')) ;
-            uilabel(header,'Text','Tref') ;
-            obj.TrefField = uieditfield(header,'numeric') ;
-            obj.TrefUnitDropDown = uidropdown(header,'Items',{'K',[char(176) 'C']}) ;
-            obj.ReactionTable = uitable(layout,'ColumnEditable',true) ;
+            uilabel(header,'Text','Reactions') ;
+            obj.ReactionCountSpinner=uispinner(header,'Limits',[1 Inf], ...
+                'RoundFractionalValues','on','ValueChangedFcn',@(~,~) obj.countsChanged());
+            obj.ReactionTable = uitable(layout,'ColumnEditable',true, ...
+                'CellEditCallback',@(~,~) obj.refreshDerivedTables()) ;
             buttons = uigridlayout(layout,[1 3]) ; buttons.ColumnWidth={80,80,'1x'} ;
             buttons.Padding = [0 0 0 0] ;
             uibutton(buttons,'Text','Add','ButtonPushedFcn',@(~,~) obj.addReaction()) ;
@@ -307,21 +389,47 @@ classdef PackageEditor < handle
         end
 
         function buildFeeds(obj)
-            layout = uigridlayout(obj.FeedTab,[2 1]) ; layout.RowHeight={'1x',32} ;
-            valueUnits = unique([UnitConverterHelper.getUnits('MolarFlow'), ...
-                UnitConverterHelper.getUnits('Concentration')],'stable') ;
-            obj.FeedTable = uitable(layout,'ColumnName',{'Name','Phase','T', ...
-                'T unit','P','P unit','Basis','Values','Values unit','Q','Q unit'}, ...
-                'ColumnEditable',true(1,11),'ColumnFormat',{'char',{'L','G'}, ...
-                'numeric',{'K',[char(176) 'C']},'numeric', ...
-                UnitConverterHelper.getUnits('Pressure'), ...
-                {'molarFlows','concentrations','totalAndFractions'},'char',valueUnits, ...
-                'numeric',UnitConverterHelper.getUnits('VolumetricFlow')}, ...
-                'CellEditCallback',@(~,event) obj.feedEdited(event)) ;
-            buttons = uigridlayout(layout,[1 3]) ; buttons.ColumnWidth={80,80,'1x'} ;
-            buttons.Padding = [0 0 0 0] ;
-            uibutton(buttons,'Text','Add','ButtonPushedFcn',@(~,~) obj.addFeed()) ;
-            uibutton(buttons,'Text','Remove','ButtonPushedFcn',@(~,~) obj.removeLast('feed')) ;
+            layout = uigridlayout(obj.FeedTab,[5 1]) ;
+            layout.RowHeight={34,'0.5x',26,'0.5x',24} ;
+            header=uigridlayout(layout,[1 5],'ColumnWidth',{45,130,80,100,'1x'});
+            uilabel(header,'Text','Tref');obj.TrefField=uieditfield(header,'numeric');
+            obj.TrefUnitDropDown=uidropdown(header,'Items',{'K',[char(176) 'C']});
+            uilabel(header,'Text','Reference temperature for Cp and reaction enthalpy.','FontAngle','italic');
+            obj.ThermoComponentTable=uitable(layout,'ColumnName', ...
+                {'Component','Cp type','Cp coefficients / value','Cp unit'}, ...
+                'ColumnEditable',[false true true true], ...
+                'ColumnFormat',{'char',{'constant','polynomial'},'char', ...
+                UnitConverterHelper.getUnits('MolarHeatCapacity')}, ...
+                'CellEditCallback',@(~,event) obj.thermoComponentEdited(event));
+            uilabel(layout,'Text','Reaction enthalpies','FontWeight','bold');
+            obj.ThermoReactionTable=uitable(layout,'ColumnName', ...
+                {'Reaction','DH','DH unit'},'ColumnEditable',[false true true], ...
+                'ColumnFormat',{'char','numeric',UnitConverterHelper.getUnits('EnergyPerMol')}, ...
+                'CellEditCallback',@(~,event) obj.thermoReactionEdited(event));
+            uilabel(layout,'Text','Feed conditions are edited in Feed Stream dialogs.', ...
+                'FontAngle','italic');
+            obj.FeedTable = uitable(obj.Figure,'Visible','off') ;
+        end
+
+        function stoichEdited(obj,event)
+            data=obj.ReactionTable.Data ; data{event.Indices(1),event.Indices(2)}=event.NewData ;
+            obj.ReactionTable.Data=data ;
+        end
+
+        function thermoComponentEdited(obj,event)
+            data=obj.ComponentTable.Data ; data{event.Indices(1),event.Indices(2)+1}=event.NewData ;
+            obj.ComponentTable.Data=data ;
+        end
+
+        function thermoReactionEdited(obj,event)
+            data=obj.ReactionTable.Data;nComp=size(obj.ComponentTable.Data,1);
+            data{event.Indices(1),nComp+event.Indices(2)-1}=event.NewData ;
+            obj.ReactionTable.Data=data ;
+        end
+
+        function countsChanged(obj)
+            obj.setCounts(obj.ComponentCountSpinner.Value, ...
+                obj.ReactionCountSpinner.Value) ;
         end
 
         function rebuildReactionColumns(obj)
@@ -341,6 +449,7 @@ classdef PackageEditor < handle
 
         function componentEdited(obj,event)
             if event.Indices(2) == 1, obj.rebuildReactionColumns() ; end
+            obj.refreshDerivedTables() ;
         end
 
         function feedEdited(obj,event)
@@ -361,6 +470,7 @@ classdef PackageEditor < handle
             obj.ComponentTable.Data = data ;
             old = obj.ReactionTable.Data ; obj.rebuildReactionColumns() ;
             if ~isempty(old), obj.ReactionTable.Data = [old(:,1:end-12) num2cell(zeros(size(old,1),1)) old(:,end-11:end)] ; end
+            obj.refreshDerivedTables() ;
         end
 
         function addReaction(obj)
@@ -369,6 +479,7 @@ classdef PackageEditor < handle
                 'J/mol',obj.vectorText(zeros(1,nComp)),[],[], ...
                 'J/mol','', ''}] ;
             data = obj.ReactionTable.Data ; data(end+1,:) = row ; obj.ReactionTable.Data=data ;
+            obj.refreshDerivedTables() ;
         end
 
         function addFeed(obj)
@@ -394,6 +505,21 @@ classdef PackageEditor < handle
                     data=obj.FeedTable.Data ; if size(data,1)<=1, return, end
                     data(end,:)=[] ; obj.FeedTable.Data=data ;
             end
+            obj.refreshDerivedTables() ;
+        end
+
+        function refreshDerivedTables(obj)
+            components=obj.ComponentTable.Data;nComp=size(components,1);
+            reactions=obj.ReactionTable.Data;nReactions=size(reactions,1);
+            obj.StoichTable.ColumnName=components(:,1)';
+            obj.StoichTable.Data=reactions(:,1:nComp);
+            thermo=cell(nComp,4);
+            for i=1:nComp,thermo(i,:)={components{i,1},components{i,3},components{i,4},components{i,5}};end
+            obj.ThermoComponentTable.Data=thermo;
+            dh=cell(nReactions,3);
+            for i=1:nReactions,dh(i,:)={sprintf('Reaction %d',i),reactions{i,nComp+1},reactions{i,nComp+2}};end
+            obj.ThermoReactionTable.Data=dh;
+            obj.ComponentCountSpinner.Value=nComp;obj.ReactionCountSpinner.Value=nReactions;
         end
 
         function loadExample(obj)
@@ -435,7 +561,7 @@ classdef PackageEditor < handle
         end
         function value = optionalScalar(input)
             if isempty(input) || string(input)=="", value=[] ;
-            else, value=nirp.flowsheet.PackageEditor.requiredScalar(input) ; end
+            else, value=nirp.flowsheet.ReactiveSystemDialog.requiredScalar(input) ; end
         end
         function text = vectorText(value)
             if isempty(value), text='' ; else
@@ -461,7 +587,7 @@ classdef PackageEditor < handle
             if isempty(k.reverse), value=[] ; else, value=k.reverse.Ea.(field) ; end
         end
         function value = reverseOrders(k)
-            if isempty(k.reverse), value='' ; else, value=nirp.flowsheet.PackageEditor.vectorText(k.reverse.orders) ; end
+            if isempty(k.reverse), value='' ; else, value=nirp.flowsheet.ReactiveSystemDialog.vectorText(k.reverse.orders) ; end
         end
         function unit = temperatureUnit(unit)
             unit=char(string(unit)) ; if strcmp(unit,'C'), unit=[char(176) 'C']; end
@@ -470,4 +596,21 @@ classdef PackageEditor < handle
             unit=char(string(unit)) ; if strcmp(unit,[char(176) 'C']), unit='C'; end
         end
     end
+end
+
+function value=resizeVector(value,count)
+    value=reshape(value,1,[]);
+    if numel(value)<count,value(end+1:count)=0;else,value=value(1:count);end
+end
+
+function block=findFlowsheet(model)
+    block='';if strlength(string(model))==0,return,end
+    items=find_system(char(string(model)),'SearchDepth',1,'BlockType','SubSystem');
+    for i=1:numel(items)
+        if strcmp(get_param(items{i},'Mask'),'on')&&any(strcmp(get_param(items{i},'MaskNames'),'MaxIterations')),block=items{i};return,end
+    end
+end
+
+function value=onOff(flag)
+    if flag,value='on';else,value='off';end
 end

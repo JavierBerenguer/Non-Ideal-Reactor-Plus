@@ -1,5 +1,7 @@
 classdef Heater < matlab.System
     % Heater wraps nirp.units.heater with display-unit conversion and caching.
+    % Degrees of freedom: specify outlet T or duty plus pressure loss; the
+    % energy balance determines the other thermal variable.
     % =========================================================================
     % Javier Berenguer Sabater
     % Created: October 2, 2026. Last update: October 2, 2026

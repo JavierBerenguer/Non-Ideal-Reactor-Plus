@@ -21,6 +21,8 @@ function block = addBlock(model,path,position,maxIterations)
     add_block('simulink/Sinks/Stop Simulation',[block '/Stop'], ...
         'Position',[200 28 230 62]) ;
     add_line(block,'Convergence/1','Stop/1') ;
+    set_param(block,'OpenFcn', ...
+        'nirp.flowsheet.ReactiveSystemDialog.openForModel(bdroot(gcb));') ;
     mask = Simulink.Mask.create(block) ;
     mask.Description = 'Stops a stationary flowsheet when every Recycle and Adjust has converged.' ;
     mask.addParameter('Type','edit','Name','MaxIterations', ...
@@ -32,9 +34,9 @@ function block = addBlock(model,path,position,maxIterations)
     button.Tooltip = 'Display the latest Stream block results.' ;
     button.Callback = 'nirp.flowsheet.showResults(bdroot(gcb));' ;
     editButton = mask.addDialogControl('Type','pushbutton','Name','EditPackage') ;
-    editButton.Prompt = 'Edit package...' ;
-    editButton.Tooltip = 'Edit components, reactions, and feeds.' ;
-    editButton.Callback = 'nirp.flowsheet.PackageEditor.openForModel(bdroot(gcb));' ;
+    editButton.Prompt = 'Reactive system...' ;
+    editButton.Tooltip = 'Edit components, reactions, and thermodynamics.' ;
+    editButton.Callback = 'nirp.flowsheet.ReactiveSystemDialog.openForModel(bdroot(gcb));' ;
     set_param(block,'MaskDisplay', ...
         "disp(['Flowsheet' newline 'max = ' get_param(gcb,'MaxIterations')])") ;
 end

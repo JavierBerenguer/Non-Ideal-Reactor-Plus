@@ -1,4 +1,4 @@
-classdef NirpPackageEditorTest < matlab.unittest.TestCase
+classdef NirpReactiveSystemDialogTest < matlab.unittest.TestCase
 %NIRPPACKAGEEDITORTEST Tests for the graphical package editor.
 % =========================================================================
 % Javier Berenguer Sabater
@@ -24,7 +24,7 @@ classdef NirpPackageEditorTest < matlab.unittest.TestCase
 
     methods (Test)
         function examplesRoundTrip(testCase)
-            ed=nirp.flowsheet.PackageEditor('Visible','off') ;
+            ed=nirp.flowsheet.ReactiveSystemDialog('Visible','off') ;
             testCase.addTeardown(@() deleteValid(ed)) ;
             examples={nirp.pkg.examples.firstOrderLiquid(), ...
                 nirp.pkg.examples.problem40Gas()} ;
@@ -35,7 +35,7 @@ classdef NirpPackageEditorTest < matlab.unittest.TestCase
         end
 
         function tablesProduceMixedUnitPackage(testCase)
-            ed=nirp.flowsheet.PackageEditor('Visible','off') ;
+            ed=nirp.flowsheet.ReactiveSystemDialog('Visible','off') ;
             testCase.addTeardown(@() deleteValid(ed)) ;
             ed.ComponentTable.Data={'A',[],'constant','100','J/(mol*K)'; ...
                 'B',[],'constant','100','J/(mol*K)'} ;
@@ -58,7 +58,7 @@ classdef NirpPackageEditorTest < matlab.unittest.TestCase
         end
 
         function validationReturnsMessage(testCase)
-            ed=nirp.flowsheet.PackageEditor('Visible','off') ;
+            ed=nirp.flowsheet.ReactiveSystemDialog('Visible','off') ;
             testCase.addTeardown(@() deleteValid(ed)) ;
             data=ed.ComponentTable.Data ; data{1,1}='' ; ed.ComponentTable.Data=data ;
             [valid,message]=ed.validate() ;
@@ -66,7 +66,7 @@ classdef NirpPackageEditorTest < matlab.unittest.TestCase
         end
 
         function createsAndSimulatesFlowsheet(testCase)
-            ed=nirp.flowsheet.PackageEditor('Visible','off') ;
+            ed=nirp.flowsheet.ReactiveSystemDialog('Visible','off') ;
             testCase.addTeardown(@() deleteValid(ed)) ;
             ed.createFlowsheet('editor_model',testCase.Folder,'OpenModel',false) ;
             load_system(fullfile(testCase.Folder,'editor_model.slx')) ;
@@ -83,7 +83,7 @@ classdef NirpPackageEditorTest < matlab.unittest.TestCase
         end
 
         function savesModelAndRegeneratesBus(testCase)
-            ed=nirp.flowsheet.PackageEditor('Visible','off') ;
+            ed=nirp.flowsheet.ReactiveSystemDialog('Visible','off') ;
             testCase.addTeardown(@() deleteValid(ed)) ;
             ed.createFlowsheet('edit_model',testCase.Folder,'OpenModel',false) ;
             load_system(fullfile(testCase.Folder,'edit_model.slx')) ;
@@ -103,7 +103,7 @@ classdef NirpPackageEditorTest < matlab.unittest.TestCase
             fig=findall(groot,'Type','Figure','Name','Non-Ideal Reactor Analysis') ;
             set(fig,'Visible','off') ; menu=findall(fig,'Type','uimenu','Text','New flowsheet...') ;
             feval(menu.MenuSelectedFcn,menu,[]) ;
-            editor=findall(groot,'Type','Figure','Tag','NirpPackageEditor') ;
+            editor=findall(groot,'Type','Figure','Tag','NirpReactiveSystemDialog') ;
             testCase.verifyNumElements(editor,1) ; delete(editor) ;
         end
     end

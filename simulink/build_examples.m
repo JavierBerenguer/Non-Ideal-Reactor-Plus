@@ -172,4 +172,7 @@ function addSystem(model,name,className,position,varargin)
     position(3)=max(position(3),position(1)+minimumWidth);
     add_block('simulink/User-Defined Functions/MATLAB System',[model '/' name], ...
         'System',className,'Position',position,varargin{:});
+    if ~strcmp(className,'nirp.blocks.Stream')
+        nirp.flowsheet.setupUnitBlock([model '/' name]);
+    end
 end

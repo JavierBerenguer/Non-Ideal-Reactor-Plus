@@ -4,6 +4,10 @@ function [out,info] = cstr(params,in,rs)
 %   explicit initialTemperatureGuess, progressively warmer guesses are
 %   tried at 10 K intervals. Failure is returned as status -1, never as an
 %   invalid stream exception.
+%   Degrees of freedom: with inlet stream and reaction system fixed, V is
+%   one size specification and the selected thermal mode supplies the
+%   energy equation/specification. Bypass and catalyst data are additional
+%   specified parameters; every supported mode has zero remaining DOF.
 % =========================================================================
 % Javier Berenguer Sabater
 % Created: October 1, 2026. Last update: October 2, 2026

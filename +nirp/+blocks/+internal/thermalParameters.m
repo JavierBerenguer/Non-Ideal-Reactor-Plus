@@ -6,6 +6,9 @@ function params = thermalParameters(obj)
 % =========================================================================
 
     params.heatMode = char(obj.HeatMode) ;
+    params.bypassRatio = obj.BypassRatio ;
+    params.catalystDensity = obj.CatalystDensity ;
+    params.catalystPorosity = obj.CatalystPorosity ;
     params.specifiedT = convertTemperature(obj.SpecifiedT,obj.SpecifiedTUnit) ;
     params.specifiedQ = UnitConverterHelper.convertToSI( ...
         'Power',obj.SpecifiedQ,char(obj.SpecifiedQUnit)) ;

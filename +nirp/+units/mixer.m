@@ -4,6 +4,9 @@ function [out,info] = mixer(params,ins,rs)
 %   summed (mol/s), P is the minimum flowing-stream pressure (Pa), liquid
 %   Q values are summed (m^3/s), and gas Q is recalculated. Mixed phases
 %   raise nirp:units:phaseMismatch. RS supplies heat capacities.
+%   Degrees of freedom: component, energy, volume, and pressure equations
+%   determine the outlet from all specified inlets. There are no unit
+%   parameters and zero remaining DOF.
 % =========================================================================
 % Javier Berenguer Sabater
 % Created: October 1, 2026. Last update: October 1, 2026
