@@ -34,7 +34,8 @@ end
 function tf = isStale(libraryFile,repoRoot,simulinkFolder)
 %ISSTALE True when the generated library is older than its sources (Claude, T-108 review).
     sources = [dir(fullfile(simulinkFolder,'build_library.m')) ; ...
-        dir(fullfile(repoRoot,'+nirp','+blocks','*.m'))] ;
+        dir(fullfile(repoRoot,'+nirp','+blocks','*.m')) ; ...
+        dir(fullfile(repoRoot,'+nirp','+flowsheet','*.m'))] ;
     library = dir(libraryFile) ;
     tf = ~isempty(sources) && any([sources.datenum] > library.datenum) ;
 end
