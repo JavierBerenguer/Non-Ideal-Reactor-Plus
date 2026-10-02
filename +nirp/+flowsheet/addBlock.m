@@ -25,6 +25,12 @@ function block = addBlock(model,path,position,maxIterations)
     mask.Description = 'Stops a stationary flowsheet when every Recycle and Adjust has converged.' ;
     mask.addParameter('Type','edit','Name','MaxIterations', ...
         'Prompt','Maximum iterations','Value',num2str(maxIterations)) ;
+    mask.addParameter('Type','checkbox','Name','ShowResultsAfterRun', ...
+        'Prompt','Show results after simulation','Value','on') ;
+    button = mask.addDialogControl('Type','pushbutton','Name','ShowResults') ;
+    button.Prompt = 'Show results' ;
+    button.Tooltip = 'Display the latest Product block results.' ;
+    button.Callback = 'nirp.flowsheet.showResults(bdroot(gcb));' ;
     set_param(block,'MaskDisplay', ...
         "disp(['Flowsheet' newline 'max = ' get_param(gcb,'MaxIterations')])") ;
 end

@@ -70,7 +70,7 @@ classdef Heater < matlab.System
         function varargout = isOutputComplexImpl(obj), varargout=repmat({false},1,1+double(obj.ShowHeatPort)); end
         function name = getInputNamesImpl(~), name='Feed'; end
         function varargout = getOutputNamesImpl(obj), varargout{1}='Product'; if obj.ShowHeatPort, varargout{2}='Heat (W)'; end, end
-        function icon = getIconImpl(~), icon='Heater / Cooler'; end
+        function icon = getIconImpl(~), icon=sprintf('Heater\nCooler'); end
     end
     methods (Static, Access = protected)
         function groups = getPropertyGroupsImpl()

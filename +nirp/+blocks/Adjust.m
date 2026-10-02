@@ -131,7 +131,7 @@ classdef Adjust < matlab.System
         function flag = isOutputComplexImpl(~), flag = false ; end
         function name = getInputNamesImpl(~), name = 'Measured stream' ; end
         function name = getOutputNamesImpl(~), name = 'Parameter (SI)' ; end
-        function icon = getIconImpl(obj), icon = sprintf('Adjust\n%s',obj.TargetVariable) ; end
+        function icon = getIconImpl(~), icon = 'Adjust' ; end
     end
     methods (Access=private)
         function target = convertTarget(obj,category)

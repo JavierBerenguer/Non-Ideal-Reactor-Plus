@@ -105,7 +105,7 @@ classdef Recycle < matlab.System
         function flag = isOutputComplexImpl(~), flag = false ; end
         function name = getInputNamesImpl(~), name = 'Calculated' ; end
         function name = getOutputNamesImpl(~), name = 'Estimate' ; end
-        function icon = getIconImpl(obj), icon = sprintf('Recycle\n%s',obj.Method) ; end
+        function icon = getIconImpl(~), icon = 'Recycle' ; end
     end
     methods (Access=private)
         function publish(obj)

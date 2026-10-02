@@ -13,13 +13,24 @@ function libraryFile = build_library(folder)
     if isfile(libraryFile),delete(libraryFile);end
     new_system(name,'Library');
     cleanup=onCleanup(@() closeLoaded(name));
+    set_param(name,'EnableLBRepository','on');
     classes={'Feed','Product','CSTR','PFR','Mixer','Splitter','Heater','Recycle','Adjust'};
     for i=1:numel(classes)
-        row=mod(i-1,4); col=floor((i-1)/4);
+        row=mod(i-1,3); col=floor((i-1)/3);
         add_block('simulink/User-Defined Functions/MATLAB System',[name '/' classes{i}], ...
-            'System',['nirp.blocks.' classes{i}],'Position',[50+col*180 40+row*100 170+col*180 100+row*100]);
+            'System',['nirp.blocks.' classes{i}],'Position', ...
+            [40+col*320 50+row*115 320+col*320 125+row*115]);
     end
-    nirp.flowsheet.addBlock(name,'Flowsheet',[410 340 530 395],200);
+    nirp.flowsheet.addBlock(name,'Flowsheet',[680 395 960 470],200);
+    [exampleNames,descriptions]=nirp.flowsheet.exampleNames();
+    heading=Simulink.Annotation(name,'Examples');heading.Position=[1040 30 250 35];
+    heading.FontWeight='bold';heading.FontSize=14;
+    for i=1:numel(exampleNames)
+        note=Simulink.Annotation(name,char(descriptions(i)));
+        note.Position=[1040 55+i*48 290 34];note.ForegroundColor='blue';
+        note.ClickFcn=sprintf('nirp.flowsheet.openExample(''%s'');',exampleNames(i));
+        note.UseDisplayTextAsClickCallback=false;
+    end
     set_param(name,'Lock','on'); save_system(name,libraryFile); clear cleanup; close_system(name,0);
 end
 

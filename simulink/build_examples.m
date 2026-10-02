@@ -97,16 +97,20 @@ function buildEx4(model)
 end
 
 function buildEx5(model)
-    addSystem(model,'Feed','nirp.blocks.Feed',[30 170 110 220],'FeedName','F1');
-    addSystem(model,'Mixer','nirp.blocks.Mixer',[170 145 280 225],'NumInputs','2');
-    addSystem(model,'CSTR','nirp.blocks.CSTR',[340 150 460 220],'V','0.1','VUnit','m^3');
-    addSystem(model,'Splitter','nirp.blocks.Splitter',[520 140 630 230],'Fractions','[0.1 0.9]');
-    addSystem(model,'Recycle','nirp.blocks.Recycle',[520 290 650 350],'Method','Wegstein');
-    addSystem(model,'Product','nirp.blocks.Product',[700 155 810 215], ...
+    addSystem(model,'Feed','nirp.blocks.Feed',[30 160 130 220],'FeedName','F1');
+    addSystem(model,'Mixer','nirp.blocks.Mixer',[180 145 310 225],'NumInputs','2');
+    addSystem(model,'CSTR','nirp.blocks.CSTR',[370 150 510 220],'V','0.1','VUnit','m^3');
+    addSystem(model,'Splitter','nirp.blocks.Splitter',[570 140 700 230],'Fractions','[0.1 0.9]');
+    addSystem(model,'Recycle','nirp.blocks.Recycle',[370 300 520 365], ...
+        'Method','Wegstein','Orientation','left');
+    addSystem(model,'Product','nirp.blocks.Product',[760 150 890 220], ...
         'ResultName','Product','ReferenceFeed','F1','KeyComponent','A');
-    add_line(model,'Feed/1','Mixer/1');add_line(model,'Recycle/1','Mixer/2');
-    add_line(model,'Mixer/1','CSTR/1');add_line(model,'CSTR/1','Splitter/1');
-    add_line(model,'Splitter/1','Product/1');add_line(model,'Splitter/2','Recycle/1');
+    add_line(model,'Feed/1','Mixer/1','autorouting','on');
+    add_line(model,'Recycle/1','Mixer/2','autorouting','on');
+    add_line(model,'Mixer/1','CSTR/1','autorouting','on');
+    add_line(model,'CSTR/1','Splitter/1','autorouting','on');
+    add_line(model,'Splitter/1','Product/1','autorouting','on');
+    add_line(model,'Splitter/2','Recycle/1','autorouting','on');
 end
 
 function buildEx6(model)
@@ -141,6 +145,15 @@ function buildEx7(model)
 end
 
 function addSystem(model,name,className,position,varargin)
+    minimumWidth=0;
+    switch className
+        case 'nirp.blocks.Feed',minimumWidth=120;
+        case 'nirp.blocks.Product',minimumWidth=140;
+        case 'nirp.blocks.Heater',minimumWidth=150;
+        case 'nirp.blocks.Recycle',minimumWidth=180;
+        case 'nirp.blocks.Adjust',minimumWidth=280;
+    end
+    position(3)=max(position(3),position(1)+minimumWidth);
     add_block('simulink/User-Defined Functions/MATLAB System',[model '/' name], ...
         'System',className,'Position',position,varargin{:});
 end
