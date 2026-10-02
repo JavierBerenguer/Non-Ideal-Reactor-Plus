@@ -1,11 +1,15 @@
-function [modelFile,dictionaryFile] = new(modelName,pkg,folder)
+function [modelFile,dictionaryFile] = new(modelName,pkg,folder,varargin)
 %NEW Create and open a configured NIRP flowsheet and data dictionary.
 %   [MODELFILE,DICTIONARYFILE] = nirp.flowsheet.new(NAME,PKG,FOLDER).
+%   Name-value OpenModel=false creates the files without opening the model.
 % =========================================================================
 % Javier Berenguer Sabater
 % Created: October 2, 2026. Last update: October 2, 2026
 % =========================================================================
 
+    parser = inputParser ;
+    addParameter(parser,'OpenModel',true) ;
+    parse(parser,varargin{:}) ;
     if nargin < 3 || isempty(folder), folder = pwd ; end
     folder = char(string(folder)) ;
     if ~isfolder(folder), mkdir(folder) ; end
@@ -27,7 +31,7 @@ function [modelFile,dictionaryFile] = new(modelName,pkg,folder)
         nirp.flowsheet.addBlock(name,'Flowsheet',[60 50 180 105],200) ;
         nirp.flowsheet.configure(name) ;
         save_system(name) ;
-        open_system(name) ;
+        if parser.Results.OpenModel, open_system(name) ; end
     catch exception
         if bdIsLoaded(name), close_system(name,0) ; end
         rethrow(exception) ;

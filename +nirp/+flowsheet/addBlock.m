@@ -31,6 +31,10 @@ function block = addBlock(model,path,position,maxIterations)
     button.Prompt = 'Show results' ;
     button.Tooltip = 'Display the latest Product block results.' ;
     button.Callback = 'nirp.flowsheet.showResults(bdroot(gcb));' ;
+    editButton = mask.addDialogControl('Type','pushbutton','Name','EditPackage') ;
+    editButton.Prompt = 'Edit package...' ;
+    editButton.Tooltip = 'Edit components, reactions, and feeds.' ;
+    editButton.Callback = 'nirp.flowsheet.PackageEditor.openForModel(bdroot(gcb));' ;
     set_param(block,'MaskDisplay', ...
         "disp(['Flowsheet' newline 'max = ' get_param(gcb,'MaxIterations')])") ;
 end
