@@ -93,7 +93,7 @@ classdef NirpBlocksTest < matlab.unittest.TestCase
             NirpBlocksTest.addSystem(name,'F1','nirp.blocks.Stream',[20 60 100 110],'Role','Feed');
             NirpBlocksTest.addSystem(name,'Splitter','nirp.blocks.Splitter',[160 50 270 120],'Fractions','[0.4 0.4]');
             add_line(name,'F1/1','Splitter/1');save_system(name);
-            NirpBlocksTest.verifySimulationMessage(testCase,name,'sum to one');
+            NirpBlocksTest.verifySimulationMessage(testCase,name,'must add up to 1');
         end
 
         function newCreatesRunnableEmptyFlowsheet(testCase)

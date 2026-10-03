@@ -4,21 +4,26 @@ classdef Splitter < matlab.System
     % the sum equation and inlet stream determine all outlets.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 2, 2026. Last update: October 2, 2026
+    % Created: October 2, 2026. Last update: October 3, 2026
     % =========================================================================
     properties (Nontunable)
-        % Outlet fractions (2 to 20 values summing to one).
+        % Outlet fractions (2 to 20 values; at most one may be NaN).
         Fractions = [0.5 0.5]
     end
     properties (Access=private)
-        RS; LastInput; LastOutputs; HasCache=false; CalculationCount=0; Model; Block
+        RS; LastInput; LastOutputs; HasCache=false; CalculationCount=0; Model; Block; ClosedFractions
     end
     methods (Access=protected)
         function setupImpl(obj)
             n=numel(obj.Fractions); if n<2 || n>20,error('nirp:blocks:invalidPorts','Fractions must define 2 to 20 outlets.');end
-            if ~isnumeric(obj.Fractions)||~isreal(obj.Fractions)||any(~isfinite(obj.Fractions))||any(obj.Fractions<0)||any(obj.Fractions>1)||abs(sum(obj.Fractions)-1)>1e-12
-                error('nirp:blocks:invalidFractions','Fractions must be finite values in [0,1] that sum to one.');
+            if ~isnumeric(obj.Fractions)||~isreal(obj.Fractions)||~isvector(obj.Fractions)
+                error('nirp:blocks:invalidFractions','Fractions must be a real numeric vector.');
             end
+            [fractions,~,message]=nirp.flowsheet.closeSum(obj.Fractions,1);
+            if strlength(message)>0
+                error('nirp:blocks:invalidFractions','%s',message);
+            end
+            obj.ClosedFractions=fractions;
             [obj.Model,~,obj.RS]=nirp.blocks.internal.modelPackage(); obj.Block=get_param(gcb,'Name');
             obj.HasCache=false; obj.CalculationCount=0;
         end
@@ -26,7 +31,7 @@ classdef Splitter < matlab.System
             nirp.stream.validate(in,obj.RS.nComponents);
             if obj.HasCache&&isequaln(in,obj.LastInput),out=obj.LastOutputs;
             else
-                out=nirp.units.splitter(struct('fractions',obj.Fractions),in,obj.RS);
+                out=nirp.units.splitter(struct('fractions',obj.ClosedFractions),in,obj.RS);
                 obj.LastInput=in;obj.LastOutputs=out;obj.HasCache=true;obj.CalculationCount=obj.CalculationCount+1;
                 nirp.blocks.internal.diagnostic(obj.Model,obj.Block,obj.CalculationCount,out);
             end
