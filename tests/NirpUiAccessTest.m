@@ -2,7 +2,7 @@ classdef NirpUiAccessTest < matlab.unittest.TestCase
     % NirpUiAccessTest verifies no-code access to the NIRP Simulink UI.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 2, 2026. Last update: October 2, 2026
+    % Created: October 2, 2026. Last update: October 3, 2026
     % =========================================================================
 
     properties
@@ -44,6 +44,31 @@ classdef NirpUiAccessTest < matlab.unittest.TestCase
             testCase.verifyTrue(isfile(libraryFile)) ;
             load_system(libraryFile) ;
             testCase.verifyEqual(get_param('NirpLibrary','EnableLBRepository'),'on') ;
+        end
+
+        function libraryExamplesAreClickableAndDoNotOverlapBlocks(testCase)
+            libraryFile = build_library(testCase.Folder) ;
+            load_system(libraryFile) ;
+            [exampleNames,~] = nirp.flowsheet.exampleNames() ;
+            annotations = find_system('NirpLibrary','FindAll','on', ...
+                'Type','annotation') ;
+            callbacks = string(get_param(annotations,'ClickFcn')) ;
+            clickable = annotations(strlength(callbacks) > 0) ;
+            testCase.verifyNumElements(clickable,numel(exampleNames)) ;
+            for i = 1:numel(exampleNames)
+                testCase.verifyEqual(sum(contains(callbacks,exampleNames(i))),1) ;
+            end
+            blocks = find_system('NirpLibrary','SearchDepth',1,'Type','block') ;
+            blockPositions = cell2mat(get_param(blocks,'Position')) ;
+            for i = 1:numel(clickable)
+                position = get_param(clickable(i),'Position') ;
+                rectangle = [position(1:2) position(1:2)+position(3:4)] ;
+                overlaps = rectangle(1) < blockPositions(:,3) & ...
+                    rectangle(3) > blockPositions(:,1) & ...
+                    rectangle(2) < blockPositions(:,4) & ...
+                    rectangle(4) > blockPositions(:,2) ;
+                testCase.verifyFalse(any(overlaps)) ;
+            end
         end
 
         function openExampleGeneratesAndLoadsHeadlessly(testCase)

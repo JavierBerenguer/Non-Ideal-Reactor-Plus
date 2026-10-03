@@ -31,11 +31,13 @@ function libraryFile = build_library(folder)
     end
     nirp.flowsheet.addBlock(name,'Flowsheet',[680 395 960 470],200);
     [exampleNames,descriptions]=nirp.flowsheet.exampleNames();
-    heading=Simulink.Annotation(name,'Examples');heading.Position=[1040 30 250 35];
+    numberOfColumns=ceil(numel(classes)/3);
+    exampleX=40+numberOfColumns*320;
+    heading=Simulink.Annotation(name,'Examples');heading.Position=[exampleX 30 250 35];
     heading.FontWeight='bold';heading.FontSize=14;
     for i=1:numel(exampleNames)
         note=Simulink.Annotation(name,char(descriptions(i)));
-        note.Position=[1040 55+i*48 290 34];note.ForegroundColor='blue';
+        note.Position=[exampleX 55+i*48 290 34];note.ForegroundColor='blue';
         note.ClickFcn=sprintf('nirp.flowsheet.openExample(''%s'');',exampleNames(i));
         note.UseDisplayTextAsClickCallback=false;
     end

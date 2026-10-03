@@ -2,7 +2,7 @@ classdef NirpStreamBlockTest < matlab.unittest.TestCase
     % NirpStreamBlockTest verifies named Stream blocks and their dialog.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 2, 2026. Last update: October 2, 2026
+    % Created: October 2, 2026. Last update: October 3, 2026
     % =========================================================================
 
     properties
@@ -50,6 +50,20 @@ classdef NirpStreamBlockTest < matlab.unittest.TestCase
             testCase.verifyEqual(dialog.getValues().T.origin,'specified') ;
         end
 
+        function densityAndViscosityAreEmptyAndReadOnlyForFeed(testCase)
+            nirp.flowsheet.new('optional_feed', ...
+                nirp.pkg.examples.firstOrderLiquid(),testCase.Folder,'OpenModel',false) ;
+            emptyDialog=nirp.flowsheet.StreamDialog('optional_feed/F1','Visible','off') ;
+            testCase.addTeardown(@() deleteValid(emptyDialog)) ;
+            testCase.verifyEmpty(emptyDialog.getValue('Density')) ;
+            testCase.verifyEmpty(emptyDialog.getValue('Viscosity')) ;
+            testCase.verifyEqual(string(emptyDialog.DensityField.Editable),"off") ;
+            testCase.verifyEqual(string(emptyDialog.ViscosityField.Editable),"off") ;
+            feedTips=findall(emptyDialog.Figure,'Type','uitextarea') ;
+            testCase.verifyTrue(contains(strjoin(string(feedTips.Value),' '), ...
+                'Two of molar flow, concentration, and liquid Q complete the third.')) ;
+        end
+
         function resultDialogConvertsAndReportsState(testCase)
             files=build_examples(testCase.Folder) ;
             load_system(char(files(2))) ;
@@ -68,11 +82,22 @@ classdef NirpStreamBlockTest < matlab.unittest.TestCase
             flow=middle.getValue('MolarFlow') ;
             testCase.verifyEqual(flow(1),30,'AbsTol',1e-8) ;
             testCase.verifyEqual(middle.getValues().T.origin,'calculated') ;
+            testCase.verifyEmpty(middle.getValue('Density')) ;
+            testCase.verifyEmpty(middle.getValue('Viscosity')) ;
+            testCase.verifyEqual(string(middle.DensityField.Editable),"off") ;
+            testCase.verifyEqual(string(middle.ViscosityField.Editable),"off") ;
+            resultTips=findall(middle.Figure,'Type','uitextarea') ;
+            testCase.verifyTrue(contains(strjoin(string(resultTips.Value),' '), ...
+                'Results of the last run.')) ;
             product=nirp.flowsheet.StreamDialog( ...
                 'ex2_cstr_adiabatic_cooler/Product','Visible','off') ;
             testCase.addTeardown(@() deleteValid(product)) ;
             testCase.verifyEqual(product.getValue('T'),300,'AbsTol',1e-8) ;
             testCase.verifyEqual(product.getValue('Conversion'),0.5,'AbsTol',1e-9) ;
+            testCase.verifyEmpty(product.getValue('Density')) ;
+            testCase.verifyEmpty(product.getValue('Viscosity')) ;
+            testCase.verifyEqual(string(product.DensityField.Editable),"off") ;
+            testCase.verifyEqual(string(product.ViscosityField.Editable),"off") ;
             results=evalin('base','nirpResults') ;
             results.Streams.CSTROutlet.status=-1 ;
             results.Streams.CSTROutlet.streamSI.status=-1 ;
