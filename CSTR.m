@@ -10,6 +10,7 @@ classdef CSTR < Reactor
     % Updated: October 1, 2026 (T-102)
     % Updated: October 1, 2026 (T-103)
     % Corrected: October 3, 2026 (T-118)
+    % Corrected: October 3, 2026 (T-121)
     % =========================================================================
     properties (Hidden = true) % This property is not displayed on the property list
         heatFlux % Stores the value of Q >> Useful to compute OPEX
@@ -85,9 +86,30 @@ classdef CSTR < Reactor
             maximumScaledResidual = norm(residual,inf) ;
             if ~isfinite(maximumScaledResidual) || ...
                     maximumScaledResidual > convergenceTolerance
-                warning('CSTR:notConverged', ...
-                    ['fsolve did not converge (exitflag %d, maximum scaled ' ...
-                    'residual %.3e).'],exitflag,maximumScaledResidual) ;
+                % T-121: retain the component-flow solve as the primary
+                % path, but recover stiff systems with reaction extents so
+                % every candidate state remains stoichiometric.
+                [extentState,extentResidual,extentExitflag,extentAccepted] = ...
+                    solveByReactionExtent(y) ;
+                extentMaximumResidual = norm(extentResidual,inf) ;
+                if extentAccepted
+                    y = extentState ;
+                    residual = extentResidual ;
+                    exitflag = extentExitflag ;
+                    maximumScaledResidual = extentMaximumResidual ;
+                else
+                    if isfinite(extentMaximumResidual) && ...
+                            (~isfinite(maximumScaledResidual) || ...
+                            extentMaximumResidual < maximumScaledResidual)
+                        y = extentState ;
+                        residual = extentResidual ;
+                        exitflag = extentExitflag ;
+                        maximumScaledResidual = extentMaximumResidual ;
+                    end
+                    warning('CSTR:notConverged', ...
+                        ['fsolve did not converge (exitflag %d, maximum scaled ' ...
+                        'residual %.3e).'],exitflag,maximumScaledResidual) ;
+                end
             end
 
             if strcmp(R.heatMode,'Adiabatic')
@@ -188,6 +210,153 @@ classdef CSTR < Reactor
                 moles_inlet = Feed.molarFlow/(1+R.bypassRatio) ;
                 physicalResidual = moles_inlet-moles(:)' + r_j*R.V ;
                 residual = (physicalResidual./materialScale)' ;
+            end
+
+            function [state,coreResidual,solverExitflag,accepted] = ...
+                    solveByReactionExtent(componentState)
+                % The outlet flow is inlet + nu' * extent. lsqnonlin sees
+                % penalties before kinetics are evaluated outside F >= 0;
+                % final acceptance still uses only the physical balances.
+                nReactions = RS.nReactions ;
+                stoichiometry = RS.stochiometricMatrix' ;
+                extentBound = 100*max(sum(abs(moles_inlet)),flowScale) ;
+                lowerBound = [-extentBound*ones(nReactions,1); 1] ;
+                upperBound = [extentBound*ones(nReactions,1); Inf] ;
+                extentGuess = zeros(nReactions,1) ;
+                candidateMoles = componentState(1:RS.nComponents)' ;
+                if all(isfinite(candidateMoles))
+                    extentGuess = stoichiometry\(candidateMoles-moles_inlet') ;
+                end
+                projectionOptions = optimoptions('lsqlin','Display','none') ;
+                [projectedExtent,~,~,projectionExitflag] = lsqlin( ...
+                    eye(nReactions),extentGuess,-stoichiometry,moles_inlet', ...
+                    [],[],lowerBound(1:nReactions), ...
+                    upperBound(1:nReactions),[],projectionOptions) ;
+                if projectionExitflag > 0 && all(isfinite(projectedExtent))
+                    extentGuess = projectedExtent ;
+                else
+                    extentGuess = zeros(nReactions,1) ;
+                end
+
+                if strcmp(R.heatMode,'Isothermal')
+                    specifiedTemperature = Feed.T ;
+                elseif strcmp(R.heatMode,'Specified T')
+                    specifiedTemperature = R.specifiedT ;
+                else
+                    specifiedTemperature = [] ;
+                end
+                if ~isempty(R.initialTemperatureGuess)
+                    firstTemperature = R.initialTemperatureGuess ;
+                    if ~isfinite(firstTemperature) || firstTemperature <= 0
+                        state = componentState ;
+                        coreResidual = inf(nReactions+1,1) ;
+                        solverExitflag = -1 ;
+                        accepted = false ;
+                        return
+                    end
+                elseif isfinite(componentState(RS.nComponents+1)) && ...
+                        componentState(RS.nComponents+1) > 0
+                    firstTemperature = componentState(RS.nComponents+1) ;
+                else
+                    firstTemperature = Feed.T ;
+                end
+                if ~isempty(specifiedTemperature)
+                    temperatureGuesses = specifiedTemperature ;
+                else
+                    temperatureGuesses = unique([firstTemperature Feed.T ...
+                        300 400 500 600 700 800 900 1100], 'stable') ;
+                    temperatureGuesses = temperatureGuesses( ...
+                        isfinite(temperatureGuesses) & temperatureGuesses > 0) ;
+                end
+
+                extentOptions = optimoptions('lsqnonlin','Display','none', ...
+                    'FunctionTolerance',1e-20,'StepTolerance',1e-14, ...
+                    'OptimalityTolerance',1e-14,'MaxIterations',1000, ...
+                    'MaxFunctionEvaluations',10000, ...
+                    'TypicalX',[max(abs(extentGuess),flowScale); ...
+                    max(abs(firstTemperature),1)]) ;
+                state = componentState ;
+                coreResidual = inf(nReactions+1,1) ;
+                solverExitflag = -1 ;
+                accepted = false ;
+                bestMetric = Inf ;
+                for temperatureGuess = temperatureGuesses
+                    initial = [extentGuess; temperatureGuess] ;
+                    [candidate,~,fullResidual,candidateExitflag] = lsqnonlin( ...
+                        @extentResiduals,initial,lowerBound,upperBound, ...
+                        extentOptions) ;
+                    [candidateCore,candidateState,candidatePhysical] = ...
+                        extentCoreResiduals(candidate) ;
+                    candidateMetric = norm(fullResidual,inf) ;
+                    if candidatePhysical
+                        candidateMetric = norm(candidateCore,inf) ;
+                    end
+                    if isfinite(candidateMetric) && candidateMetric < bestMetric
+                        state = candidateState ;
+                        coreResidual = candidateCore ;
+                        solverExitflag = candidateExitflag ;
+                        bestMetric = candidateMetric ;
+                    end
+                    if candidatePhysical && isfinite(candidateMetric) && ...
+                            candidateMetric <= convergenceTolerance
+                        accepted = true ;
+                        return
+                    end
+                end
+            end
+
+            function residual = extentResiduals(x)
+                [coreResidual,~,physical,moles] = extentCoreResiduals(x) ;
+                % A large dimensionless penalty keeps lsqnonlin inside the
+                % physical flow polytope. The accepted solution is always
+                % rechecked without this numerical continuation term.
+                positivityPenalty = 1e3*min(moles,0)/flowScale ;
+                if physical
+                    positivityPenalty(:) = 0 ;
+                end
+                residual = [coreResidual; positivityPenalty] ;
+            end
+
+            function [residual,state,physical,moles] = extentCoreResiduals(x)
+                extent = x(1:RS.nReactions) ; % mol/s
+                T = x(RS.nReactions+1) ; % K
+                moles = moles_inlet' + RS.stochiometricMatrix'*extent ; % mol/s
+                physical = all(isfinite(moles)) && all(moles >= 0) ;
+                rateMoles = max(moles,0) ;
+                if ~any(rateMoles)
+                    rateMoles = max(moles_inlet',flowScale*eps) ;
+                end
+                stateForRate = [rateMoles' T Feed.P] ;
+                r_i = reactionProperties(stateForRate) ;
+                extentBalance = (extent-R.V*r_i(:))/flowScale ;
+                state = [moles' T Feed.P] ;
+                thermalBalance = thermalResidual(state,r_i) ;
+                residual = [extentBalance; thermalBalance] ;
+            end
+
+            function value = thermalResidual(state,r_i)
+                T = state(RS.nComponents+1) ;
+                P = state(RS.nComponents+2) ;
+                if strcmp(R.heatMode,'Isothermal')
+                    value = (T-Feed.T)/temperatureScale ;
+                elseif strcmp(R.heatMode,'Specified T')
+                    specifiedTemperatureScale = max(abs(R.specifiedT),1) ;
+                    value = (T-R.specifiedT)/specifiedTemperatureScale ;
+                else
+                    if strcmp(R.heatMode,'Adiabatic')
+                        Q = 0 ;
+                    elseif strcmp(R.heatMode,'Other')
+                        Q = computeHeatFlux(T) ;
+                    elseif strcmp(R.heatMode,'Specified Q')
+                        Q = R.specifiedQ ;
+                    end
+                    DH = RS.compute_ReactionEnthalpy(T,P) ;
+                    sensibleEnthalpy = RS.compute_SensibleEnthalpy( ...
+                        Feed.T,T,P) ;
+                    energyResidual = moles_inlet*sensibleEnthalpy' + ...
+                        R.V*(r_i*DH')-Q ;
+                    value = energyResidual/energyScale ;
+                end
             end
 
             function [r_i,DH] = reactionProperties(x)
