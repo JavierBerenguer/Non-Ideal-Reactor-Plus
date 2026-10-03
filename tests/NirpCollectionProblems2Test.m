@@ -200,12 +200,8 @@ end
 
 function results = simulateExample(file,name)
     evalin('base','clear nirpResults') ;
-    load_system(char(file)) ; simulation = sim(char(name)) ;
+    load_system(char(file)) ; sim(char(name)) ;
     results = evalin('base','nirpResults') ;
-    if any(strcmp(simulation.who,'nirpAdjustedPfrVolume'))
-        values = simulation.get('nirpAdjustedPfrVolume') ;
-        results.AdjustedPfrVolume = values(end) ;
-    end
     close_system(char(name),0) ;
     Simulink.data.dictionary.closeAll('-discard') ;
 end
@@ -216,10 +212,6 @@ function stream = atTemperature(stream,temperature)
 end
 
 function value = diagnosticVolume(results,model,block)
-    if block == "PFR" && isfield(results,'AdjustedPfrVolume')
-        value = results.AdjustedPfrVolume ;
-        return
-    end
     field = matlab.lang.makeValidName(model+"_"+block) ;
     value = results.Diagnostics.(field).lastInfo.V ;
 end

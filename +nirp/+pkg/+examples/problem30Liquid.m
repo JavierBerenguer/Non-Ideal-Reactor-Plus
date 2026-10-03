@@ -25,15 +25,14 @@ function pkg = problem30Liquid()
         'T',struct('value',24,'unit',"C"), ...
         'P',struct('value',1,'unit',"atm"),'basis',"molarFlows", ...
         'values',zeros(1,4),'valuesUnit',"kmol/h", ...
-        'Q',struct('value',0,'unit',"L/min")) ;
-    % VolumetricFlow supports L/min, so the stated L/h values are divided by 60.
+        'Q',struct('value',0,'unit',"L/h")) ;
     pkg.feeds(1) = common ;
     pkg.feeds(1).name = "Feed PO" ;
     pkg.feeds(1).values = [1134/58.08 0 0 32.6] ;
-    pkg.feeds(1).Q.value = (1134/0.859+32.6*32.04/0.7914)/60 ;
+    pkg.feeds(1).Q.value = 1134/0.859+32.6*32.04/0.7914 ;
     pkg.feeds(2) = common ;
     pkg.feeds(2).name = "Feed W" ;
     pkg.feeds(2).values = [0 364.14 0 0] ;
-    pkg.feeds(2).Q.value = (364.14*18.02/0.9941)/60 ;
+    pkg.feeds(2).Q.value = 364.14*18.02/0.9941 ;
     nirp.pkg.validate(pkg) ;
 end

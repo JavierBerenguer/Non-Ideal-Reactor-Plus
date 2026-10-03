@@ -143,10 +143,11 @@ classdef PFR < matlab.System
                 if ~isnumeric(value)||~isscalar(value)||~isfinite(value)||value<=0,error('nirp:blocks:invalidParameterPort','PFR V input must be positive m^3.');end
                 params.V=value;
             end
+            if ~isfield(params,'V'),params.V=pi/4*params.D^2*params.nTubes*params.L;end
             cacheInput={in,varargin{:}};
             if obj.HasCache && isequaln(cacheInput,obj.LastInput), out=obj.LastOutput; info=obj.LastInfo;
             else
-                [out,info]=nirp.units.pfr(params,in,obj.RS); obj.LastInput=cacheInput; obj.LastOutput=out; obj.LastInfo=info;
+                [out,info]=nirp.units.pfr(params,in,obj.RS); info.V=params.V; obj.LastInput=cacheInput; obj.LastOutput=out; obj.LastInfo=info;
                 obj.HasCache=true; obj.CalculationCount=obj.CalculationCount+1;
                 nirp.blocks.internal.diagnostic(obj.Model,obj.Block,obj.CalculationCount,out,info);
             end
