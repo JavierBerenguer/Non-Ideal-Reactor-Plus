@@ -1,0 +1,29 @@
+function pkg = problem27Jacketed()
+%PROBLEM27JACKETED Return the jacketed-CSTR package for problem 27.
+% =========================================================================
+% Javier Berenguer Sabater
+% Created: October 3, 2026. Last update: October 3, 2026
+% =========================================================================
+
+    pkg.meta = struct('formatVersion',1,'name',"Problem 27 jacketed CSTR") ;
+    cp = struct('type',"constant",'value',180,'unit',"J/(mol*K)") ;
+    pkg.components = struct('name',{"A","B"},'Mw',{[],[]}, ...
+        'cp',{cp,cp},'hf',{[],[]}) ;
+    pkg.reactions.stoich = [-1 1] ;
+    pkg.reactions.DH = struct('value',-22.5,'unit',"kJ/mol") ;
+    pkg.reactions.Tref = struct('value',298.15,'unit',"K") ;
+    pkg.reactions.rateUnits = struct('concentration',"mol/L", ...
+        'time',"min") ;
+    activationEnergy = 8.314*log(1.421/1.127)/(1/313.15-1/323.15) ;
+    preexponential = 1.127/exp(-activationEnergy/(8.314*313.15)) ;
+    pkg.reactions.kinetics = struct('type',"powerlaw", ...
+        'k0',preexponential, ...
+        'Ea',struct('value',activationEnergy,'unit',"J/mol"), ...
+        'orders',[1 0],'reverse',[],'expression',"") ;
+    pkg.feeds = struct('name',"F1",'phase',"L", ...
+        'T',struct('value',295,'unit',"K"), ...
+        'P',struct('value',1,'unit',"atm"),'basis',"molarFlows", ...
+        'values',[1000 0],'valuesUnit',"mol/min", ...
+        'Q',struct('value',100,'unit',"L/min")) ;
+    nirp.pkg.validate(pkg) ;
+end

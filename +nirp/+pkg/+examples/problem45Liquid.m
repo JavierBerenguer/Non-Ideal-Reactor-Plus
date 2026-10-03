@@ -1,0 +1,26 @@
+function pkg = problem45Liquid()
+%PROBLEM45LIQUID Return the liquid first-order package for problem 45.
+% =========================================================================
+% Javier Berenguer Sabater
+% Created: October 3, 2026. Last update: October 3, 2026
+% =========================================================================
+
+    pkg.meta = struct('formatVersion',1,'name',"Problem 45 liquid") ;
+    cp = struct('type',"constant",'value',4200,'unit',"J/(mol*K)") ;
+    pkg.components = struct('name',{"A","P"},'Mw',{[],[]}, ...
+        'cp',{cp,cp},'hf',{[],[]}) ;
+    pkg.reactions.stoich = [-1 1] ;
+    pkg.reactions.DH = struct('value',-167,'unit',"kJ/mol") ;
+    pkg.reactions.Tref = struct('value',368.15,'unit',"K") ;
+    pkg.reactions.rateUnits = struct('concentration',"mol/m^3", ...
+        'time',"s") ;
+    pkg.reactions.kinetics = struct('type',"powerlaw",'k0',4e6, ...
+        'Ea',struct('value',7900*8.314,'unit',"J/mol"), ...
+        'orders',[1 0],'reverse',[],'expression',"") ;
+    pkg.feeds = struct('name',"F1",'phase',"L", ...
+        'T',struct('value',95,'unit',"C"), ...
+        'P',struct('value',1,'unit',"atm"),'basis',"molarFlows", ...
+        'values',[0.416 0],'valuesUnit',"mol/s", ...
+        'Q',struct('value',0.416,'unit',"L/s")) ;
+    nirp.pkg.validate(pkg) ;
+end
