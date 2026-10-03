@@ -2,7 +2,7 @@ classdef Adjust < matlab.System
     % Adjust drives a scalar SI parameter to a measured stream target.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 2, 2026. Last update: October 2, 2026
+    % Created: October 2, 2026. Last update: October 3, 2026
     % =========================================================================
     properties (Nontunable)
         TargetVariable = 'Conversion'
@@ -46,10 +46,13 @@ classdef Adjust < matlab.System
         Reference
         Model = ''
         Key = ''
+        Block = ''
+        LastMeasured = NaN
     end
     methods (Access=protected)
         function setupImpl(obj)
             [obj.Model,pkg,~] = nirp.blocks.internal.modelPackage() ; obj.Key = gcb ;
+            obj.Block = get_param(gcb,'Name') ;
             category = nirp.blocks.internal.unitCategory(obj.ParameterUnit, ...
                 {'Volume','Temperature'}) ;
             obj.Current = UnitConverterHelper.convertToSI(category,obj.InitialValue,char(obj.ParameterUnit)) ;
@@ -85,7 +88,8 @@ classdef Adjust < matlab.System
                     obj.Target = obj.convertTarget('Concentration') ; obj.TargetScale = max(abs(obj.Target),1e-12) ;
             end
             obj.Previous = obj.Current ; obj.PreviousError = NaN ; obj.HavePrevious = false ;
-            obj.Converged = false ; obj.Consecutive = 0 ; obj.Iteration = 0 ; obj.publish() ;
+            obj.Converged = false ; obj.Consecutive = 0 ; obj.Iteration = 0 ;
+            obj.LastMeasured = NaN ; obj.publish() ;
         end
         function value = outputImpl(obj,~), value = obj.Current ; end
         function updateImpl(obj,measured)
@@ -95,7 +99,8 @@ classdef Adjust < matlab.System
                 recycle = entries(strcmp({entries.kind},'Recycle')) ;
                 if ~isempty(recycle) && ~all([recycle.converged]), return, end
             end
-            errorValue = obj.measure(measured)-obj.Target ;
+            obj.LastMeasured = obj.measure(measured) ;
+            errorValue = obj.LastMeasured-obj.Target ;
             if abs(errorValue)/obj.TargetScale <= obj.Tolerance
                 obj.Consecutive = obj.Consecutive+1 ;
             else
@@ -154,8 +159,19 @@ classdef Adjust < matlab.System
         end
         function publish(obj)
             value = struct('converged',obj.Converged,'status',double(obj.Converged), ...
-                'kind','Adjust','iteration',obj.Iteration) ;
+                'kind','Adjust','iteration',obj.Iteration,'value',obj.Current, ...
+                'targetVariable',char(obj.TargetVariable),'target',obj.Target, ...
+                'measured',obj.LastMeasured,'parameterUnit',char(obj.ParameterUnit), ...
+                'targetUnit',char(obj.TargetUnit)) ;
             nirp.flowsheet.registry('set',obj.Model,obj.Key,value) ;
+            info = struct('status',double(obj.Converged),'message','', ...
+                'value',obj.Current,'targetVariable',char(obj.TargetVariable), ...
+                'target',obj.Target,'measured',obj.LastMeasured, ...
+                'parameterUnit',char(obj.ParameterUnit), ...
+                'targetUnit',char(obj.TargetUnit),'converged',obj.Converged, ...
+                'iteration',obj.Iteration) ;
+            nirp.blocks.internal.diagnostic( ...
+                obj.Model,obj.Block,obj.Iteration,[],info) ;
         end
     end
     methods (Static,Access=protected)
