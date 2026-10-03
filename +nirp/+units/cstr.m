@@ -10,7 +10,7 @@ function [out,info] = cstr(params,in,rs)
 %   specified parameters; every supported mode has zero remaining DOF.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 1, 2026. Last update: October 2, 2026
+% Created: October 1, 2026. Last update: October 3, 2026
 % =========================================================================
 
     if ~isstruct(params) || ~isscalar(params)
@@ -33,6 +33,7 @@ function [out,info] = cstr(params,in,rs)
         ~isempty(params.initialTemperatureGuess) ;
     feed = nirp.stream.toStream(in) ;
     warningIds = {'CSTR:notConverged','CSTR:initialGuessNotConverged'} ;
+    failureWarningIds = {'CSTR:notConverged'} ; % T-118: an auxiliary-guess warning does not invalidate a converged final solve.
     oldStates = cell(size(warningIds)) ;
     for i = 1:numel(warningIds)
         oldStates{i} = warning('query',warningIds{i}) ;
@@ -55,10 +56,10 @@ function [out,info] = cstr(params,in,rs)
         try
             [product,trial] = trial.compute_output(feed,rs) ;
             [warningMessage,warningId] = lastwarn ;
-            converged = ~ismember(warningId,warningIds) ;
+            converged = ~ismember(warningId,failureWarningIds) ;
             [valid,product] = validProduct(product,in) ;
             lastProduct = product ; lastReactor = trial ;
-            if ~isempty(warningId) && ismember(warningId,warningIds)
+            if ~isempty(warningId) && ismember(warningId,failureWarningIds)
                 lastWarnings = {warningId} ; lastMessage = warningMessage ;
             elseif ~valid
                 lastWarnings = {'CSTR:invalidProduct'} ;
