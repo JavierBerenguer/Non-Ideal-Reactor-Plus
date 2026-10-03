@@ -1,8 +1,8 @@
 function modelFiles = build_examples(folder)
-%BUILD_EXAMPLES Generate the seven milestone-1 NIRP example flowsheets.
+%BUILD_EXAMPLES Generate the twelve milestone-1 NIRP example flowsheets.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 2, 2026. Last update: October 2, 2026
+% Created: October 2, 2026. Last update: October 3, 2026
 % =========================================================================
 
     repoRoot=fileparts(fileparts(mfilename('fullpath'))); addpath(repoRoot);
@@ -17,7 +17,12 @@ function modelFiles = build_examples(folder)
         'ex4_problem40b_parallel',nirp.pkg.examples.problem40Gas(),@buildEx4; ...
         'ex5_recycle_cstr',referencePkg,@buildEx5; ...
         'ex6_adjust_volume',referencePkg,@buildEx6; ...
-        'ex7_problem44c',problem44Package(),@buildEx7};
+        'ex7_problem44c',problem44Package(),@buildEx7; ...
+        'ex8_problem37a_series',nirp.pkg.examples.problem37Liquid(),@buildEx8; ...
+        'ex9_problem40a_series',nirp.pkg.examples.problem40Gas(),@buildEx9; ...
+        'ex10_problem42_cstr_pfr',nirp.pkg.examples.problem42SecondOrder(),@buildEx10; ...
+        'ex11_problem42_pfr_cstr',nirp.pkg.examples.problem42SecondOrder(),@buildEx11; ...
+        'ex12_problem19_adiabatic_pfr',nirp.pkg.examples.problem19Gas(),@buildEx12};
     modelFiles=strings(size(definitions,1),1);
     for i=1:size(definitions,1)
         name=definitions{i,1}; pkg=definitions{i,2}; builder=definitions{i,3};
@@ -159,6 +164,78 @@ function buildEx7(model)
     add_line(model,'F1/1','CSTR 250 L 1/1');add_line(model,'CSTR 250 L 1/1','Series intermediate/1');
     add_line(model,'Series intermediate/1','CSTR 250 L 2/1');
     add_line(model,'CSTR 250 L 2/1','ProductSeries/1');
+end
+
+function buildEx8(model)
+    addSystem(model,'Feed A','nirp.blocks.Stream',[20 90 140 140],'Role','Feed');
+    addSystem(model,'Feed B','nirp.blocks.Stream',[20 230 140 280],'Role','Feed');
+    addSystem(model,'Mixer','nirp.blocks.Mixer',[190 135 310 225],'NumInputs','2');
+    addSystem(model,'Mixed feed','nirp.blocks.Stream',[350 155 480 205],'Role','Intermediate');
+    addSystem(model,'CSTR 1','nirp.blocks.CSTR',[520 145 640 215], ...
+        'V','200','VUnit','L','HeatMode','Isothermal');
+    addSystem(model,'CSTR 1 outlet','nirp.blocks.Stream',[680 155 820 205],'Role','Intermediate');
+    addSystem(model,'CSTR 2','nirp.blocks.CSTR',[860 145 980 215], ...
+        'V','200','VUnit','L','HeatMode','Isothermal');
+    addSystem(model,'Product','nirp.blocks.Stream',[1020 155 1150 205], ...
+        'Role','Product','ReferenceFeed','Feed A','KeyComponent','A');
+    add_line(model,'Feed A/1','Mixer/1');add_line(model,'Feed B/1','Mixer/2');
+    add_line(model,'Mixer/1','Mixed feed/1');add_line(model,'Mixed feed/1','CSTR 1/1');
+    add_line(model,'CSTR 1/1','CSTR 1 outlet/1');add_line(model,'CSTR 1 outlet/1','CSTR 2/1');
+    add_line(model,'CSTR 2/1','Product/1');
+end
+
+function buildEx9(model)
+    addSystem(model,'F1','nirp.blocks.Stream',[30 120 150 170],'Role','Feed');
+    addSystem(model,'CSTR 1','nirp.blocks.CSTR',[200 110 320 180], ...
+        'V','400','VUnit','L','HeatMode','Isothermal');
+    addSystem(model,'CSTR 1 outlet','nirp.blocks.Stream',[360 120 500 170],'Role','Intermediate');
+    addSystem(model,'CSTR 2','nirp.blocks.CSTR',[540 110 660 180], ...
+        'V','400','VUnit','L','HeatMode','Isothermal');
+    addSystem(model,'Product','nirp.blocks.Stream',[710 120 840 170], ...
+        'Role','Product','ReferenceFeed','F1','KeyComponent','A');
+    add_line(model,'F1/1','CSTR 1/1');add_line(model,'CSTR 1/1','CSTR 1 outlet/1');
+    add_line(model,'CSTR 1 outlet/1','CSTR 2/1');add_line(model,'CSTR 2/1','Product/1');
+end
+
+function buildEx10(model)
+    buildProblem42Train(model,'CSTR','PFR');
+end
+
+function buildEx11(model)
+    buildProblem42Train(model,'PFR','CSTR');
+end
+
+function buildProblem42Train(model,firstType,secondType)
+    addSystem(model,'F1','nirp.blocks.Stream',[30 120 150 170],'Role','Feed');
+    addProblem42Reactor(model,[firstType ' 1'],firstType,[200 105 330 185]);
+    addSystem(model,'Intermediate','nirp.blocks.Stream',[370 120 500 170],'Role','Intermediate');
+    addProblem42Reactor(model,[secondType ' 2'],secondType,[540 105 670 185]);
+    addSystem(model,'Product','nirp.blocks.Stream',[720 120 850 170], ...
+        'Role','Product','ReferenceFeed','F1','KeyComponent','A');
+    add_line(model,'F1/1',[firstType ' 1/1']);
+    add_line(model,[firstType ' 1/1'],'Intermediate/1');
+    add_line(model,'Intermediate/1',[secondType ' 2/1']);
+    add_line(model,[secondType ' 2/1'],'Product/1');
+end
+
+function addProblem42Reactor(model,name,type,position)
+    if strcmp(type,'PFR')
+        addSystem(model,name,'nirp.blocks.PFR',position,'GeometryMode','Volume', ...
+            'V','1','VUnit','m^3','D','0.1','DUnit','m','HeatMode','Isothermal');
+    else
+        addSystem(model,name,'nirp.blocks.CSTR',position, ...
+            'V','1','VUnit','m^3','HeatMode','Isothermal');
+    end
+end
+
+function buildEx12(model)
+    addSystem(model,'F1','nirp.blocks.Stream',[40 120 160 170],'Role','Feed');
+    addSystem(model,'PFR','nirp.blocks.PFR',[210 105 350 185], ...
+        'GeometryMode','Volume','V','1.5','VUnit','m^3','D','0.1', ...
+        'DUnit','m','HeatMode','Adiabatic');
+    addSystem(model,'Product','nirp.blocks.Stream',[400 120 540 170], ...
+        'Role','Product','ReferenceFeed','F1','KeyComponent','A');
+    add_line(model,'F1/1','PFR/1');add_line(model,'PFR/1','Product/1');
 end
 
 function addSystem(model,name,className,position,varargin)
