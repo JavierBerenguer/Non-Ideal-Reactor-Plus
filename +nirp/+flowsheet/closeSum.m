@@ -53,9 +53,6 @@ function [values,origin,message] = closeSum(values,total,tol)
         return
     end
     if missingCount >= 2
-        message = string(sprintf( ...
-            '%d fractions are missing; specify at least %d more.', ...
-            missingCount,missingCount-1));
         return
     end
     if missingCount == 1

@@ -2,7 +2,7 @@ classdef HeaterDialog < handle
 %HEATERDIALOG Structured editor for Heater/Cooler Simulink blocks.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 2, 2026. Last update: October 2, 2026
+% Created: October 2, 2026. Last update: October 3, 2026
 % =========================================================================
     properties (SetAccess=private)
         BlockPath;Figure;NameField;ModeGroup;ToutField;ToutUnitDropDown
@@ -20,11 +20,12 @@ classdef HeaterDialog < handle
         function setMode(obj,mode),b=obj.ModeGroup.Children;i=find(strcmp({b.Text},char(string(mode))),1);if isempty(i),error('nirp:flowsheet:invalidMode','Unknown heater mode.');end;obj.ModeGroup.SelectedObject=b(i);obj.updateVisibility();obj.captureModel();end
         function setValues(obj,varargin),for i=1:2:numel(varargin),switch lower(char(string(varargin{i}))),case {'tout','temperature'},obj.ToutField.Value=varargin{i+1};case {'duty','q'},obj.DutyField.Value=varargin{i+1};case {'pressuredrop','dp'},obj.PressureDropField.Value=varargin{i+1};case 'mode',obj.setMode(varargin{i+1});otherwise,error('nirp:flowsheet:unknownParameter','Unknown heater parameter.');end,end;obj.captureModel();end
         function values=getValues(obj),obj.captureModel();values=obj.DataModel;end
-        function apply(obj)
+        function applied=apply(obj)
+            applied=false;try,name=strtrim(obj.NameField.Value);if isempty(name),error('nirp:flowsheet:invalidName','Name cannot be empty.');end
             set_param(obj.BlockPath,'Mode',obj.ModeGroup.SelectedObject.Text,'Tout',num2str(obj.ToutField.Value,17),'ToutUnit',obj.ToutUnitDropDown.Value,'Duty',num2str(obj.DutyField.Value,17),'DutyUnit',obj.DutyUnitDropDown.Value,'PressureDrop',num2str(obj.PressureDropField.Value,17),'PressureDropUnit',obj.PressureDropUnitDropDown.Value,'ShowHeatPort',onoff(obj.HeatPortCheckBox.Value));
-            name=strtrim(obj.NameField.Value);if ~strcmp(name,get_param(obj.BlockPath,'Name')),set_param(obj.BlockPath,'Name',name);obj.BlockPath=[bdroot(obj.BlockPath) '/' name];end;obj.StatusLabel.Text='Applied.';obj.captureModel();obj.refreshConnections();
+            if ~strcmp(name,get_param(obj.BlockPath,'Name')),set_param(obj.BlockPath,'Name',name);obj.BlockPath=[bdroot(obj.BlockPath) '/' name];end;obj.StatusLabel.Text='Applied.';obj.captureModel();obj.refreshConnections();applied=true;catch exception,obj.StatusLabel.Text=exception.message;end
         end
-        function accept(obj),obj.apply();delete(obj);end
+        function accept(obj),if obj.apply(),delete(obj);end,end
         function cancel(obj),delete(obj);end
     end
     methods (Static),function dialog=open(blockPath),dialog=nirp.flowsheet.HeaterDialog(blockPath);end,end
@@ -36,7 +37,7 @@ classdef HeaterDialog < handle
             obj.ModeGroup=uibuttongroup(g,'Title','Mode','SelectionChangedFcn',@(~,~) obj.updateVisibility());obj.ModeGroup.Layout.Row=1;obj.ModeGroup.Layout.Column=[1 3];uiradiobutton(obj.ModeGroup,'Text','Outlet T','Position',[20 12 120 22]);uiradiobutton(obj.ModeGroup,'Text','Duty','Position',[180 12 120 22]);
             [obj.ToutField,obj.ToutUnitDropDown]=qrow(g,2,'Outlet T','Temperature');[obj.DutyField,obj.DutyUnitDropDown]=qrow(g,3,'Duty','Power');[obj.PressureDropField,obj.PressureDropUnitDropDown]=qrow(g,4,'Pressure drop','Pressure');obj.HeatPortCheckBox=uicheckbox(g,'Text','Show heat port');obj.HeatPortCheckBox.Layout.Row=5;obj.HeatPortCheckBox.Layout.Column=[2 3];
             cg=uigridlayout(connections,[2 1],'RowHeight',{30,'1x'});uilabel(cg,'Text','Connected material streams (read only)','FontWeight','bold');obj.ConnectionTable=uitable(cg,'ColumnName',{'Direction','Port','Stream'},'ColumnEditable',false);
-            obj.StatusLabel=uilabel(main,'Text','Ready.','FontAngle','italic');buttons=uigridlayout(main,[1 4],'ColumnWidth',{'1x',90,90,90});uilabel(buttons,'Text','');uibutton(buttons,'Text','OK','ButtonPushedFcn',@(~,~) obj.accept());uibutton(buttons,'Text','Apply','ButtonPushedFcn',@(~,~) obj.apply());uibutton(buttons,'Text','Cancel','ButtonPushedFcn',@(~,~) obj.cancel());
+            obj.StatusLabel=uilabel(main,'Text','Ready.','FontAngle','italic');buttons=uigridlayout(main,[1 4],'ColumnWidth',{'1x',90,90,90});uilabel(buttons,'Text','');uibutton(buttons,'Text','OK','ButtonPushedFcn',@(~,~) obj.accept());uibutton(buttons,'Text','Cancel','ButtonPushedFcn',@(~,~) obj.cancel());uibutton(buttons,'Text','Apply','ButtonPushedFcn',@(~,~) obj.apply());
         end
         function load(obj),obj.NameField.Value=get_param(obj.BlockPath,'Name');obj.ToutField.Value=str2double(get_param(obj.BlockPath,'Tout'));obj.ToutUnitDropDown.Value=get_param(obj.BlockPath,'ToutUnit');obj.DutyField.Value=str2double(get_param(obj.BlockPath,'Duty'));obj.DutyUnitDropDown.Value=get_param(obj.BlockPath,'DutyUnit');obj.PressureDropField.Value=str2double(get_param(obj.BlockPath,'PressureDrop'));obj.PressureDropUnitDropDown.Value=get_param(obj.BlockPath,'PressureDropUnit');obj.HeatPortCheckBox.Value=strcmp(get_param(obj.BlockPath,'ShowHeatPort'),'on');obj.setMode(get_param(obj.BlockPath,'Mode'));end
         function updateVisibility(obj),outlet=strcmp(obj.ModeGroup.SelectedObject.Text,'Outlet T');rowVisible(obj.GeneralGrid,2,outlet);rowVisible(obj.GeneralGrid,3,~outlet);end

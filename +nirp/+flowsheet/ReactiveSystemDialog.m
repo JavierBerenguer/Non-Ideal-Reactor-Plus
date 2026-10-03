@@ -4,7 +4,7 @@ classdef ReactiveSystemDialog < handle
 %   that can also be driven by scripts through its public tables.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 2, 2026. Last update: October 2, 2026
+% Created: October 2, 2026. Last update: October 3, 2026
 % =========================================================================
 
     properties (SetAccess = private)
@@ -373,21 +373,21 @@ classdef ReactiveSystemDialog < handle
             uibutton(controls,'Text','Load example','ButtonPushedFcn', ...
                 @(~,~) obj.loadExample()) ;
             uilabel(controls,'Text','') ;
-            uibutton(controls,'Text','Validate','ButtonPushedFcn', ...
-                @(~,~) obj.validate()) ;
             if obj.Mode == "edit"
-                uibutton(controls,'Text','Save to model','ButtonPushedFcn', ...
-                    @(~,~) obj.saveToModel()) ;
+                uilabel(controls,'Text','') ;
+                obj.OKButton=uibutton(controls,'Text','OK','ButtonPushedFcn', ...
+                    @(~,~) obj.acceptDialog()) ;
+                obj.CancelButton=uibutton(controls,'Text','Cancel','ButtonPushedFcn', ...
+                    @(~,~) delete(obj)) ;
+                obj.ApplyButton=uibutton(controls,'Text','Apply','ButtonPushedFcn', ...
+                    @(~,~) obj.applyDialog()) ;
             else
+                uilabel(controls,'Text','') ;
                 uibutton(controls,'Text','Create flowsheet...','ButtonPushedFcn', ...
                     @(~,~) obj.createInteractive()) ;
+                obj.CancelButton=uibutton(controls,'Text','Cancel','ButtonPushedFcn', ...
+                    @(~,~) delete(obj)) ;
             end
-            obj.OKButton=uibutton(controls,'Text','OK','ButtonPushedFcn', ...
-                @(~,~) obj.acceptDialog()) ;
-            obj.ApplyButton=uibutton(controls,'Text','Apply','ButtonPushedFcn', ...
-                @(~,~) obj.applyDialog()) ;
-            obj.CancelButton=uibutton(controls,'Text','Cancel','ButtonPushedFcn', ...
-                @(~,~) delete(obj)) ;
             obj.StatusLabel = uilabel(main,'Text','Ready.','FontAngle','italic') ;
         end
 
@@ -667,16 +667,15 @@ classdef ReactiveSystemDialog < handle
             expression.Visible=onOff(type=="expression");obj.ExpressionField.Visible=onOff(type=="expression");
         end
 
-        function applyDialog(obj)
+        function applied=applyDialog(obj)
+            applied=false;
             obj.kineticDetailEdited();
-            if obj.Mode=="edit",obj.saveToModel();else,obj.validate();end
+            [valid,~]=obj.validate();if ~valid,return,end
+            try,if obj.Mode=="edit",obj.saveToModel();end;applied=true;catch exception,obj.StatusLabel.Text=exception.message;end
         end
 
         function acceptDialog(obj)
-            obj.kineticDetailEdited();
-            [valid,~]=obj.validate();if ~valid,return,end
-            if obj.Mode=="edit",obj.saveToModel();end
-            delete(obj);
+            if obj.applyDialog(),delete(obj);end
         end
 
         function loadExample(obj)
@@ -688,7 +687,7 @@ classdef ReactiveSystemDialog < handle
             if isempty(answer), return, end
             folder=uigetdir(pwd,'Select a folder for the flowsheet') ;
             if isequal(folder,0), return, end
-            obj.createFlowsheet(strtrim(answer{1}),folder) ;
+            try,obj.createFlowsheet(strtrim(answer{1}),folder) ;delete(obj);catch exception,obj.StatusLabel.Text=exception.message;end
         end
 
         function path = dictionaryPath(obj,model)

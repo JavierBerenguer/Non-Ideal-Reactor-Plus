@@ -2,7 +2,7 @@ classdef NirpUnitDialogsTest < matlab.unittest.TestCase
 %NIRPUNITDIALOGSTEST Tests for structured flowsheet unit dialogs.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 2, 2026. Last update: October 2, 2026
+% Created: October 2, 2026. Last update: October 3, 2026
 % =========================================================================
     properties
         Folder
@@ -66,7 +66,7 @@ classdef NirpUnitDialogsTest < matlab.unittest.TestCase
             [columns,order]=sort(columns);parent=action(1).Parent;
             testCase.verifyEqual(reshape(columns,1,[]),[2 3 4]);
             testCase.verifyEqual(cell2mat(parent.ColumnWidth(2:4)),[90 90 90]);
-            testCase.verifyEqual(reshape(string({action(order).Text}),1,[]),["OK" "Apply" "Cancel"]);
+            testCase.verifyEqual(reshape(string({action(order).Text}),1,[]),["OK" "Cancel" "Apply"]);
             dialogs{1}.Figure.Visible='off';
         end
         function callbacksOpenStructuredDialogs(testCase)

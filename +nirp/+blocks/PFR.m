@@ -4,7 +4,7 @@ classdef PFR < matlab.System
     % pressure-correlation data when pressure is nonconstant.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 2, 2026. Last update: October 2, 2026
+    % Created: October 2, 2026. Last update: October 3, 2026
     % =========================================================================
 
     properties (Nontunable)
@@ -110,13 +110,25 @@ classdef PFR < matlab.System
             [obj.Model,~,obj.RS]=nirp.blocks.internal.modelPackage(); obj.Block=get_param(gcb,'Name');
             obj.Params=nirp.blocks.internal.thermalParameters(obj);
             if strcmp(obj.Params.heatMode,'Heat exchange'), obj.Params.heatMode='Other'; end
-            if strcmp(obj.GeometryMode,'Volume')
-                obj.Params.V=UnitConverterHelper.convertToSI('Volume',obj.V,char(obj.VUnit));
+            geometry=[UnitConverterHelper.convertToSI('Volume',obj.V,char(obj.VUnit)) ...
+                UnitConverterHelper.convertToSI('Length',obj.L,char(obj.LUnit)) ...
+                UnitConverterHelper.convertToSI('Length',obj.D,char(obj.DUnit)) obj.NTubes];
+            if any(isnan(geometry))
+                [geometry,~,message]=nirp.flowsheet.closeProduct(geometry,pi/4,[1 -1 -2 -1]);
+                if strlength(message)>0||any(~isfinite(geometry))
+                    if strlength(message)==0,message="PFR geometry is incomplete.";end
+                    error('nirp:blocks:invalidGeometry','%s',message);
+                end
+                useLength=true;
             else
-                obj.Params.L=UnitConverterHelper.convertToSI('Length',obj.L,char(obj.LUnit));
+                useLength=strcmp(obj.GeometryMode,'Length');
             end
-            obj.Params.D=UnitConverterHelper.convertToSI('Length',obj.D,char(obj.DUnit));
-            obj.Params.nTubes=obj.NTubes; obj.Params.pressureMode=char(obj.PressureMode);
+            if geometry(4)<1||abs(geometry(4)-round(geometry(4)))>1e-9
+                error('nirp:blocks:invalidGeometry','Number of tubes must be a positive integer.');
+            end
+            if useLength,obj.Params.L=geometry(2);else,obj.Params.V=geometry(1);end
+            obj.Params.D=geometry(3);
+            obj.Params.nTubes=round(geometry(4)); obj.Params.pressureMode=char(obj.PressureMode);
             obj.Params.pressureDropEqn=char(obj.PressureDropEqn);
             obj.Params.particleDiameter=UnitConverterHelper.convertToSI('Length',obj.ParticleDiameter,char(obj.ParticleDiameterUnit));
             obj.Params.density=UnitConverterHelper.convertToSI('Density',obj.Density,char(obj.DensityUnit));
