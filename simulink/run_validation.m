@@ -180,6 +180,62 @@ out33 = nirp.units.cstr(struct('V',1.6,'heatMode','Other', ...
 diagram33 = simulateValidationExample(files(30), ...
     "ex30_problem33b_cooled_gas_cstr") ;
 
+pkg41 = nirp.pkg.examples.problem41SecondOrder() ;
+rs41 = nirp.pkg.toReactionSys(pkg41) ; feed41 = nirp.pkg.feedStream(pkg41,"F1") ;
+volume41 = 4.406197e-3 ;
+flow41 = fzero(@(flow) threeCstrConcentration(flow,volume41,feed41,rs41)-200, ...
+    [1 5]*1e-3/60) ;
+out41 = threeCstrAtFlow(flow41,volume41,feed41,rs41) ;
+diagram41 = simulateValidationExample(files(31),"ex31_problem41_three_cstrs") ;
+
+pkg43 = nirp.pkg.examples.problem43Liquid() ;
+rs43 = nirp.pkg.toReactionSys(pkg43) ; feed43 = nirp.pkg.feedStream(pkg43,"F1") ;
+flow43pc = fzero(@(flow) problem43Concentration(flow,feed43,rs43,true)-40, ...
+    [100 1000]/3600) ;
+flow43cp = fzero(@(flow) problem43Concentration(flow,feed43,rs43,false)-40, ...
+    [100 1000]/3600) ;
+out43pc = problem43AtFlow(flow43pc,feed43,rs43,true) ;
+out43cp = problem43AtFlow(flow43cp,feed43,rs43,false) ;
+diagram43pc = simulateValidationExample(files(32), ...
+    "ex32_problem43_pfr_then_cstr") ;
+diagram43cp = simulateValidationExample(files(33), ...
+    "ex33_problem43_cstr_then_pfr") ;
+
+params45 = struct('V',0.250480335,'heatMode','Specified T', ...
+    'specifiedT',368.15) ;
+out45first = nirp.units.cstr(params45,feed45,rs45) ;
+area45second = fzero(@(area) cooled45Temperature(area,out45first,rs45)-368.15, ...
+    [0.01 1]) ;
+out45second = cooled45(area45second,out45first,rs45) ;
+area45third = fzero(@(area) cooled45Temperature(area,out45second,rs45)-368.15, ...
+    [0.01 1]) ;
+out45third = cooled45(area45third,out45second,rs45) ;
+diagram45c = simulateValidationExample(files(34), ...
+    "ex34_problem45c_cooled_tanks") ;
+
+pkg28 = nirp.pkg.examples.problem28SteamJacket() ;
+rs28 = nirp.pkg.toReactionSys(pkg28) ; feed28 = nirp.pkg.feedStream(pkg28,"F1") ;
+utility28 = fzero(@(temperature) steam28Conversion(temperature,feed28,rs28)-0.6, ...
+    [380 480]) ;
+[out28,info28] = steam28(utility28,feed28,rs28) ;
+latentHeat28 = (606.5-0.695*(utility28-273.15))*4184 ;
+steamFlow28 = info28.heatDuty/latentHeat28*60 ;
+diagram28 = simulateValidationExample(files(35), ...
+    "ex35_problem28_steam_jacket") ;
+diagramSteam28 = diagnosticHeat(diagram28,"ex35_problem28_steam_jacket", ...
+    "CSTR")/latentHeat28*60 ;
+
+pkg36 = nirp.pkg.examples.problem36AirCooled() ;
+rs36 = nirp.pkg.toReactionSys(pkg36) ;
+feed36a = nirp.pkg.feedStream(pkg36,"Feed A") ;
+feed36b = nirp.pkg.feedStream(pkg36,"Feed B") ;
+mixed36 = nirp.units.mixer([],{feed36a,feed36b},rs36) ;
+area36 = fzero(@(area) problem36Conversion(area,mixed36,feed36a,rs36)-0.85, ...
+    [2 20]) ;
+[out36,info36] = problem36(area36,mixed36,rs36) ;
+diagram36 = simulateValidationExample(files(36), ...
+    "ex36_problem36_air_cooled_cstr") ;
+
 problem = ["P37a";"P37a";"P37a";"P40a";"P40b";"P42";"P42"; ...
     "P19";"P19";"P44c";"P44c";"P21a";"P21b";"P27"; ...
     "P30";"P30";"P31";"P31";"P44a";"P44a";"P45a";"P45b"; ...
@@ -256,6 +312,61 @@ assert(all(relative(~adjusted) <= 1e-9),'nirp:validation:mismatch', ...
 assert(all(relative(adjusted) <= 1e-5),'nirp:validation:adjustMismatch', ...
     'An adjusted parameter differs from its fzero result by more than 1e-5.') ;
 
+problem124 = ["P41";"P41";"P43";"P43";"P43";"P43"; ...
+    "P45c";"P45c";"P45c";"P45c";"P28";"P28";"P28"; ...
+    "P36";"P36";"P36";"P36";"P36";"P36";"P36"] ;
+magnitude124 = ["Adjusted Q (L/min)";"X_A"; ...
+    "PFR+CSTR Q/Q0";"PFR+CSTR X_A";"CSTR+PFR Q/Q0";"CSTR+PFR X_A"; ...
+    "Adjusted A2 (m^2)";"T2 (K)";"Adjusted A3 (m^2)";"T3 (K)"; ...
+    "Steam T (K)";"Reactor T (K)";"Steam flow (kg/min)"; ...
+    "Adjusted A (m^2)";"T (K)";"C_A (mol/L)";"C_B (mol/L)"; ...
+    "C_R (mol/L)";"C_S (mol/L)";"Q (J/min)"] ;
+concentration36 = nirp.stream.concentration(out36)/1000 ;
+diagramConcentration36 = nirp.stream.concentration( ...
+    diagram36.Streams.Product.streamSI)/1000 ;
+diagram124 = [diagnosticParameter(diagram41,"ex31_problem41_three_cstrs","Adjust")*60000; ...
+    streamConversion(diagram41.Streams.F1.streamSI,diagram41.Streams.Product.streamSI,1); ...
+    diagnosticParameter(diagram43pc,"ex32_problem43_pfr_then_cstr","Adjust")*36; ...
+    streamConversion(diagram43pc.Streams.F1.streamSI,diagram43pc.Streams.Product.streamSI,1); ...
+    diagnosticParameter(diagram43cp,"ex33_problem43_cstr_then_pfr","Adjust")*36; ...
+    streamConversion(diagram43cp.Streams.F1.streamSI,diagram43cp.Streams.Product.streamSI,1); ...
+    diagnosticParameter(diagram45c,"ex34_problem45c_cooled_tanks","Adjust 2"); ...
+    diagram45c.Streams.CSTR2Outlet.streamSI.T; ...
+    diagnosticParameter(diagram45c,"ex34_problem45c_cooled_tanks","Adjust 3"); ...
+    diagram45c.Streams.Product.streamSI.T; ...
+    diagnosticParameter(diagram28,"ex35_problem28_steam_jacket","Adjust"); ...
+    diagram28.Streams.Product.streamSI.T;diagramSteam28; ...
+    diagnosticParameter(diagram36,"ex36_problem36_air_cooled_cstr","Adjust"); ...
+    diagram36.Streams.Product.streamSI.T;diagramConcentration36(1:4); ...
+    diagnosticHeat(diagram36,"ex36_problem36_air_cooled_cstr","CSTR")*60] ;
+script124 = [flow41*60000;streamConversion(atFlow(feed41,flow41),out41,1); ...
+    flow43pc/(100/3600);streamConversion(atFlow(feed43,flow43pc),out43pc,1); ...
+    flow43cp/(100/3600);streamConversion(atFlow(feed43,flow43cp),out43cp,1); ...
+    area45second;out45second.T;area45third;out45third.T;utility28;out28.T;steamFlow28; ...
+    area36;out36.T;concentration36(1:4);info36.heatDuty*60] ;
+% Published solutions (Q0 = 1 L/min in P41, so +95 % reads 1.95 L/min).
+official124 = [1.95;0.8;3.88;0.96;1.84;0.96; ...
+    0.195;368.15;0.091;368.15;401.3;399.6;1.16; ...
+    9.43;298.6;1.50;7.25;2.54;5.96;-5.039e6] ;
+difference124 = abs(diagram124-official124) ;
+note124 = strings(size(problem124)) ;
+note124(problem124=="P28" & magnitude124=="Steam T (K)") = ...
+    "Known 0.14 K difference with the official solution" ;
+note124(problem124=="P28" & magnitude124=="Reactor T (K)") = ...
+    "Known 0.17 K difference with the official solution" ;
+validation124 = table(problem124,magnitude124,diagram124,script124,official124, ...
+    difference124,note124,'VariableNames',{'Problem','Magnitude','Diagram', ...
+    'Script','Official','Difference','Note'}) ;
+disp(validation124) ;
+relative124 = abs(diagram124-script124)./max(abs(script124),1e-15) ;
+adjusted124 = ismember(magnitude124,["Adjusted Q (L/min)","PFR+CSTR Q/Q0", ...
+    "CSTR+PFR Q/Q0","Adjusted A2 (m^2)","Adjusted A3 (m^2)", ...
+    "Steam T (K)","Adjusted A (m^2)"]) ;
+assert(all(relative124(~adjusted124) <= 1e-9),'nirp:validation:mismatch124', ...
+    'A T-124 diagram differs from its script result by more than 1e-9.') ;
+assert(all(relative124(adjusted124) <= 1e-5),'nirp:validation:adjustMismatch124', ...
+    'A T-124 adjusted parameter differs from its fzero result by more than 1e-5.') ;
+
 function results = simulateValidationExample(file,name)
     evalin('base','clear nirpResults') ;
     load_system(char(file)) ; sim(char(name)) ;
@@ -270,6 +381,75 @@ end
 
 function value = conversion(feed,product,index)
     value = (feed.F(index)-product.F(index))/feed.F(index) ;
+end
+
+function value = streamConversion(feed,product,index)
+    value = (feed.F(index)-product.F(index))/feed.F(index) ;
+end
+
+function stream = atFlow(reference,flow)
+    stream = reference ;
+    stream.F = reference.F*(flow/reference.Q) ; stream.Q = flow ;
+    stream = nirp.stream.refresh(stream) ;
+end
+
+function product = threeCstrAtFlow(flow,volume,feed,rs)
+    product = atFlow(feed,flow) ; params = struct('V',volume) ;
+    for i = 1:3, product = nirp.units.cstr(params,product,rs) ; end
+end
+
+function value = threeCstrConcentration(flow,volume,feed,rs)
+    product = threeCstrAtFlow(flow,volume,feed,rs) ;
+    concentration = nirp.stream.concentration(product) ; value = concentration(1) ;
+end
+
+function product = problem43AtFlow(flow,feed,rs,pfrFirst)
+    inlet = atFlow(feed,flow) ;
+    pfr = @(stream) nirp.units.pfr(struct('V',0.666667,'D',0.5),stream,rs) ;
+    cstr = @(stream) nirp.units.cstr(struct('V',6.666667),stream,rs) ;
+    if pfrFirst, product = cstr(pfr(inlet)) ; else, product = pfr(cstr(inlet)) ; end
+end
+
+function value = problem43Concentration(flow,feed,rs,pfrFirst)
+    product = problem43AtFlow(flow,feed,rs,pfrFirst) ;
+    concentration = nirp.stream.concentration(product) ; value = concentration(1) ;
+end
+
+function product = cooled45(area,feed,rs)
+    product = nirp.units.cstr(struct('V',0.250480335,'heatMode','Other', ...
+        'U',1180,'A',area,'utilityTin',293.15),feed,rs) ;
+end
+
+function value = cooled45Temperature(area,feed,rs)
+    product = cooled45(area,feed,rs) ; value = product.T ;
+end
+
+function [product,info] = steam28(temperature,feed,rs)
+    [product,info] = nirp.units.cstr(struct('V',1.2,'heatMode','Other', ...
+        'U',15070e3/3600,'A',6,'utilityTin',temperature),feed,rs) ;
+end
+
+function value = steam28Conversion(temperature,feed,rs)
+    product = steam28(temperature,feed,rs) ; value = streamConversion(feed,product,1) ;
+end
+
+function [product,info] = problem36(area,feed,rs)
+    [product,info] = nirp.units.cstr(struct('V',0.385,'heatMode','Other', ...
+        'U',1200,'A',area,'utilityTin',291.15),feed,rs) ;
+end
+
+function value = problem36Conversion(area,feed,reference,rs)
+    product = problem36(area,feed,rs) ; value = streamConversion(reference,product,1) ;
+end
+
+function value = diagnosticParameter(results,model,block)
+    field = matlab.lang.makeValidName(model+"_"+block) ;
+    value = results.Diagnostics.(field).lastInfo.value ;
+end
+
+function value = diagnosticHeat(results,model,block)
+    field = matlab.lang.makeValidName(model+"_"+block) ;
+    value = results.Diagnostics.(field).lastInfo.heatDuty ;
 end
 
 function value = reactorConversion(feed,product,index)

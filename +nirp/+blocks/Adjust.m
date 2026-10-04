@@ -27,7 +27,9 @@ classdef Adjust < matlab.System
             UnitConverterHelper.getUnits('Concentration')])
         ParameterUnitSet = matlab.system.StringSet([ ...
             UnitConverterHelper.getUnits('Volume'), ...
-            UnitConverterHelper.getUnits('Temperature')])
+            UnitConverterHelper.getUnits('Temperature'), ...
+            UnitConverterHelper.getUnits('VolumetricFlow'), ...
+            UnitConverterHelper.getUnits('Area')])
         StrategySet = matlab.system.StringSet({'Simultaneous','Nested'})
     end
     properties (Access=private)
@@ -54,7 +56,7 @@ classdef Adjust < matlab.System
             [obj.Model,pkg,~] = nirp.blocks.internal.modelPackage() ; obj.Key = gcb ;
             obj.Block = get_param(gcb,'Name') ;
             category = nirp.blocks.internal.unitCategory(obj.ParameterUnit, ...
-                {'Volume','Temperature'}) ;
+                {'Volume','Temperature','VolumetricFlow','Area'}) ;
             obj.Current = UnitConverterHelper.convertToSI(category,obj.InitialValue,char(obj.ParameterUnit)) ;
             obj.Minimum = UnitConverterHelper.convertToSI(category,obj.MinValue,char(obj.ParameterUnit)) ;
             obj.Maximum = UnitConverterHelper.convertToSI(category,obj.MaxValue,char(obj.ParameterUnit)) ;

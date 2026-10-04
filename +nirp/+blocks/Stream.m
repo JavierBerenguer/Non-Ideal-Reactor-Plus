@@ -10,6 +10,8 @@ classdef Stream < matlab.System
         Role = 'Intermediate'
         % Source of feed temperature (Feed role only).
         TSource = 'Dialog'
+        % Source of feed volumetric flow (Feed role only).
+        QSource = 'Dialog'
         % Feed temperature when explicitly overridden (Feed role only).
         T = NaN
         % Unit of the feed-temperature override.
@@ -28,6 +30,7 @@ classdef Stream < matlab.System
     properties (Constant, Hidden)
         RoleSet = matlab.system.StringSet({'Feed','Intermediate','Product'})
         TSourceSet = matlab.system.StringSet({'Dialog','Input port'})
+        QSourceSet = matlab.system.StringSet({'Dialog','Input port'})
         TUnitSet = matlab.system.StringSet({'K',[char(176) 'C']})
         FlowUnitSet = matlab.system.StringSet(UnitConverterHelper.getUnits('MolarFlow'))
         TemperatureUnitSet = matlab.system.StringSet(UnitConverterHelper.getUnits('Temperature'))
@@ -96,6 +99,23 @@ classdef Stream < matlab.System
                 end
                 stream.T = temperature ;
                 stream = nirp.stream.refresh(stream) ;
+                if strcmp(obj.QSource,'Input port')
+                    index = 1+strcmp(obj.TSource,'Input port') ;
+                    flow = varargin{index} ;
+                    if ~isnumeric(flow) || ~isscalar(flow) || ...
+                            ~isfinite(flow) || flow <= 0
+                        error('nirp:blocks:invalidParameterPort', ...
+                            'Feed-stream Q input must be positive m^3/s.') ;
+                    end
+                    if stream.phase == 0
+                        concentration = nirp.stream.concentration(obj.FeedStream) ;
+                        stream.Q = flow ;
+                        stream.F = concentration*flow ;
+                    else
+                        stream.F = stream.F*(flow/obj.FeedStream.Q) ;
+                    end
+                    stream = nirp.stream.refresh(stream) ;
+                end
             else
                 stream = varargin{1} ;
                 nirp.stream.validate(stream,obj.ReactionSystem.nComponents) ;
@@ -107,6 +127,11 @@ classdef Stream < matlab.System
         end
 
         function publish(obj,stream)
+            if evalin('base','exist(''nirpResults'',''var'')')
+                results = evalin('base','nirpResults') ;
+            else
+                results = struct() ;
+            end
             names = nirp.pkg.componentNames(obj.Package)' ;
             flow = UnitConverterHelper.convertFromSI( ...
                 'MolarFlow',stream.F,char(obj.FlowUnit)) ;
@@ -134,17 +159,20 @@ classdef Stream < matlab.System
             item.status = stream.status ;
             item.conversion = [] ;
             if ~isempty(obj.KeyIndex)
-                initial = obj.Reference.F(obj.KeyIndex) ;
+                reference = obj.Reference ;
+                referenceField = matlab.lang.makeValidName( ...
+                    strtrim(char(string(obj.ReferenceFeed)))) ;
+                if isstruct(results) && isfield(results,'Streams') && ...
+                        isstruct(results.Streams) && ...
+                        isfield(results.Streams,referenceField)
+                    reference = results.Streams.(referenceField).streamSI ;
+                end
+                initial = reference.F(obj.KeyIndex) ;
                 if initial <= 0
                     error('nirp:blocks:invalidReference', ...
                         'The reference feed key-component flow must be positive.') ;
                 end
                 item.conversion = (initial-stream.F(obj.KeyIndex))/initial ;
-            end
-            if evalin('base','exist(''nirpResults'',''var'')')
-                results = evalin('base','nirpResults') ;
-            else
-                results = struct() ;
             end
             if ~isstruct(results), results = struct() ; end
             if ~isfield(results,'Streams') || ~isstruct(results.Streams)
@@ -157,7 +185,8 @@ classdef Stream < matlab.System
 
         function n = getNumInputsImpl(obj)
             if strcmp(obj.Role,'Feed')
-                n = double(strcmp(obj.TSource,'Input port')) ;
+                n = double(strcmp(obj.TSource,'Input port'))+ ...
+                    double(strcmp(obj.QSource,'Input port')) ;
             else
                 n = 1 ;
             end
@@ -168,8 +197,15 @@ classdef Stream < matlab.System
         function flag = isOutputFixedSizeImpl(~), flag = true ; end
         function flag = isOutputComplexImpl(~), flag = false ; end
         function name = getOutputNamesImpl(~), name = '' ; end % short icons, no port labels (Claude, T-111 review)
-        function name = getInputNamesImpl(obj)
-            if strcmp(obj.Role,'Feed'), name = 'T (K)' ; else, name = '' ; end
+        function varargout = getInputNamesImpl(obj)
+            if ~strcmp(obj.Role,'Feed'), varargout{1} = '' ; return, end
+            index = 0 ;
+            if strcmp(obj.TSource,'Input port')
+                index = index+1 ; varargout{index} = 'T (K)' ;
+            end
+            if strcmp(obj.QSource,'Input port')
+                index = index+1 ; varargout{index} = 'Q (m^3/s)' ;
+            end
         end
         function icon = getIconImpl(obj)
             labels = struct('Feed','Feed','Intermediate','Stream','Product','Product') ;
@@ -183,7 +219,7 @@ classdef Stream < matlab.System
     methods (Static, Access = protected)
         function groups = getPropertyGroupsImpl()
             groups = matlab.system.display.Section('Title','Stream', ...
-                'PropertyList',{'Role','TSource','T','TUnit','ReferenceFeed', ...
+                'PropertyList',{'Role','TSource','T','TUnit','QSource','ReferenceFeed', ...
                 'KeyComponent','FlowUnit','TemperatureUnit','PressureUnit', ...
                 'ConcentrationUnit'}) ;
         end

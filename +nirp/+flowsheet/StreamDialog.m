@@ -18,6 +18,8 @@ classdef StreamDialog < handle
         TemperatureUnitDropDown
         VolumetricFlowField
         VolumetricFlowUnitDropDown
+        TSourceDropDown
+        QSourceDropDown
         DensityField
         DensityUnitDropDown
         ViscosityField
@@ -90,6 +92,8 @@ classdef StreamDialog < handle
                 case 'phase', obj.PhaseDropDown.Value = char(string(value)) ;
                 case 'referencefeed', obj.ReferenceFeedDropDown.Value = char(string(value)) ;
                 case 'keycomponent', obj.KeyComponentDropDown.Value = char(string(value)) ;
+                case 'tsource', obj.TSourceDropDown.Value = char(string(value)) ;
+                case 'qsource', obj.QSourceDropDown.Value = char(string(value)) ;
                 otherwise
                     error('nirp:flowsheet:unknownMagnitude','Unknown stream magnitude "%s".',name) ;
             end
@@ -106,6 +110,8 @@ classdef StreamDialog < handle
                 case {'q','volumetricflow'}, value = obj.VolumetricFlowField.Value ;
                 case 'density', value = obj.DensityField.Value ;
                 case 'viscosity', value = obj.ViscosityField.Value ;
+                case 'tsource', value = string(obj.TSourceDropDown.Value) ;
+                case 'qsource', value = string(obj.QSourceDropDown.Value) ;
                 case 'phase', value = string(obj.PhaseDropDown.Value) ;
                 case 'name'
                     obj.NameField.Value=get_param(obj.BlockPath,'Name') ;
@@ -217,15 +223,17 @@ classdef StreamDialog < handle
             else, obj.Package.feeds(index) = feed ; end
             nirp.pkg.validate(obj.Package) ;
             nirp.pkg.writeDictionary(obj.Package,obj.DictionaryPath) ;
+            set_param(obj.BlockPath,'TSource',obj.TSourceDropDown.Value, ...
+                'QSource',obj.QSourceDropDown.Value) ;
             obj.StatusLabel.Text = 'Specified' ;
             obj.captureModel() ;
         end
         function build(obj,visible)
             obj.Figure = uifigure('Name','Stream','Visible',visible, ...
-                'Position',[100 100 780 455],'Resize','off','Tag','NirpStreamDialog') ;
-            grid = uigridlayout(obj.Figure,[9 5], ... % row 9: filler so row 8 keeps its height (Claude, T-111 review)
+                'Position',[100 100 780 515],'Resize','off','Tag','NirpStreamDialog') ;
+            grid = uigridlayout(obj.Figure,[11 5], ...
                 'ColumnWidth',{145,145,20,120,170}, ...
-                'RowHeight',{34,62,30,30,30,30,30,30,'1x'}, ...
+                'RowHeight',{34,62,30,30,30,30,30,30,30,30,'1x'}, ...
                 'Padding',[18 14 18 14]) ;
             helper = uibutton(grid,'Text','Unit conversion helper', ...
                 'ButtonPushedFcn',@(~,~) UnitConverterHelper.launch()) ;
@@ -252,7 +260,7 @@ classdef StreamDialog < handle
                 {'Component','Molar Flow','Concentration'},'RowName',{}, ...
                 'ColumnEditable',[false obj.Role=="Feed" obj.Role=="Feed"], ...
                 'CellEditCallback',@(~,event) obj.componentEdited(event)) ;
-            obj.ComponentTable.Layout.Row=[3 9]; obj.ComponentTable.Layout.Column=[1 2] ;
+            obj.ComponentTable.Layout.Row=[3 11]; obj.ComponentTable.Layout.Column=[1 2] ;
             [obj.PhaseDropDown,~] = rowControl(grid,3,'Phase',{'L','G'},'dropdown') ;
             [obj.PressureField,obj.PressureUnitDropDown] = quantityRow( ...
                 grid,4,'P','Pressure') ;
@@ -260,10 +268,14 @@ classdef StreamDialog < handle
                 grid,5,'T','Temperature') ;
             [obj.VolumetricFlowField,obj.VolumetricFlowUnitDropDown] = quantityRow( ...
                 grid,6,'Volumetric Flow','VolumetricFlow') ;
+            [obj.TSourceDropDown,~] = rowControl(grid,7,'T source', ...
+                {'Dialog','Input port'},'dropdown') ;
+            [obj.QSourceDropDown,~] = rowControl(grid,8,'Q source', ...
+                {'Dialog','Input port'},'dropdown') ;
             [obj.DensityField,obj.DensityUnitDropDown] = quantityRow( ...
-                grid,7,'Density','Density') ;
+                grid,9,'Density','Density') ;
             [obj.ViscosityField,obj.ViscosityUnitDropDown] = quantityRow( ...
-                grid,8,'Viscosity','Viscosity') ;
+                grid,10,'Viscosity','Viscosity') ;
             obj.DensityField.AllowEmpty='on';obj.DensityField.Value=[];
             obj.ViscosityField.AllowEmpty='on';obj.ViscosityField.Value=[];
             obj.MolarFlowUnitDropDown = uidropdown(obj.Figure,'Items', ...
@@ -298,6 +310,7 @@ classdef StreamDialog < handle
                 obj.SaveButton=obj.CancelButton ;
             end
             editable = onOff(obj.Role=="Feed") ;
+            obj.TSourceDropDown.Visible=editable;obj.QSourceDropDown.Visible=editable;
             obj.PhaseDropDown.Enable=editable; obj.PressureField.Editable=editable;
             obj.TemperatureField.Editable=editable;obj.VolumetricFlowField.Editable=editable;
             obj.DensityField.Editable='off';obj.ViscosityField.Editable='off';
@@ -325,6 +338,10 @@ classdef StreamDialog < handle
                 if any(strcmp(key,obj.KeyComponentDropDown.Items))
                     obj.KeyComponentDropDown.Value=key ;
                 end
+            end
+            if obj.Role == "Feed"
+                obj.TSourceDropDown.Value=get_param(obj.BlockPath,'TSource') ;
+                obj.QSourceDropDown.Value=get_param(obj.BlockPath,'QSource') ;
             end
             if obj.Role == "Feed", obj.loadFeed() ; obj.closeFeed() ; else, obj.loadCalculatedResult() ; end
             obj.captureModel() ;
