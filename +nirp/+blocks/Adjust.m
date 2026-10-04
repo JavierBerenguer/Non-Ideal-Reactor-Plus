@@ -34,9 +34,7 @@ classdef Adjust < matlab.System
     end
     properties (Access=private)
         Current
-        Previous
-        PreviousError = NaN
-        HavePrevious = false
+        StepState
         Converged = false
         Consecutive = 0
         Iteration = 0
@@ -89,7 +87,8 @@ classdef Adjust < matlab.System
                 otherwise
                     obj.Target = obj.convertTarget('Concentration') ; obj.TargetScale = max(abs(obj.Target),1e-12) ;
             end
-            obj.Previous = obj.Current ; obj.PreviousError = NaN ; obj.HavePrevious = false ;
+            obj.StepState = struct('minimum',obj.Minimum,'maximum',obj.Maximum, ...
+                'damping',obj.Damping) ;
             obj.Converged = false ; obj.Consecutive = 0 ; obj.Iteration = 0 ;
             obj.LastMeasured = NaN ; obj.publish() ;
         end
@@ -110,24 +109,8 @@ classdef Adjust < matlab.System
             end
             obj.Converged = obj.Consecutive >= 2 ;
             if ~obj.Converged
-                if ~obj.HavePrevious
-                    span = obj.Maximum-obj.Minimum ;
-                    direction = 1 ;
-                    if obj.Current+0.05*span > obj.Maximum, direction = -1 ; end
-                    candidate = obj.Current+direction*0.05*span ;
-                    obj.HavePrevious = true ;
-                else
-                    denominator = errorValue-obj.PreviousError ;
-                    if abs(denominator) <= eps(max([abs(errorValue),abs(obj.PreviousError),1]))
-                        candidate = (obj.Minimum+obj.Maximum)/2 ;
-                    else
-                        candidate = obj.Current-errorValue*(obj.Current-obj.Previous)/denominator ;
-                    end
-                    candidate = obj.Current+obj.Damping*(candidate-obj.Current) ;
-                end
-                candidate = min(obj.Maximum,max(obj.Minimum,candidate)) ;
-                obj.Previous = obj.Current ; obj.PreviousError = errorValue ;
-                obj.Current = candidate ;
+                [obj.Current,obj.StepState] = nirp.blocks.internal.adjustStep( ...
+                    obj.StepState,obj.Current,errorValue) ;
             end
             obj.Iteration = obj.Iteration+1 ; obj.publish() ;
         end
