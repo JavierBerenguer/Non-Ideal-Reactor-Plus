@@ -18,6 +18,7 @@ classdef ReactorDialog < handle
         CatalystDensityField; CatalystPorosityField; InitialTField
         InitialTUnitDropDown; VSourceDropDown; ASourceDropDown
         UtilityTinSourceDropDown; HeatPortCheckBox
+        VPortLabel; APortLabel; UtilityTinPortLabel
         ConnectionTable; StatusLabel; DataModel
     end
     properties (Access=private)
@@ -82,7 +83,7 @@ classdef ReactorDialog < handle
             tabs=uitabgroup(main); general=uitab(tabs,'Title','Reactor');connections=uitab(tabs,'Title','Connections');advanced=uitab(tabs,'Title','Advanced');
             grid=uigridlayout(general,[15 6],'ColumnWidth',{145,110,105,145,110,105}, ...
                 'RowHeight',repmat({26},1,15),'RowSpacing',2,'Padding',[5 5 5 5]);obj.GeneralGrid=grid;
-            [obj.VField,obj.VUnitDropDown]=qty(grid,1,1,'Volume','Volume');
+            [obj.VField,obj.VUnitDropDown]=qty(grid,1,1,'Volume','Volume');obj.VPortLabel=portLabel(grid,1,2);
             obj.GeometryModeDropDown=drop(grid,2,1,'Geometry',{'Volume','Length'});obj.GeometryModeDropDown.ValueChangedFcn=@(~,~) obj.geometryModeChanged();[obj.LField,obj.LUnitDropDown]=qty(grid,3,1,'L','Length');[obj.DField,obj.DUnitDropDown]=qty(grid,4,1,'D','Length');obj.NTubesField=numfield(grid,5,1,'Number of tubes');
             geometryTip=uilabel(grid,'Text','One missing PFR geometry value is calculated automatically.','FontAngle','italic','Visible',onoff(obj.ReactorType=="PFR"));geometryTip.Layout.Row=15;geometryTip.Layout.Column=[1 3];
             obj.VField.ValueChangedFcn=@(~,~) obj.geometryEdited(1);obj.LField.ValueChangedFcn=@(~,~) obj.geometryEdited(2);obj.DField.ValueChangedFcn=@(~,~) obj.geometryEdited(3);obj.NTubesField.ValueChangedFcn=@(~,~) obj.geometryEdited(4);
@@ -90,8 +91,8 @@ classdef ReactorDialog < handle
             [obj.BypassField,obj.BypassLabel]=numfield(grid,6,1,'Bypass ratio');
             obj.HeatModeGroup=uibuttongroup(grid,'Title','Heat exchange mode','SelectionChangedFcn',@(~,~) obj.updateVisibility());obj.HeatModeGroup.Layout.Row=[1 3];obj.HeatModeGroup.Layout.Column=[4 6];
             modes={'Isothermal','Adiabatic','Heat exchange','Specified T','Specified Q'};for i=1:5,uiradiobutton(obj.HeatModeGroup,'Text',modes{i},'Position',[10+mod(i-1,2)*145 40-floor((i-1)/2)*19 135 18]);end
-            [obj.UField,obj.UUnitDropDown,uLabel]=qty(grid,4,4,'U','HeatTransferCoefficient');[obj.AField,obj.AUnitDropDown,aLabel]=qty(grid,5,4,'A','Area');
-            [obj.UtilityTinField,obj.UtilityTinUnitDropDown,tinLabel]=tempqty(grid,6,4,'Tw,in');[obj.UtilityToutField,obj.UtilityToutUnitDropDown,toutLabel]=texttempqty(grid,7,4,'Tw,out (optional)');
+            [obj.UField,obj.UUnitDropDown,uLabel]=qty(grid,4,4,'U','HeatTransferCoefficient');[obj.AField,obj.AUnitDropDown,aLabel]=qty(grid,5,4,'A','Area');obj.APortLabel=portLabel(grid,5,5);
+            [obj.UtilityTinField,obj.UtilityTinUnitDropDown,tinLabel]=tempqty(grid,6,4,'Tw,in');obj.UtilityTinPortLabel=portLabel(grid,6,5);[obj.UtilityToutField,obj.UtilityToutUnitDropDown,toutLabel]=texttempqty(grid,7,4,'Tw,out (optional)');
             [obj.SpecifiedTField,obj.SpecifiedTUnitDropDown,specifiedTLabel]=tempqty(grid,8,4,'Specified T');[obj.SpecifiedQField,obj.SpecifiedQUnitDropDown,specifiedQLabel]=qty(grid,9,4,'Specified Q','Power');
             obj.HeatExchangeControls={uLabel,obj.UField,obj.UUnitDropDown,aLabel,obj.AField,obj.AUnitDropDown,tinLabel,obj.UtilityTinField,obj.UtilityTinUnitDropDown,toutLabel,obj.UtilityToutField,obj.UtilityToutUnitDropDown};
             obj.SpecifiedTControls={specifiedTLabel,obj.SpecifiedTField,obj.SpecifiedTUnitDropDown};obj.SpecifiedQControls={specifiedQLabel,obj.SpecifiedQField,obj.SpecifiedQUnitDropDown};
@@ -105,7 +106,7 @@ classdef ReactorDialog < handle
             obj.CatalyticCheckBox=uicheckbox(catalystGrid,'Text','Mark if the reactor is catalytic','ValueChangedFcn',@(~,~) obj.updateVisibility());obj.CatalyticCheckBox.Layout.Row=1;obj.CatalyticCheckBox.Layout.Column=[1 3];
             obj.CatalystDensityField=numfield(catalystGrid,2,1,'Catalyst density (kg/m^3)');obj.CatalystPorosityField=numfield(catalystGrid,3,1,'Catalyst porosity');obj.CatalystRows={obj.CatalystDensityField,obj.CatalystPorosityField};
             cgrid=uigridlayout(connections,[2 1],'RowHeight',{30,'1x'});uilabel(cgrid,'Text','Connected material streams (read only)','FontWeight','bold');obj.ConnectionTable=uitable(cgrid,'ColumnName',{'Direction','Port','Stream'},'ColumnEditable',false);
-            agrid=uigridlayout(advanced,[5 3],'ColumnWidth',{220,150,120});obj.VSourceDropDown=drop(agrid,1,1,'Volume source',{'Dialog','Input port'});obj.ASourceDropDown=drop(agrid,2,1,'Heat-transfer area source',{'Dialog','Input port'});obj.UtilityTinSourceDropDown=drop(agrid,3,1,'Utility inlet T source',{'Dialog','Input port'});[obj.InitialTField,obj.InitialTUnitDropDown]=texttempqty(agrid,4,1,'Initial T estimate');obj.HeatPortCheckBox=uicheckbox(agrid,'Text','Show heat port');obj.HeatPortCheckBox.Layout.Row=5;obj.HeatPortCheckBox.Layout.Column=[1 2];
+            agrid=uigridlayout(advanced,[5 3],'ColumnWidth',{220,150,120});obj.VSourceDropDown=drop(agrid,1,1,'Volume source',{'Dialog','Input port'});obj.ASourceDropDown=drop(agrid,2,1,'Heat-transfer area source',{'Dialog','Input port'});obj.UtilityTinSourceDropDown=drop(agrid,3,1,'Utility inlet T source',{'Dialog','Input port'});obj.VSourceDropDown.ValueChangedFcn=@(~,~) obj.updatePortSources();obj.ASourceDropDown.ValueChangedFcn=@(~,~) obj.updatePortSources();obj.UtilityTinSourceDropDown.ValueChangedFcn=@(~,~) obj.updatePortSources();[obj.InitialTField,obj.InitialTUnitDropDown]=texttempqty(agrid,4,1,'Initial T estimate');obj.HeatPortCheckBox=uicheckbox(agrid,'Text','Show heat port');obj.HeatPortCheckBox.Layout.Row=5;obj.HeatPortCheckBox.Layout.Column=[1 2];
             obj.StatusLabel=uilabel(main,'Text','Ready.','FontAngle','italic');buttons=uigridlayout(main,[1 4],'ColumnWidth',{'1x',90,90,90});uilabel(buttons,'Text','');uibutton(buttons,'Text','OK','ButtonPushedFcn',@(~,~) obj.accept());uibutton(buttons,'Text','Cancel','ButtonPushedFcn',@(~,~) obj.cancel());uibutton(buttons,'Text','Apply','ButtonPushedFcn',@(~,~) obj.apply());
         end
         function load(obj)
@@ -131,6 +132,13 @@ classdef ReactorDialog < handle
                 heights(1:lastRow)=repmat({26},1,lastRow);obj.GeneralGrid.RowHeight=heights;
             end
             for i=1:numel(obj.CatalystRows),obj.CatalystRows{i}.Enable=onoff(obj.CatalyticCheckBox.Value);end
+            obj.updatePortSources();
+        end
+        function updatePortSources(obj)
+            inputV=strcmp(obj.VSourceDropDown.Value,'Input port');obj.VField.Visible=onoff(~inputV);obj.VField.Editable=onoff(~inputV);obj.VPortLabel.Visible=onoff(inputV);
+            heatExchange=strcmp(obj.HeatModeGroup.SelectedObject.Text,'Heat exchange');
+            inputA=strcmp(obj.ASourceDropDown.Value,'Input port');obj.AField.Visible=onoff(heatExchange&&~inputA);obj.AField.Editable=onoff(~inputA);obj.APortLabel.Visible=onoff(heatExchange&&inputA);
+            inputTin=strcmp(obj.UtilityTinSourceDropDown.Value,'Input port');obj.UtilityTinField.Visible=onoff(heatExchange&&~inputTin);obj.UtilityTinField.Editable=onoff(~inputTin);obj.UtilityTinPortLabel.Visible=onoff(heatExchange&&inputTin);
         end
         function refreshConnections(obj)
             graph=nirp.flowsheet.topology(bdroot(obj.BlockPath));key=matlab.lang.makeValidName(get_param(obj.BlockPath,'Name'));data=cell(0,3);if isfield(graph.Units,key),item=graph.Units.(key);for i=1:numel(item.Inputs),data(end+1,:)={'Input',i,joinNames(item.Inputs{i})};end;for i=1:numel(item.Outputs),data(end+1,:)={'Output',i,joinNames(item.Outputs{i})};end;end;obj.ConnectionTable.Data=data;
@@ -162,6 +170,7 @@ classdef ReactorDialog < handle
     end
 end
 function [field,units,text]=qty(grid,row,col,label,category),text=uilabel(grid,'Text',label,'HorizontalAlignment','right');text.Layout.Row=row;text.Layout.Column=col;field=uieditfield(grid,'numeric');field.Layout.Row=row;field.Layout.Column=col+1;units=uidropdown(grid,'Items',UnitConverterHelper.getUnits(category));units.Layout.Row=row;units.Layout.Column=col+2;end
+function label=portLabel(grid,row,column),label=uilabel(grid,'Text','From input port','FontAngle','italic','HorizontalAlignment','center','Visible','off');label.Layout.Row=row;label.Layout.Column=column;end
 function [field,units,text]=tempqty(grid,row,col,label),[field,units,text]=qty(grid,row,col,label,'Temperature');end
 function [field,units,text]=texttempqty(grid,row,col,label),text=uilabel(grid,'Text',label,'HorizontalAlignment','right');text.Layout.Row=row;text.Layout.Column=col;field=uieditfield(grid,'text');field.Layout.Row=row;field.Layout.Column=col+1;units=uidropdown(grid,'Items',UnitConverterHelper.getUnits('Temperature'));units.Layout.Row=row;units.Layout.Column=col+2;end
 function [field,text]=numfield(grid,row,col,label),text=uilabel(grid,'Text',label,'HorizontalAlignment','right');text.Layout.Row=row;text.Layout.Column=col;field=uieditfield(grid,'numeric');field.Layout.Row=row;field.Layout.Column=col+1;end

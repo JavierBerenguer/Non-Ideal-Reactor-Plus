@@ -20,6 +20,8 @@ classdef StreamDialog < handle
         VolumetricFlowUnitDropDown
         TSourceDropDown
         QSourceDropDown
+        TPortLabel
+        QPortLabel
         DensityField
         DensityUnitDropDown
         ViscosityField
@@ -266,12 +268,16 @@ classdef StreamDialog < handle
                 grid,4,'P','Pressure') ;
             [obj.TemperatureField,obj.TemperatureUnitDropDown] = quantityRow( ...
                 grid,5,'T','Temperature') ;
+            obj.TPortLabel = portLabel(obj.TemperatureField.Parent) ;
             [obj.VolumetricFlowField,obj.VolumetricFlowUnitDropDown] = quantityRow( ...
                 grid,6,'Volumetric Flow','VolumetricFlow') ;
+            obj.QPortLabel = portLabel(obj.VolumetricFlowField.Parent) ;
             [obj.TSourceDropDown,~] = rowControl(grid,7,'T source', ...
                 {'Dialog','Input port'},'dropdown') ;
             [obj.QSourceDropDown,~] = rowControl(grid,8,'Q source', ...
                 {'Dialog','Input port'},'dropdown') ;
+            obj.TSourceDropDown.ValueChangedFcn=@(~,~) obj.updatePortSources() ;
+            obj.QSourceDropDown.ValueChangedFcn=@(~,~) obj.updatePortSources() ;
             [obj.DensityField,obj.DensityUnitDropDown] = quantityRow( ...
                 grid,9,'Density','Density') ;
             [obj.ViscosityField,obj.ViscosityUnitDropDown] = quantityRow( ...
@@ -321,6 +327,7 @@ classdef StreamDialog < handle
             obj.TemperatureUnitDropDown.ValueChangedFcn=@(source,event) obj.unitEdited('Temperature',source,event,obj.TemperatureField) ;
             obj.PressureUnitDropDown.ValueChangedFcn=@(source,event) obj.unitEdited('Pressure',source,event,obj.PressureField) ;
             obj.VolumetricFlowUnitDropDown.ValueChangedFcn=@(source,event) obj.unitEdited('VolumetricFlow',source,event,obj.VolumetricFlowField) ;
+            obj.updatePortSources() ;
         end
 
         function loadData(obj)
@@ -367,6 +374,10 @@ classdef StreamDialog < handle
                 obj.ConcentrationUnitDropDown.Value=char(feed.valuesUnit) ;
                 obj.setComponentColumn(3,feed.values) ;
                 obj.Origins.Concentration="specified" ;
+            elseif strcmpi(feed.basis,'totalAndFractions')
+                obj.MolarFlowUnitDropDown.Value=char(feed.valuesUnit) ;
+                obj.setComponentColumn(2,feed.values(1)*feed.values(2:end)) ;
+                obj.Origins.MolarFlow="specified" ;
             end
             if isempty(feed.Q),obj.Origins.Q="calculated";end
             obj.StatusLabel.Text='Specified' ;
@@ -453,6 +464,9 @@ classdef StreamDialog < handle
                     if all(isfinite(fSI))&&isfinite(tSI)&&tSI>0&&isfinite(pSI)&&pSI>0
                         qSI=sum(fSI)*8.314*tSI/pSI;
                         obj.VolumetricFlowField.Value=UnitConverterHelper.convertFromSI('VolumetricFlow',qSI,obj.VolumetricFlowUnitDropDown.Value);
+                        obj.setComponentColumn(3,UnitConverterHelper.convertFromSI( ...
+                            'Concentration',fSI/qSI,obj.ConcentrationUnitDropDown.Value));
+                        obj.Origins.Concentration="calculated";
                         obj.Origins.Q="calculated";
                     else
                         obj.Origins.Q="calculated";
@@ -491,7 +505,16 @@ classdef StreamDialog < handle
             elseif highlight
                 valid=obj.feedComplete();if valid,obj.StatusLabel.Text='Ready to apply.';else,obj.StatusLabel.Text='';obj.highlightMissing();end
             end
-            obj.showOrigins();obj.captureModel();
+            obj.showOrigins();obj.updatePortSources();obj.captureModel();
+        end
+
+        function updatePortSources(obj)
+            if obj.Role~="Feed",return,end
+            inputT=strcmp(obj.TSourceDropDown.Value,'Input port');
+            obj.TemperatureField.Visible=onOff(~inputT);obj.TemperatureField.Editable=onOff(~inputT);obj.TPortLabel.Visible=onOff(inputT);
+            inputQ=strcmp(obj.QSourceDropDown.Value,'Input port');
+            editableQ=~inputQ&&obj.PhaseDropDown.Value=='L';
+            obj.VolumetricFlowField.Visible=onOff(~inputQ);obj.VolumetricFlowField.Editable=onOff(editableQ);obj.QPortLabel.Visible=onOff(inputQ);
         end
 
         function flag=feedComplete(obj)
@@ -560,6 +583,11 @@ function [field,units]=quantityRow(grid,row,label,category)
     text=uilabel(grid,'Text',label,'HorizontalAlignment','right');text.Layout.Row=row;text.Layout.Column=4;
     holder=uigridlayout(grid,[1 2],'ColumnWidth',{'1x',85},'Padding',[0 0 0 0]);holder.Layout.Row=row;holder.Layout.Column=5;
     field=uieditfield(holder,'numeric','Value',0);units=uidropdown(holder,'Items',UnitConverterHelper.getUnits(category));
+end
+function label=portLabel(holder)
+    label=uilabel(holder,'Text','Input port','FontAngle','italic', ...
+        'HorizontalAlignment','center','Visible','off');
+    label.Layout.Row=1;label.Layout.Column=1;
 end
 function [control,label]=rowControl(grid,row,text,items,type)
     label=uilabel(grid,'Text',text,'HorizontalAlignment','right');label.Layout.Row=row;label.Layout.Column=4;
