@@ -4,6 +4,7 @@ function TAC = computeCost(R,Feed,Product)
 % =========================================================================
 % Isabela Fons Moreno-Palancas
 % Last update: May 8th, 2020
+% Updated: October 1, 2026 (T-102)
 % =========================================================================% 
 %% DATA
 baseCEPCI = 397 ; % Appendix A. Tourton. All costs referred to 2001.
@@ -100,7 +101,9 @@ F = (interestRate*(1+interestRate)^totalYears)/((1+interestRate)^totalYears -1) 
 % Compute the heat flux (Q) to estimate operational costs in SI units (W or J/s)
 % Q > 0 implies the reactor is being HEATED
 % Q < 0 implies the reactor is being COOLED
-if strcmp(R.heatMode,'Adiabatic')
+if (isa(R,'CSTR') || isa(R,'PFR')) && ~isempty(R.heatDuty)
+    Q = R.heatDuty ;
+elseif strcmp(R.heatMode,'Adiabatic')
     Q = 0 ;
 else
     

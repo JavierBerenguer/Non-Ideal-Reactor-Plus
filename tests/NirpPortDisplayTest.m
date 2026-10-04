@@ -1,0 +1,176 @@
+classdef NirpPortDisplayTest < matlab.unittest.TestCase
+    % NirpPortDisplayTest verifies parameter-port results and dialog cues.
+    % =========================================================================
+    % Javier Berenguer Sabater
+    % Created: October 4, 2026. Last update: October 4, 2026
+    % =========================================================================
+
+    properties
+        Folder
+        SimulinkFolder
+        Files
+        FileGenerationConfig
+        GeneratedFolder
+    end
+
+    methods (TestClassSetup)
+        function createExamples(testCase)
+            import matlab.unittest.fixtures.TemporaryFolderFixture
+            fixture = testCase.applyFixture(TemporaryFolderFixture) ;
+            testCase.Folder = fixture.Folder ; addpath(testCase.Folder) ;
+            testCase.SimulinkFolder = fullfile( ...
+                fileparts(fileparts(mfilename('fullpath'))),'simulink') ;
+            addpath(testCase.SimulinkFolder) ;
+            testCase.addTeardown(@() rmpath(testCase.Folder)) ;
+            testCase.addTeardown(@() rmpath(testCase.SimulinkFolder)) ;
+            testCase.FileGenerationConfig = Simulink.fileGenControl('getConfig') ;
+            testCase.GeneratedFolder = fullfile(testCase.Folder,'generated') ;
+            Simulink.fileGenControl('set','CacheFolder', ...
+                fullfile(testCase.GeneratedFolder,'cache'),'CodeGenFolder', ...
+                fullfile(testCase.GeneratedFolder,'codegen'),'createDir',true) ;
+            testCase.addTeardown(@() Simulink.fileGenControl('setConfig', ...
+                'config',testCase.FileGenerationConfig)) ;
+            testCase.Files = build_examples(testCase.Folder) ;
+        end
+    end
+
+    methods (TestMethodTeardown)
+        function closeArtifacts(~)
+            figures = findall(groot,'Type','Figure') ;
+            if ~isempty(figures), delete(figures) ; end
+            bdclose('all') ; Simulink.data.dictionary.closeAll('-discard') ;
+            evalin('base','clear nirpResults') ;
+        end
+    end
+
+    methods (Test)
+        function parameterPortTablesUseConfiguredUnits(testCase)
+            tables = simulateTables(testCase.Files(31), ...
+                "ex31_problem41_three_cstrs") ;
+            testCase.verifyNotEmpty(tables.Units) ;
+            testCase.verifyNotEmpty(tables.Adjust) ;
+            testCase.verifyEqual(tables.Adjust.Parameter,1.953848, ...
+                'RelTol',1e-5) ;
+            testCase.verifyEqual(tables.Adjust.ParameterUnit,"L/min") ;
+
+            tables = simulateTables(testCase.Files(34), ...
+                "ex34_problem45c_cooled_tanks") ;
+            expected = [0.195240;0.090622] ;
+            adjusts = ismember(tables.Adjust.Block,["Adjust 2","Adjust 3"]) ;
+            reactors = ismember(tables.Units.Block,["CSTR 2","CSTR 3"]) ;
+            testCase.verifyNotEmpty(tables.Units) ;
+            testCase.verifyNotEmpty(tables.Adjust) ;
+            testCase.verifyEqual(tables.Adjust.Parameter(adjusts),expected, ...
+                'RelTol',1e-5) ;
+            testCase.verifyEqual(tables.Adjust.ParameterUnit(adjusts),["m^2";"m^2"]) ;
+            testCase.verifyEqual(tables.Units.A(reactors),expected,'RelTol',1e-5) ;
+            testCase.verifyEqual(tables.Units.AUnit(reactors),["m^2";"m^2"]) ;
+
+            tables = simulateTables(testCase.Files(35), ...
+                "ex35_problem28_steam_jacket") ;
+            reactor = tables.Units.Block=="CSTR" ;
+            testCase.verifyNotEmpty(tables.Units) ;
+            testCase.verifyNotEmpty(tables.Adjust) ;
+            testCase.verifyEqual(tables.Adjust.Parameter,401.4397,'RelTol',1e-5) ;
+            testCase.verifyEqual(tables.Units.UtilityTin(reactor),401.4397, ...
+                'RelTol',1e-5) ;
+            testCase.verifyEqual(tables.Units.UtilityTinUnit(reactor),"K") ;
+
+            tables = simulateTables(testCase.Files(36), ...
+                "ex36_problem36_air_cooled_cstr") ;
+            reactor = tables.Units.Block=="CSTR" ;
+            testCase.verifyNotEmpty(tables.Units) ;
+            testCase.verifyNotEmpty(tables.Adjust) ;
+            testCase.verifyEqual(tables.Adjust.Parameter,9.4288,'RelTol',1e-5) ;
+            testCase.verifyEqual(tables.Units.A(reactor),9.4288,'RelTol',1e-5) ;
+            testCase.verifyEqual(tables.Units.AUnit(reactor),"m^2") ;
+        end
+
+        function failedRowIsReportedWithoutClearingTables(testCase)
+            load_system(char(testCase.Files(31))) ;
+            sim('ex31_problem41_three_cstrs') ;
+            results = evalin('base','nirpResults') ;
+            field = 'ex31_problem41_three_cstrs_Adjust' ;
+            results.Diagnostics.(field).lastInfo.parameterUnit = 'invalid unit' ;
+            assignin('base','nirpResults',results) ; lastwarn('') ;
+            tables = nirp.flowsheet.showResults( ...
+                'ex31_problem41_three_cstrs','NoWindow',true) ;
+            [message,identifier] = lastwarn ;
+            testCase.verifyEqual(identifier,'nirp:flowsheet:unitResultRow') ;
+            testCase.verifySubstring(message,'Adjust') ;
+            testCase.verifyNotEmpty(tables.Units) ;
+            testCase.verifyEqual(height(tables.Adjust),1) ;
+            testCase.verifyNotEmpty(tables.Adjust.Message(1)) ;
+        end
+
+        function dialogsIdentifyParametersFromPorts(testCase)
+            load_system(char(testCase.Files(34))) ;
+            reactor = nirp.flowsheet.ReactorDialog( ...
+                'ex34_problem45c_cooled_tanks/CSTR 2','Visible','off') ;
+            testCase.verifyEqual(string(reactor.AField.Visible),"off") ;
+            testCase.verifyEqual(string(reactor.AField.Editable),"off") ;
+            testCase.verifyEqual(string(reactor.APortLabel.Visible),"on") ;
+            testCase.verifyEqual(string(reactor.APortLabel.Text),"From input port") ;
+            reactor.setValues('ASource','Dialog') ;
+            testCase.verifyEqual(string(reactor.AField.Visible),"on") ;
+            testCase.verifyEqual(string(reactor.AField.Editable),"on") ;
+            delete(reactor) ; close_system('ex34_problem45c_cooled_tanks',0) ;
+            Simulink.data.dictionary.closeAll('-discard') ;
+
+            load_system(char(testCase.Files(31))) ;
+            stream = nirp.flowsheet.StreamDialog( ...
+                'ex31_problem41_three_cstrs/F1','Visible','off') ;
+            testCase.verifyEqual(string(stream.VolumetricFlowField.Visible),"off") ;
+            testCase.verifyEqual(string(stream.VolumetricFlowField.Editable),"off") ;
+            testCase.verifyEqual(string(stream.QPortLabel.Visible),"on") ;
+            testCase.verifyEqual(string(stream.QPortLabel.Text),"Input port") ;
+            stream.setValues('QSource','Dialog') ;
+            testCase.verifyEqual(string(stream.VolumetricFlowField.Visible),"on") ;
+            testCase.verifyEqual(string(stream.VolumetricFlowField.Editable),"on") ;
+        end
+
+        function streamPortRowsAndTotalFractionsRemainReadable(testCase)
+            load_system(char(testCase.Files(31))) ;
+            stream = nirp.flowsheet.StreamDialog( ...
+                'ex31_problem41_three_cstrs/F1','Visible','off') ;
+            testCase.addTeardown(@() deleteValid(stream)) ;
+            drawnow ;
+            testCase.verifyEqual(stream.QPortLabel.Layout.Row,1) ;
+            testCase.verifyEqual(numel(stream.QPortLabel.Parent.RowHeight),1) ;
+            delete(stream) ; close_system('ex31_problem41_three_cstrs',0) ;
+            Simulink.data.dictionary.closeAll('-discard') ;
+
+            load_system(char(testCase.Files(13))) ;
+            stream = nirp.flowsheet.StreamDialog( ...
+                'ex13_problem21a_isothermal_pfr/F1','Visible','off') ;
+            testCase.addTeardown(@() deleteValid(stream)) ;
+            drawnow ;
+            testCase.verifyEqual(string(stream.TPortLabel.Visible),"on") ;
+            testCase.verifyEqual(stream.TPortLabel.Layout.Row,1) ;
+            testCase.verifyEqual(numel(stream.TPortLabel.Parent.RowHeight),1) ;
+            testCase.verifyTrue(all(isfinite(stream.getValue('MolarFlow')))) ;
+            testCase.verifyTrue(all(isfinite(stream.getValue('Concentration')))) ;
+            expected = nirp.pkg.feedStream( ...
+                nirp.pkg.examples.problem21Gas(),'F1') ;
+            actualFlow = UnitConverterHelper.convertToSI('MolarFlow', ...
+                stream.getValue('MolarFlow'),stream.MolarFlowUnitDropDown.Value) ;
+            actualConcentration = UnitConverterHelper.convertToSI( ...
+                'Concentration',stream.getValue('Concentration'), ...
+                stream.ConcentrationUnitDropDown.Value) ;
+            testCase.verifyEqual(actualFlow,expected.F,'RelTol',1e-12) ;
+            testCase.verifyEqual(actualConcentration, ...
+                nirp.stream.concentration(expected),'RelTol',1e-12) ;
+        end
+    end
+end
+
+function tables = simulateTables(file,name)
+    evalin('base','clear nirpResults') ; load_system(char(file)) ;
+    sim(char(name)) ;
+    tables = nirp.flowsheet.showResults(char(name),'NoWindow',true) ;
+    close_system(char(name),0) ; Simulink.data.dictionary.closeAll('-discard') ;
+end
+
+function deleteValid(value)
+    if ~isempty(value) && isvalid(value), delete(value) ; end
+end
