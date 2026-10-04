@@ -2,7 +2,7 @@ classdef Adjust < matlab.System
     % Adjust drives a scalar SI parameter to a measured stream target.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 2, 2026. Last update: October 3, 2026
+    % Created: October 2, 2026. Last update: October 4, 2026
     % =========================================================================
     properties (Nontunable)
         TargetVariable = 'Conversion'
@@ -152,11 +152,29 @@ classdef Adjust < matlab.System
         function value = measure(obj,stream)
             switch obj.TargetVariable
                 case 'Conversion'
-                    base = obj.Reference.F(obj.KeyIndex) ;
+                    reference = obj.conversionReference() ;
+                    base = reference.F(obj.KeyIndex) ;
+                    if base <= 0
+                        error('nirp:blocks:invalidTarget', ...
+                            'Conversion requires a positive reference flow.') ;
+                    end
                     value = (base-stream.F(obj.KeyIndex))/base ;
                 case 'Component molar flow', value = stream.F(obj.KeyIndex) ;
                 case 'Temperature', value = stream.T ;
                 otherwise, value = nirp.stream.concentration(stream) ; value = value(obj.KeyIndex) ;
+            end
+        end
+        function reference = conversionReference(obj)
+            reference = obj.Reference ;
+            if ~evalin('base','exist(''nirpResults'',''var'')'), return, end
+            results = evalin('base','nirpResults') ;
+            field = matlab.lang.makeValidName(char(string(obj.ReferenceFeed))) ;
+            if isstruct(results) && isfield(results,'Streams') && ...
+                    isstruct(results.Streams) && isfield(results.Streams,field)
+                item = results.Streams.(field) ;
+                if isstruct(item) && isfield(item,'streamSI')
+                    reference = item.streamSI ;
+                end
             end
         end
         function publish(obj)

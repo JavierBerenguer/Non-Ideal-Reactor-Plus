@@ -76,10 +76,10 @@ function tables = showResults(model,varargin)
         'RowHeight',{22,'1x',22,'1x'},'Padding',[10 10 10 10]) ;
     uilabel(unitGrid,'Text','Units','FontWeight','bold') ;
     createDisplayTable(unitGrid,tables.Units,2, ...
-        {110,70,55,85,65,95,65,250}) ;
+        {110,70,55,85,65,95,65,250},true) ;
     uilabel(unitGrid,'Text','Adjust','FontWeight','bold') ;
     createDisplayTable(unitGrid,tables.Adjust,4, ...
-        {125,65,90,110,120,75,100,85,90,85}) ;
+        {125,65,90,110,120,75,100,85,90,85},true) ;
     names = fieldnames(tables) ; names = names(3:end) ;
     for i = 1:numel(names)
         tab = uitab(tabs,'Title',names{i}) ;
@@ -250,7 +250,8 @@ function row = adjustValues(block,info,entries)
     row{9} = double(info.converged) ; row{10} = double(info.iteration) ;
 end
 
-function createDisplayTable(parent,value,row,columnWidths)
+function createDisplayTable(parent,value,row,columnWidths,formatUnitResults)
+    if nargin < 5, formatUnitResults = false ; end
     data = table2cell(value) ;
     for i = 1:numel(data)
         if isnumeric(data{i}) && isscalar(data{i}) && isnan(data{i})
@@ -259,10 +260,35 @@ function createDisplayTable(parent,value,row,columnWidths)
             data{i} = char(data{i}) ;
         end
     end
+    if formatUnitResults
+        data = formatUnitResultData(data,value.Properties.VariableNames) ;
+    end
     control = uitable(parent,'Data',data, ...
         'ColumnName',value.Properties.VariableNames,'RowName',{}, ...
         'ColumnWidth',columnWidths) ;
     control.Layout.Row = row ;
+end
+
+function data = formatUnitResultData(data,names)
+    integerColumns = find(ismember(names,{'Status','Iterations'})) ;
+    for column = integerColumns
+        for row = 1:size(data,1)
+            if isnumeric(data{row,column}) && isscalar(data{row,column})
+                data{row,column} = sprintf('%.0f',data{row,column}) ;
+            end
+        end
+    end
+    convergedColumn = find(strcmp(names,'Converged'),1) ;
+    if isempty(convergedColumn), return, end
+    for row = 1:size(data,1)
+        if isnumeric(data{row,convergedColumn}) || islogical(data{row,convergedColumn})
+            if logical(data{row,convergedColumn})
+                data{row,convergedColumn} = 'Yes' ;
+            else
+                data{row,convergedColumn} = 'No' ;
+            end
+        end
+    end
 end
 
 function [target,measured] = displayTarget(info)

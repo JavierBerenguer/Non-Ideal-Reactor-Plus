@@ -89,7 +89,19 @@ classdef NirpUnitResultsTest < matlab.unittest.TestCase
                 testCase.verifyFalse(hasVisibleNaN(resultTables(i).Data)) ;
                 widths = resultTables(i).ColumnWidth ;
                 testCase.verifyLessThanOrEqual(sum([widths{:}]),1000) ;
+                names = string(resultTables(i).ColumnName) ;
+                verifyIntegerColumn(testCase,resultTables(i).Data,names,'Status') ;
+                verifyIntegerColumn(testCase,resultTables(i).Data,names,'Iterations') ;
+                converged = find(names == "Converged",1) ;
+                if ~isempty(converged)
+                    values = string(resultTables(i).Data(:,converged)) ;
+                    testCase.verifyTrue(all(ismember(values,["Yes","No"]))) ;
+                end
             end
+            testCase.verifyClass(tables.Units.Status,'double') ;
+            testCase.verifyClass(tables.Adjust.Status,'double') ;
+            testCase.verifyClass(tables.Adjust.Converged,'double') ;
+            testCase.verifyClass(tables.Adjust.Iterations,'double') ;
             delete(figureHandle) ; close_system('ex18_problem44a_volumes',0) ;
             Simulink.data.dictionary.closeAll('-discard') ;
 
@@ -142,5 +154,14 @@ function result = hasVisibleNaN(data)
                 (isstring(data{i}) && any(data{i} == "NaN",'all'))
             result = true ; return
         end
+    end
+end
+
+function verifyIntegerColumn(testCase,data,names,name)
+    column = find(names == name,1) ;
+    if isempty(column), return, end
+    values = string(data(:,column)) ;
+    for i = 1:numel(values)
+        testCase.verifyNotEmpty(regexp(values(i),'^-?\d+$','once')) ;
     end
 end
