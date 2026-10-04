@@ -416,6 +416,7 @@ classdef UnitConverterHelper < handle
             % ----- Volumetric Flow -----
             m = containers.Map() ;
             m('m^3/s')  = 1 ;
+            m('m^3/min') = 1 / 60 ;
             m('m^3/h')  = 1 / 3600 ;
             m('L/h')    = 1e-3 / 3600 ;
             m('L/min')  = 1e-3 / 60 ;
@@ -429,6 +430,7 @@ classdef UnitConverterHelper < handle
             m('mol/s')   = 1 ;
             m('mol/min') = 1 / 60 ;
             m('mol/h')   = 1 / 3600 ;
+            m('kmol/min') = 1e3 / 60 ;
             m('kmol/h')  = 1e3 / 3600 ;
             m('kmol/s')  = 1e3 ;
             m('moles/s') = 1 ;

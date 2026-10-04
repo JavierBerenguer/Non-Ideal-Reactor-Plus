@@ -2,7 +2,7 @@ function pkg = problem34dMonsanto()
 %PROBLEM34DMONSANTO Return the jacketed liquid package for problem 34d.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 3, 2026. Last update: October 3, 2026
+% Created: October 3, 2026. Last update: October 4, 2026
 % =========================================================================
 
     pkg.meta = struct('formatVersion',1,'name',"Problem 34d Monsanto reaction") ;
@@ -27,7 +27,7 @@ function pkg = problem34dMonsanto()
     pkg.feeds = struct('name',"F1",'phase',"L", ...
         'T',struct('value',15,'unit',"C"), ...
         'P',struct('value',1,'unit',"atm"),'basis',"molarFlows", ...
-        'values',60*[9.044 33.0 0 0 103.7],'valuesUnit',"kmol/h", ...
-        'Q',struct('value',60*volumetricFlow,'unit',"m^3/h")) ;
+        'values',[9.044 33.0 0 0 103.7],'valuesUnit',"kmol/min", ...
+        'Q',struct('value',volumetricFlow,'unit',"m^3/min")) ;
     nirp.pkg.validate(pkg) ;
 end

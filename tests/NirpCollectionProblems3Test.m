@@ -88,6 +88,10 @@ classdef NirpCollectionProblems3Test < matlab.unittest.TestCase
                 'VolumetricFlow',1,'L/h'),1e-3/3600,'RelTol',1e-15) ;
             testCase.verifyEqual(UnitConverterHelper.convertToSI( ...
                 'VolumetricFlow',1,'m^3/h'),1/3600,'RelTol',1e-15) ;
+            testCase.verifyEqual(UnitConverterHelper.convertToSI( ...
+                'VolumetricFlow',1,'m^3/min'),1/60,'RelTol',1e-15) ;
+            testCase.verifyEqual(UnitConverterHelper.convertToSI( ...
+                'MolarFlow',1,'kmol/min'),1e3/60,'RelTol',1e-15) ;
         end
 
         function problem30And31AreUnchangedWithLitresPerHour(testCase)
@@ -208,10 +212,19 @@ classdef NirpCollectionProblems3Test < matlab.unittest.TestCase
         function verifyProblem34d(testCase,file)
             pkg = nirp.pkg.examples.problem34dMonsanto() ;
             rs = nirp.pkg.toReactionSys(pkg) ; feed = nirp.pkg.feedStream(pkg,"F1") ;
+            legacyPkg = pkg ;
+            legacyPkg.feeds.values = 60*pkg.feeds.values ;
+            legacyPkg.feeds.valuesUnit = "kmol/h" ;
+            legacyPkg.feeds.Q.value = 60*pkg.feeds.Q.value ;
+            legacyPkg.feeds.Q.unit = "m^3/h" ;
+            legacyFeed = nirp.pkg.feedStream(legacyPkg,"F1") ;
+            testCase.verifyStream(feed,legacyFeed,1e-12) ;
             params = struct('V',1.5,'heatMode','Other', ...
                 'U',35.85*4184/60,'A',1,'utilityTin',298.15, ...
                 'initialTemperatureGuess',1050) ;
             expected = nirp.units.cstr(params,feed,rs) ;
+            legacyExpected = nirp.units.cstr(params,legacyFeed,rs) ;
+            testCase.verifyStream(expected,legacyExpected,1e-12) ;
             results = simulateExample(file,"ex29_problem34d_jacketed_cstr") ;
             actual = results.Streams.Product.streamSI ;
             testCase.verifyStream(actual,expected,1e-9) ;

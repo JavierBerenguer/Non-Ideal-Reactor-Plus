@@ -1,13 +1,13 @@
 function tables = showResults(model,varargin)
 %SHOWRESULTS Return and optionally display unit and Stream result tables.
-%   TABLES = nirp.flowsheet.showResults(MODEL) returns a Units table followed
-%   by one table per Stream in nirpResults.Streams. Unit volumes and heat
-%   duties use the display units selected on their blocks.
+%   TABLES = nirp.flowsheet.showResults(MODEL) returns Units and Adjust
+%   tables followed by one table per Stream in nirpResults.Streams. Unit
+%   volumes and heat duties use the display units selected on their blocks.
 %   ...showResults(MODEL,'NoWindow',true) never creates a UI window.
 %   ...showResults(MODEL,'Visible',VALUE) controls the results window.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 2, 2026. Last update: October 3, 2026
+% Created: October 2, 2026. Last update: October 4, 2026
 % =========================================================================
 
     if nargin < 1 || isempty(model), model = bdroot ; end
@@ -23,15 +23,26 @@ function tables = showResults(model,varargin)
             'nirpResults contains no Stream results.') ;
     end
     fields = fieldnames(results.Streams) ;
-    try
-        graph = nirp.flowsheet.topology(model) ;
-        ordered = matlab.lang.makeValidName(cellstr(graph.Order)) ;
-        fields = [intersect(ordered,fields,'stable'); ...
-            setdiff(fields,ordered,'stable')] ;
-    catch
+    modelLoaded = bdIsLoaded(model) ;
+    if modelLoaded
+        try
+            graph = nirp.flowsheet.topology(model) ;
+            ordered = matlab.lang.makeValidName(cellstr(graph.Order)) ;
+            fields = [intersect(ordered,fields,'stable'); ...
+                setdiff(fields,ordered,'stable')] ;
+        catch
+        end
     end
     tables = struct() ;
-    tables.Units = unitTable(model,results) ;
+    tables.Units = emptyUnitTable() ;
+    tables.Adjust = emptyAdjustTable() ;
+    if modelLoaded
+        try
+            [tables.Units,tables.Adjust] = unitTables(model,results) ;
+        catch
+            % Stream results remain useful when block data cannot be read.
+        end
+    end
     for i = 1:numel(fields)
         item = results.Streams.(fields{i}) ;
         if ~isstruct(item) || ~isfield(item,'streamTable'), continue, end
@@ -57,22 +68,29 @@ function tables = showResults(model,varargin)
 
     figureHandle = uifigure('Name',sprintf('NIRP results - %s',char(string(model))), ...
         'Position',[100 100 1050 420],'Visible',options.Visible) ;
-    tabs = uitabgroup(figureHandle,'Position',[10 10 1030 400]) ;
-    names = fieldnames(tables) ;
+    figureGrid = uigridlayout(figureHandle,[1 1], ...
+        'Padding',[10 10 10 10]) ;
+    tabs = uitabgroup(figureGrid) ;
+    unitTab = uitab(tabs,'Title','Units') ;
+    unitGrid = uigridlayout(unitTab,[4 1], ...
+        'RowHeight',{22,'1x',22,'1x'},'Padding',[10 10 10 10]) ;
+    uilabel(unitGrid,'Text','Units','FontWeight','bold') ;
+    createDisplayTable(unitGrid,tables.Units,2, ...
+        {110,70,55,85,65,95,65,250}) ;
+    uilabel(unitGrid,'Text','Adjust','FontWeight','bold') ;
+    createDisplayTable(unitGrid,tables.Adjust,4, ...
+        {125,65,90,110,120,75,100,85,90,85}) ;
+    names = fieldnames(tables) ; names = names(3:end) ;
     for i = 1:numel(names)
         tab = uitab(tabs,'Title',names{i}) ;
-        uitable(tab,'Data',tables.(names{i}),'Position',[10 10 1000 350]) ;
+        grid = uigridlayout(tab,[1 1],'Padding',[10 10 10 10]) ;
+        createDisplayTable(grid,tables.(names{i}),1,'auto') ;
     end
 end
 
-function value = unitTable(model,results)
-    columns = {'Block','Type','Status','V','VUnit','HeatDuty','QUnit', ...
-        'Message','Parameter','ParameterUnit','TargetVariable','Target', ...
-        'TargetUnit','Measured','Converged','Iterations'} ;
-    value = table('Size',[0 numel(columns)], ...
-        'VariableTypes',{'string','string','double','double','string', ...
-        'double','string','string','double','string','string','double', ...
-        'string','double','double','double'},'VariableNames',columns) ;
+function [units,adjusts] = unitTables(model,results)
+    units = emptyUnitTable() ; adjusts = emptyAdjustTable() ;
+    if ~bdIsLoaded(model), return, end
     [blocks,types] = functionalBlocks(model) ;
     if isempty(blocks), return, end
     diagnostics = struct() ;
@@ -85,8 +103,7 @@ function value = unitTable(model,results)
     registryEntries = nirp.flowsheet.registry('list',model) ;
     for i = 1:numel(blocks)
         block = blocks{i} ; type = types(i) ;
-        row = {string(get_param(block,'Name')),type,NaN,NaN,"",NaN,"", ...
-            "",NaN,"","",NaN,"",NaN,NaN,NaN} ;
+        row = {string(get_param(block,'Name')),type,NaN,NaN,"",NaN,"",""} ;
         name = char(row{1}) ;
         field = matlab.lang.makeValidName([char(string(model)) '_' name]) ;
         item = struct() ; info = struct() ;
@@ -111,16 +128,31 @@ function value = unitTable(model,results)
                 'Power',info.heatDuty,char(row{7})) ;
         end
         if type == "Adjust"
-            row = adjustValues(row,block,info,registryEntries) ;
+            adjusts(end+1,:) = adjustValues(block,info,registryEntries) ; %#ok<AGROW>
+            continue
         elseif type == "Recycle"
             entry = registryEntry(registryEntries,block,'Recycle') ;
             if ~isempty(entry)
-                row{3} = double(entry.status) ; row{15} = double(entry.converged) ;
-                row{16} = double(entry.iteration) ;
+                row{3} = double(entry.status) ;
             end
         end
-        value(end+1,:) = row ; %#ok<AGROW>
+        units(end+1,:) = row ; %#ok<AGROW>
     end
+end
+
+function value = emptyUnitTable()
+    columns = {'Block','Type','Status','V','VUnit','HeatDuty','QUnit','Message'} ;
+    value = table('Size',[0 numel(columns)], ...
+        'VariableTypes',{'string','string','double','double','string', ...
+        'double','string','string'},'VariableNames',columns) ;
+end
+
+function value = emptyAdjustTable()
+    columns = {'Block','Status','Parameter','ParameterUnit','TargetVariable', ...
+        'Target','TargetUnit','Measured','Converged','Iterations'} ;
+    value = table('Size',[0 numel(columns)], ...
+        'VariableTypes',{'string','double','double','string','string', ...
+        'double','string','double','double','double'},'VariableNames',columns) ;
 end
 
 function [blocks,types] = functionalBlocks(model)
@@ -200,21 +232,37 @@ function unit = heatUnit(block,type)
     end
 end
 
-function row = adjustValues(row,block,info,entries)
+function row = adjustValues(block,info,entries)
+    row = {string(get_param(block,'Name')),NaN,NaN,"","",NaN,"",NaN,NaN,NaN} ;
     entry = registryEntry(entries,block,'Adjust') ;
     if ~isempty(entry)
-        row{3} = double(entry.status) ; row{15} = double(entry.converged) ;
-        row{16} = double(entry.iteration) ;
+        row{2} = double(entry.status) ; row{9} = double(entry.converged) ;
+        row{10} = double(entry.iteration) ;
     end
     if isempty(fieldnames(info)), return, end
-    row{10} = string(info.parameterUnit) ;
+    row{4} = string(info.parameterUnit) ;
     category = nirp.blocks.internal.unitCategory( ...
-        char(row{10}),{'Volume','Temperature'}) ;
-    row{9} = UnitConverterHelper.convertFromSI( ...
-        category,info.value,char(row{10})) ;
-    row{11} = string(info.targetVariable) ; row{13} = string(info.targetUnit) ;
-    [row{12},row{14}] = displayTarget(info) ;
-    row{15} = double(info.converged) ; row{16} = double(info.iteration) ;
+        char(row{4}),{'Volume','Temperature'}) ;
+    row{3} = UnitConverterHelper.convertFromSI( ...
+        category,info.value,char(row{4})) ;
+    row{5} = string(info.targetVariable) ; row{7} = string(info.targetUnit) ;
+    [row{6},row{8}] = displayTarget(info) ;
+    row{9} = double(info.converged) ; row{10} = double(info.iteration) ;
+end
+
+function createDisplayTable(parent,value,row,columnWidths)
+    data = table2cell(value) ;
+    for i = 1:numel(data)
+        if isnumeric(data{i}) && isscalar(data{i}) && isnan(data{i})
+            data{i} = '' ;
+        elseif isstring(data{i})
+            data{i} = char(data{i}) ;
+        end
+    end
+    control = uitable(parent,'Data',data, ...
+        'ColumnName',value.Properties.VariableNames,'RowName',{}, ...
+        'ColumnWidth',columnWidths) ;
+    control.Layout.Row = row ;
 end
 
 function [target,measured] = displayTarget(info)
