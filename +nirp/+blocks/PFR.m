@@ -4,7 +4,7 @@ classdef PFR < matlab.System
     % pressure-correlation data when pressure is nonconstant.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 2, 2026. Last update: October 3, 2026
+    % Created: October 2, 2026. Last update: October 7, 2026
     % =========================================================================
 
     properties (Nontunable)
@@ -30,22 +30,12 @@ classdef PFR < matlab.System
         DUnit = 'm'
         % Number of equal parallel tubes.
         NTubes = 1
-        % Feed-to-reactor bypass ratio (bypass flow/reactor flow).
-        BypassRatio = 0
         % Catalyst bulk density.
         CatalystDensity = 1
         % Catalyst void fraction.
         CatalystPorosity = 0
         % Thermal operating mode.
         HeatMode = 'Isothermal'
-        % Specified outlet temperature.
-        SpecifiedT = 300
-        % Specified-temperature unit.
-        SpecifiedTUnit = 'K'
-        % Specified heat duty.
-        SpecifiedQ = 0
-        % Specified-duty unit.
-        SpecifiedQUnit = 'W'
         % Overall heat-transfer coefficient.
         U = 0
         % Heat-transfer-coefficient unit.
@@ -85,6 +75,15 @@ classdef PFR < matlab.System
         % Show the heat-duty output port.
         ShowHeatPort (1,1) logical = false
     end
+    properties (Nontunable, Hidden)
+        % Hidden since T-131 (D-057): no bypass or specified T/Q in the
+        % flowsheet. Kept so the shared helper and older models still load.
+        BypassRatio = 0
+        SpecifiedT = 300
+        SpecifiedTUnit = 'K'
+        SpecifiedQ = 0
+        SpecifiedQUnit = 'W'
+    end
     properties (Constant, Hidden)
         GeometryModeSet=matlab.system.StringSet({'Volume','Length'})
         VUnitSet=matlab.system.StringSet(UnitConverterHelper.getUnits('Volume'))
@@ -93,7 +92,8 @@ classdef PFR < matlab.System
         UtilityTinSourceSet=matlab.system.StringSet({'Dialog','Input port'})
         LUnitSet=matlab.system.StringSet(UnitConverterHelper.getUnits('Length'))
         DUnitSet=matlab.system.StringSet(UnitConverterHelper.getUnits('Length'))
-        HeatModeSet=matlab.system.StringSet({'Isothermal','Adiabatic','Heat exchange','Specified T','Specified Q'})
+        % Flowsheet modes (D-057); 'Heat exchange' stays until the Jacket block (T-137).
+        HeatModeSet=matlab.system.StringSet({'Isothermal','Adiabatic','Heat exchange'})
         SpecifiedTUnitSet=matlab.system.StringSet({'K',[char(176) 'C']})
         SpecifiedQUnitSet=matlab.system.StringSet(UnitConverterHelper.getUnits('Power'))
         UUnitSet=matlab.system.StringSet(UnitConverterHelper.getUnits('HeatTransferCoefficient'))
@@ -185,7 +185,7 @@ classdef PFR < matlab.System
     end
     methods (Static,Access=protected)
         function groups=getPropertyGroupsImpl()
-            groups=matlab.system.display.Section('Title','PFR','PropertyList',{'GeometryMode','VSource','V','VUnit','L','LUnit','D','DUnit','NTubes','HeatMode','SpecifiedT','SpecifiedTUnit','SpecifiedQ','SpecifiedQUnit','U','UUnit','ASource','A','AUnit','UtilityTinSource','UtilityTin','UtilityTinUnit','UtilityTout','UtilityToutUnit','BypassRatio','CatalystDensity','CatalystPorosity','InitialTGuess','InitialTGuessUnit','PressureMode','PressureDropEqn','ParticleDiameter','ParticleDiameterUnit','Density','DensityUnit','Viscosity','ViscosityUnit','ShowHeatPort'});
+            groups=matlab.system.display.Section('Title','PFR','PropertyList',{'GeometryMode','VSource','V','VUnit','L','LUnit','D','DUnit','NTubes','HeatMode','U','UUnit','ASource','A','AUnit','UtilityTinSource','UtilityTin','UtilityTinUnit','UtilityTout','UtilityToutUnit','CatalystDensity','CatalystPorosity','InitialTGuess','InitialTGuessUnit','PressureMode','PressureDropEqn','ParticleDiameter','ParticleDiameterUnit','Density','DensityUnit','Viscosity','ViscosityUnit','ShowHeatPort'});
         end
         function mode=getSimulateUsingImpl(),mode='Interpreted execution';end
         function flag=showSimulateUsingImpl(),flag=false;end

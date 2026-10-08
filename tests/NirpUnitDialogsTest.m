@@ -2,7 +2,7 @@ classdef NirpUnitDialogsTest < matlab.unittest.TestCase
 %NIRPUNITDIALOGSTEST Tests for structured flowsheet unit dialogs.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 2, 2026. Last update: October 3, 2026
+% Created: October 2, 2026. Last update: October 7, 2026
 % =========================================================================
     properties
         Folder
@@ -21,7 +21,7 @@ classdef NirpUnitDialogsTest < matlab.unittest.TestCase
             addUnit('dialog_model','CSTR','nirp.blocks.CSTR',[240 120 350 190]);
             d=nirp.flowsheet.ReactorDialog('dialog_model/CSTR','Visible','off');testCase.addTeardown(@() deleteValid(d));
             d.setHeatMode('Heat exchange');d.setValues('U',2,'A',3,'UtilityTin',320);d.UUnitDropDown.Value='W/(m^2*K)';d.AUnitDropDown.Value='m^2';d.UtilityTinUnitDropDown.Value='K';
-            testCase.verifyTrue(strcmp(d.UField.Visible,'on'));testCase.verifyTrue(strcmp(d.SpecifiedTField.Visible,'off'));d.apply();
+            testCase.verifyTrue(strcmp(d.UField.Visible,'on'));testCase.verifyFalse(isprop(d,'SpecifiedTField'));d.apply();
             testCase.verifyEqual(str2double(get_param('dialog_model/CSTR','U')),2);testCase.verifyEqual(get_param('dialog_model/CSTR','HeatMode'),'Heat exchange');
             values=d.getValues();testCase.verifyEqual(values.U.origin,"specified");
             addStream('dialog_model','Product','Product',[430 130 540 180]);set_param('dialog_model/Product','ReferenceFeed','F1','KeyComponent','A');add_line('dialog_model','F1/1','CSTR/1');add_line('dialog_model','CSTR/1','Product/1');sim('dialog_model');fromDialog=evalin('base','nirpResults.Streams.Product.streamSI.F');
@@ -53,7 +53,7 @@ classdef NirpUnitDialogsTest < matlab.unittest.TestCase
             d=nirp.flowsheet.ReactorDialog('dialog_model/PFR','Visible','off');testCase.addTeardown(@() deleteValid(d));
             d.Figure.Visible='on';d.setHeatMode('Heat exchange');select(d.PressureModeGroup,'Non constant');select(d.PressureEquationGroup,'Ergun');drawnow;
             verifyVisibleLayout(testCase,d.Figure,'Reactor');
-            d.setHeatMode('Specified T');drawnow;verifyVisibleLayout(testCase,d.Figure,'Reactor');
+            d.setHeatMode('Adiabatic');drawnow;verifyVisibleLayout(testCase,d.Figure,'Reactor');
             d.Figure.Visible='off';
         end
         function dialogButtonsAreEqualAndRightAligned(testCase)

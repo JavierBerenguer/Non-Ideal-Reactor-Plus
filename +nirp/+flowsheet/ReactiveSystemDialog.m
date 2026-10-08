@@ -4,7 +4,7 @@ classdef ReactiveSystemDialog < handle
 %   that can also be driven by scripts through its public tables.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 2, 2026. Last update: October 3, 2026
+% Created: October 2, 2026. Last update: October 7, 2026
 % =========================================================================
 
     properties (SetAccess = private)
@@ -346,7 +346,7 @@ classdef ReactiveSystemDialog < handle
         function buildUi(obj,visible)
             obj.Figure = uifigure('Name','Reactive System', ...
                 'Tag','NirpReactiveSystemDialog','Position',[100 100 1260 720], ...
-                'Visible',visible) ;
+                'Visible',visible,'WindowStyle','alwaysontop') ;
             main = uigridlayout(obj.Figure,[4 1]) ;
             main.RowHeight = {'1x',38,42,26} ;
             tabs = uitabgroup(main) ;

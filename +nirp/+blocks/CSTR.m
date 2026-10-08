@@ -4,7 +4,7 @@ classdef CSTR < matlab.System
     % material and energy balances determine the outlet stream.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 2, 2026. Last update: October 2, 2026
+    % Created: October 2, 2026. Last update: October 7, 2026
     % =========================================================================
 
     properties (Nontunable)
@@ -18,22 +18,12 @@ classdef CSTR < matlab.System
         UtilityTinSource = 'Dialog'
         % Reactor-volume unit.
         VUnit = 'm^3'
-        % Feed-to-reactor bypass ratio (bypass flow/reactor flow).
-        BypassRatio = 0
         % Catalyst bulk density.
         CatalystDensity = 1
         % Catalyst void fraction.
         CatalystPorosity = 0
         % Thermal operating mode.
         HeatMode = 'Isothermal'
-        % Specified outlet temperature.
-        SpecifiedT = 300
-        % Specified-temperature unit.
-        SpecifiedTUnit = 'K'
-        % Specified heat duty.
-        SpecifiedQ = 0
-        % Specified-duty unit.
-        SpecifiedQUnit = 'W'
         % Overall heat-transfer coefficient.
         U = 0
         % Heat-transfer-coefficient unit.
@@ -58,13 +48,27 @@ classdef CSTR < matlab.System
         ShowHeatPort (1,1) logical = false
     end
 
+    properties (Nontunable, Hidden)
+        % Hidden since T-131 (D-057): in a flowsheet a bypass is a Splitter
+        % and a Mixer, and the operating temperature is set by the inlet
+        % stream (a Heater before an isothermal reactor). Kept so the
+        % shared thermal-parameter helper and older models still load.
+        BypassRatio = 0
+        SpecifiedT = 300
+        SpecifiedTUnit = 'K'
+        SpecifiedQ = 0
+        SpecifiedQUnit = 'W'
+    end
+
     properties (Constant, Hidden)
         VUnitSet = matlab.system.StringSet(UnitConverterHelper.getUnits('Volume'))
         VSourceSet = matlab.system.StringSet({'Dialog','Input port'})
         ASourceSet = matlab.system.StringSet({'Dialog','Input port'})
         UtilityTinSourceSet = matlab.system.StringSet({'Dialog','Input port'})
+        % Flowsheet modes (D-057); 'Heat exchange' stays until the Jacket
+        % block replaces it (T-137).
         HeatModeSet = matlab.system.StringSet({'Isothermal','Adiabatic', ...
-            'Heat exchange','Specified T','Specified Q'})
+            'Heat exchange'})
         SpecifiedTUnitSet = matlab.system.StringSet({'K',[char(176) 'C']})
         SpecifiedQUnitSet = matlab.system.StringSet(UnitConverterHelper.getUnits('Power'))
         UUnitSet = matlab.system.StringSet(UnitConverterHelper.getUnits('HeatTransferCoefficient'))
@@ -179,10 +183,10 @@ classdef CSTR < matlab.System
     methods (Static, Access = protected)
         function groups = getPropertyGroupsImpl()
             groups = matlab.system.display.Section('Title','CSTR', ...
-                'PropertyList',{'VSource','V','VUnit','HeatMode','SpecifiedT', ...
-                'SpecifiedTUnit','SpecifiedQ','SpecifiedQUnit','U','UUnit', ...
+                'PropertyList',{'VSource','V','VUnit','HeatMode', ...
+                'U','UUnit', ...
                 'ASource','A','AUnit','UtilityTinSource','UtilityTin','UtilityTinUnit','UtilityTout', ...
-                'UtilityToutUnit','BypassRatio','CatalystDensity', ...
+                'UtilityToutUnit','CatalystDensity', ...
                 'CatalystPorosity','InitialTGuess','InitialTGuessUnit','ShowHeatPort'}) ;
         end
         function mode = getSimulateUsingImpl(), mode = 'Interpreted execution' ; end

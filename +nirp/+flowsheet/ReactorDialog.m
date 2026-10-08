@@ -2,16 +2,15 @@ classdef ReactorDialog < handle
 %REACTORDIALOG Structured editor for CSTR and PFR Simulink blocks.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 2, 2026. Last update: October 3, 2026
+% Created: October 2, 2026. Last update: October 7, 2026
 % =========================================================================
     properties (SetAccess=private)
         BlockPath; ReactorType; Figure; NameField; TypeField
         GeometryModeDropDown; VField; VUnitDropDown; LField; LUnitDropDown
-        DField; DUnitDropDown; NTubesField; BypassField
+        DField; DUnitDropDown; NTubesField
         HeatModeGroup; UField; UUnitDropDown; AField; AUnitDropDown
         UtilityTinField; UtilityTinUnitDropDown; UtilityToutField
-        UtilityToutUnitDropDown; SpecifiedTField; SpecifiedTUnitDropDown
-        SpecifiedQField; SpecifiedQUnitDropDown
+        UtilityToutUnitDropDown
         PressureModeGroup; PressureEquationGroup; ParticleDiameterField
         ParticleDiameterUnitDropDown; DensityField; DensityUnitDropDown
         ViscosityField; ViscosityUnitDropDown; CatalyticCheckBox
@@ -23,8 +22,7 @@ classdef ReactorDialog < handle
     end
     properties (Access=private)
         HeatRows; PressureRows; CatalystRows; GeneralGrid; CatalystPanel
-        HeatExchangeControls; SpecifiedTControls; SpecifiedQControls
-        BypassLabel
+        HeatExchangeControls
         GeometryOrigins = repmat("specified",1,4)
         UpdatingGeometry = false
     end
@@ -54,9 +52,10 @@ classdef ReactorDialog < handle
         function applied=apply(obj)
             applied=false;try
             if obj.ReactorType=="PFR"&&~obj.closeGeometry(true),return,end
-            if obj.VField.Value<=0||obj.BypassField.Value<0,error('nirp:flowsheet:invalidParameter','Volume must be positive and bypass nonnegative.');end
-            names={'V','VUnit','VSource','BypassRatio','HeatMode','SpecifiedT','SpecifiedTUnit','SpecifiedQ','SpecifiedQUnit','U','UUnit','ASource','A','AUnit','UtilityTinSource','UtilityTin','UtilityTinUnit','UtilityTout','UtilityToutUnit','InitialTGuess','InitialTGuessUnit','ShowHeatPort','CatalystDensity','CatalystPorosity'};
-            values={n(obj.VField.Value),obj.VUnitDropDown.Value,obj.VSourceDropDown.Value,n(obj.BypassField.Value),obj.HeatModeGroup.SelectedObject.Text,n(obj.SpecifiedTField.Value),obj.SpecifiedTUnitDropDown.Value,n(obj.SpecifiedQField.Value),obj.SpecifiedQUnitDropDown.Value,n(obj.UField.Value),obj.UUnitDropDown.Value,obj.ASourceDropDown.Value,n(obj.AField.Value),obj.AUnitDropDown.Value,obj.UtilityTinSourceDropDown.Value,n(obj.UtilityTinField.Value),obj.UtilityTinUnitDropDown.Value,n(optionalValue(obj.UtilityToutField)),obj.UtilityToutUnitDropDown.Value,n(optionalValue(obj.InitialTField)),obj.InitialTUnitDropDown.Value,onoff(obj.HeatPortCheckBox.Value),n(obj.CatalystDensityField.Value),n(obj.CatalystPorosityField.Value)};
+            if obj.VField.Value<=0,error('nirp:flowsheet:invalidParameter','Volume must be positive.');end
+            % T-131 (D-057): no bypass and no specified T/Q in flowsheet reactors.
+            names={'V','VUnit','VSource','HeatMode','U','UUnit','ASource','A','AUnit','UtilityTinSource','UtilityTin','UtilityTinUnit','UtilityTout','UtilityToutUnit','InitialTGuess','InitialTGuessUnit','ShowHeatPort','CatalystDensity','CatalystPorosity'};
+            values={n(obj.VField.Value),obj.VUnitDropDown.Value,obj.VSourceDropDown.Value,obj.HeatModeGroup.SelectedObject.Text,n(obj.UField.Value),obj.UUnitDropDown.Value,obj.ASourceDropDown.Value,n(obj.AField.Value),obj.AUnitDropDown.Value,obj.UtilityTinSourceDropDown.Value,n(obj.UtilityTinField.Value),obj.UtilityTinUnitDropDown.Value,n(optionalValue(obj.UtilityToutField)),obj.UtilityToutUnitDropDown.Value,n(optionalValue(obj.InitialTField)),obj.InitialTUnitDropDown.Value,onoff(obj.HeatPortCheckBox.Value),n(obj.CatalystDensityField.Value),n(obj.CatalystPorosityField.Value)};
             if obj.ReactorType=="PFR"
                 names=[names {'GeometryMode','L','LUnit','D','DUnit','NTubes','PressureMode','PressureDropEqn','ParticleDiameter','ParticleDiameterUnit','Density','DensityUnit','Viscosity','ViscosityUnit'}];
                 raw=[obj.VField.Value obj.LField.Value obj.DField.Value obj.NTubesField.Value];raw(obj.GeometryOrigins=="calculated")=NaN;values{1}=n(raw(1));values=[values {'Length',n(raw(2)),obj.LUnitDropDown.Value,n(raw(3)),obj.DUnitDropDown.Value,n(raw(4)),obj.PressureModeGroup.SelectedObject.Text,obj.PressureEquationGroup.SelectedObject.Text,n(obj.ParticleDiameterField.Value),obj.ParticleDiameterUnitDropDown.Value,n(obj.DensityField.Value),obj.DensityUnitDropDown.Value,n(obj.ViscosityField.Value),obj.ViscosityUnitDropDown.Value}];
@@ -75,7 +74,7 @@ classdef ReactorDialog < handle
     methods (Access=private)
         function build(obj,visible)
             if obj.ReactorType=="PFR",position=[80 40 900 650];else,position=[80 80 840 520];end
-            obj.Figure=uifigure('Name','Reactor','Tag','NirpReactorDialog','Visible',visible,'Position',position);
+            obj.Figure=uifigure('Name','Reactor','Tag','NirpReactorDialog','Visible',visible,'Position',position,'WindowStyle','alwaysontop');
             main=uigridlayout(obj.Figure,[4 1],'RowHeight',{42,'1x',26,38},'Padding',[12 10 12 10]);
             head=uigridlayout(main,[1 5],'ColumnWidth',{160,55,'1x',50,220});
             uibutton(head,'Text','Unit conversion helper','ButtonPushedFcn',@(~,~) UnitConverterHelper.launch());uilabel(head,'Text','Name','HorizontalAlignment','right');
@@ -88,15 +87,12 @@ classdef ReactorDialog < handle
             geometryTip=uilabel(grid,'Text','One missing PFR geometry value is calculated automatically.','FontAngle','italic','Visible',onoff(obj.ReactorType=="PFR"));geometryTip.Layout.Row=15;geometryTip.Layout.Column=[1 3];
             obj.VField.ValueChangedFcn=@(~,~) obj.geometryEdited(1);obj.LField.ValueChangedFcn=@(~,~) obj.geometryEdited(2);obj.DField.ValueChangedFcn=@(~,~) obj.geometryEdited(3);obj.NTubesField.ValueChangedFcn=@(~,~) obj.geometryEdited(4);
             obj.VUnitDropDown.ValueChangedFcn=@(~,~) obj.closeGeometry();obj.LUnitDropDown.ValueChangedFcn=@(~,~) obj.closeGeometry();obj.DUnitDropDown.ValueChangedFcn=@(~,~) obj.closeGeometry();
-            [obj.BypassField,obj.BypassLabel]=numfield(grid,6,1,'Bypass ratio');
             obj.HeatModeGroup=uibuttongroup(grid,'Title','Heat exchange mode','SelectionChangedFcn',@(~,~) obj.updateVisibility());obj.HeatModeGroup.Layout.Row=[1 3];obj.HeatModeGroup.Layout.Column=[4 6];
-            modes={'Isothermal','Adiabatic','Heat exchange','Specified T','Specified Q'};for i=1:5,uiradiobutton(obj.HeatModeGroup,'Text',modes{i},'Position',[10+mod(i-1,2)*145 40-floor((i-1)/2)*19 135 18]);end
+            modes={'Isothermal','Adiabatic','Heat exchange'};for i=1:numel(modes),uiradiobutton(obj.HeatModeGroup,'Text',modes{i},'Position',[10+mod(i-1,2)*145 40-floor((i-1)/2)*19 135 18]);end
             [obj.UField,obj.UUnitDropDown,uLabel]=qty(grid,4,4,'U','HeatTransferCoefficient');[obj.AField,obj.AUnitDropDown,aLabel]=qty(grid,5,4,'A','Area');obj.APortLabel=portLabel(grid,5,5);
             [obj.UtilityTinField,obj.UtilityTinUnitDropDown,tinLabel]=tempqty(grid,6,4,'Tw,in');obj.UtilityTinPortLabel=portLabel(grid,6,5);[obj.UtilityToutField,obj.UtilityToutUnitDropDown,toutLabel]=texttempqty(grid,7,4,'Tw,out (optional)');
-            [obj.SpecifiedTField,obj.SpecifiedTUnitDropDown,specifiedTLabel]=tempqty(grid,8,4,'Specified T');[obj.SpecifiedQField,obj.SpecifiedQUnitDropDown,specifiedQLabel]=qty(grid,9,4,'Specified Q','Power');
             obj.HeatExchangeControls={uLabel,obj.UField,obj.UUnitDropDown,aLabel,obj.AField,obj.AUnitDropDown,tinLabel,obj.UtilityTinField,obj.UtilityTinUnitDropDown,toutLabel,obj.UtilityToutField,obj.UtilityToutUnitDropDown};
-            obj.SpecifiedTControls={specifiedTLabel,obj.SpecifiedTField,obj.SpecifiedTUnitDropDown};obj.SpecifiedQControls={specifiedQLabel,obj.SpecifiedQField,obj.SpecifiedQUnitDropDown};
-            obj.HeatRows=[obj.HeatExchangeControls obj.SpecifiedTControls obj.SpecifiedQControls];
+            obj.HeatRows=obj.HeatExchangeControls;
             obj.PressureModeGroup=radioGroup(grid,[8 9],[1 3],'Does pressure change inside the reactor?',{'Constant','Non constant'},@(~,~) obj.updateVisibility());
             obj.PressureEquationGroup=radioGroup(grid,[10 11],[1 3],'How to compute pressure drop?',{'Pipe','Ergun'},@(~,~) obj.updateVisibility());
             [obj.ParticleDiameterField,obj.ParticleDiameterUnitDropDown]=qty(grid,12,1,'Particle diameter','Length');[obj.DensityField,obj.DensityUnitDropDown]=qty(grid,13,1,'Density','Density');[obj.ViscosityField,obj.ViscosityUnitDropDown]=qty(grid,14,1,'Viscosity','Viscosity');
@@ -111,23 +107,21 @@ classdef ReactorDialog < handle
         end
         function load(obj)
             obj.NameField.Value=get_param(obj.BlockPath,'Name');obj.TypeField.Value=char(obj.ReactorType);
-            pairs={'V',obj.VField;'BypassRatio',obj.BypassField;'SpecifiedT',obj.SpecifiedTField;'SpecifiedQ',obj.SpecifiedQField;'U',obj.UField;'A',obj.AField;'UtilityTin',obj.UtilityTinField;'CatalystDensity',obj.CatalystDensityField;'CatalystPorosity',obj.CatalystPorosityField};for i=1:size(pairs,1),value=str2double(get_param(obj.BlockPath,pairs{i,1}));if ~isnan(value),pairs{i,2}.Value=value;end,end
+            pairs={'V',obj.VField;'U',obj.UField;'A',obj.AField;'UtilityTin',obj.UtilityTinField;'CatalystDensity',obj.CatalystDensityField;'CatalystPorosity',obj.CatalystPorosityField};for i=1:size(pairs,1),value=str2double(get_param(obj.BlockPath,pairs{i,1}));if ~isnan(value),pairs{i,2}.Value=value;end,end
             obj.UtilityToutField.Value=get_param(obj.BlockPath,'UtilityTout');obj.InitialTField.Value=get_param(obj.BlockPath,'InitialTGuess');
-            units={'VUnit',obj.VUnitDropDown;'SpecifiedTUnit',obj.SpecifiedTUnitDropDown;'SpecifiedQUnit',obj.SpecifiedQUnitDropDown;'UUnit',obj.UUnitDropDown;'AUnit',obj.AUnitDropDown;'UtilityTinUnit',obj.UtilityTinUnitDropDown;'UtilityToutUnit',obj.UtilityToutUnitDropDown;'InitialTGuessUnit',obj.InitialTUnitDropDown;'VSource',obj.VSourceDropDown;'ASource',obj.ASourceDropDown;'UtilityTinSource',obj.UtilityTinSourceDropDown};for i=1:size(units,1),units{i,2}.Value=get_param(obj.BlockPath,units{i,1});end
+            units={'VUnit',obj.VUnitDropDown;'UUnit',obj.UUnitDropDown;'AUnit',obj.AUnitDropDown;'UtilityTinUnit',obj.UtilityTinUnitDropDown;'UtilityToutUnit',obj.UtilityToutUnitDropDown;'InitialTGuessUnit',obj.InitialTUnitDropDown;'VSource',obj.VSourceDropDown;'ASource',obj.ASourceDropDown;'UtilityTinSource',obj.UtilityTinSourceDropDown};for i=1:size(units,1),units{i,2}.Value=get_param(obj.BlockPath,units{i,1});end
             obj.setHeatMode(get_param(obj.BlockPath,'HeatMode'));obj.HeatPortCheckBox.Value=ison(get_param(obj.BlockPath,'ShowHeatPort'));obj.CatalyticCheckBox.Value=obj.CatalystDensityField.Value~=1||obj.CatalystPorosityField.Value~=0;
             if obj.ReactorType=="PFR",p={'L',obj.LField;'D',obj.DField;'NTubes',obj.NTubesField;'ParticleDiameter',obj.ParticleDiameterField;'Density',obj.DensityField;'Viscosity',obj.ViscosityField};for i=1:size(p,1),value=str2double(get_param(obj.BlockPath,p{i,1}));if ~isnan(value),p{i,2}.Value=value;end,end;u={'GeometryMode',obj.GeometryModeDropDown;'LUnit',obj.LUnitDropDown;'DUnit',obj.DUnitDropDown;'ParticleDiameterUnit',obj.ParticleDiameterUnitDropDown;'DensityUnit',obj.DensityUnitDropDown;'ViscosityUnit',obj.ViscosityUnitDropDown};for i=1:size(u,1),u{i,2}.Value=get_param(obj.BlockPath,u{i,1});end;selectRadio(obj.PressureModeGroup,get_param(obj.BlockPath,'PressureMode'));selectRadio(obj.PressureEquationGroup,get_param(obj.BlockPath,'PressureDropEqn'));raw=[str2double(get_param(obj.BlockPath,'V')) str2double(get_param(obj.BlockPath,'L')) str2double(get_param(obj.BlockPath,'D')) str2double(get_param(obj.BlockPath,'NTubes'))];obj.GeometryOrigins(:)="specified";obj.GeometryOrigins(isnan(raw))="calculated";if all(isfinite(raw)),obj.geometryModeChanged();else,obj.closeGeometry();end;end
             obj.updateVisibility();obj.captureModel();
         end
         function updateVisibility(obj)
             mode=string(obj.HeatModeGroup.SelectedObject.Text);setVisible(obj.HeatRows,false);
-            if mode=="Heat exchange",setVisible(obj.HeatExchangeControls,true);elseif mode=="Specified T",moveControls(obj.SpecifiedTControls,4);setVisible(obj.SpecifiedTControls,true);elseif mode=="Specified Q",moveControls(obj.SpecifiedQControls,4);setVisible(obj.SpecifiedQControls,true);end
+            if mode=="Heat exchange",setVisible(obj.HeatExchangeControls,true);end
             isPfr=obj.ReactorType=="PFR";for row=2:5,rowvis(obj.GeneralGrid,row,1:3,isPfr);end;for row=8:14,rowvis(obj.GeneralGrid,row,1:3,isPfr);end
             if isPfr,nonconstant=strcmp(obj.PressureModeGroup.SelectedObject.Text,'Non constant');for row=10:14,rowvis(obj.GeneralGrid,row,1:3,nonconstant);end;ergun=nonconstant&&strcmp(obj.PressureEquationGroup.SelectedObject.Text,'Ergun');rowvis(obj.GeneralGrid,12,1:3,ergun);end
-            obj.BypassLabel.Visible='on';obj.BypassField.Visible='on';
             if isPfr
                 obj.GeneralGrid.RowHeight=repmat({26},1,15);obj.CatalystPanel.Layout.Row=[10 14];
             else
-                obj.BypassLabel.Layout.Row=2;obj.BypassField.Layout.Row=2;
                 heights=repmat({0},1,15);lastRow=9;if mode=="Heat exchange",lastRow=12;obj.CatalystPanel.Layout.Row=[8 12];else,obj.CatalystPanel.Layout.Row=[5 9];end
                 heights(1:lastRow)=repmat({26},1,lastRow);obj.GeneralGrid.RowHeight=heights;
             end
@@ -141,10 +135,10 @@ classdef ReactorDialog < handle
             inputTin=strcmp(obj.UtilityTinSourceDropDown.Value,'Input port');obj.UtilityTinField.Visible=onoff(heatExchange&&~inputTin);obj.UtilityTinField.Editable=onoff(~inputTin);obj.UtilityTinPortLabel.Visible=onoff(heatExchange&&inputTin);
         end
         function refreshConnections(obj)
-            graph=nirp.flowsheet.topology(bdroot(obj.BlockPath));key=matlab.lang.makeValidName(get_param(obj.BlockPath,'Name'));data=cell(0,3);if isfield(graph.Units,key),item=graph.Units.(key);for i=1:numel(item.Inputs),data(end+1,:)={'Input',i,joinNames(item.Inputs{i})};end;for i=1:numel(item.Outputs),data(end+1,:)={'Output',i,joinNames(item.Outputs{i})};end;end;obj.ConnectionTable.Data=data;
+            graph=nirp.flowsheet.topology(bdroot(obj.BlockPath));key=matlab.lang.makeValidName(get_param(obj.BlockPath,'Name'));data=cell(0,3);if isfield(graph.Units,key),item=graph.Units.(key);ports=get_param(obj.BlockPath,'PortHandles');for i=1:numel(item.Inputs),label=joinNames(item.Inputs{i});if isempty(item.Inputs{i})&&i<=numel(ports.Inport),label=signalLabel(ports.Inport(i));end;data(end+1,:)={'Input',i,label};end;for i=1:numel(item.Outputs),data(end+1,:)={'Output',i,joinNames(item.Outputs{i})};end;end;obj.ConnectionTable.Data=data;
         end
         function captureModel(obj)
-            q=@(v,u) struct('value',v,'unit',string(u),'origin',"specified");obj.DataModel=struct('V',q(obj.VField.Value,obj.VUnitDropDown.Value),'BypassRatio',q(obj.BypassField.Value,'1'),'U',q(obj.UField.Value,obj.UUnitDropDown.Value),'A',q(obj.AField.Value,obj.AUnitDropDown.Value),'UtilityTin',q(obj.UtilityTinField.Value,obj.UtilityTinUnitDropDown.Value),'UtilityTout',q(optionalValue(obj.UtilityToutField),obj.UtilityToutUnitDropDown.Value),'SpecifiedT',q(obj.SpecifiedTField.Value,obj.SpecifiedTUnitDropDown.Value),'SpecifiedQ',q(obj.SpecifiedQField.Value,obj.SpecifiedQUnitDropDown.Value),'CatalystDensity',q(obj.CatalystDensityField.Value,'kg/m^3'),'CatalystPorosity',q(obj.CatalystPorosityField.Value,'1'),'InitialTGuess',q(optionalValue(obj.InitialTField),obj.InitialTUnitDropDown.Value));if obj.ReactorType=="PFR",obj.DataModel.L=q(obj.LField.Value,obj.LUnitDropDown.Value);obj.DataModel.D=q(obj.DField.Value,obj.DUnitDropDown.Value);obj.DataModel.NTubes=q(obj.NTubesField.Value,'1');obj.DataModel.ParticleDiameter=q(obj.ParticleDiameterField.Value,obj.ParticleDiameterUnitDropDown.Value);obj.DataModel.Density=q(obj.DensityField.Value,obj.DensityUnitDropDown.Value);obj.DataModel.Viscosity=q(obj.ViscosityField.Value,obj.ViscosityUnitDropDown.Value);end
+            q=@(v,u) struct('value',v,'unit',string(u),'origin',"specified");obj.DataModel=struct('V',q(obj.VField.Value,obj.VUnitDropDown.Value),'U',q(obj.UField.Value,obj.UUnitDropDown.Value),'A',q(obj.AField.Value,obj.AUnitDropDown.Value),'UtilityTin',q(obj.UtilityTinField.Value,obj.UtilityTinUnitDropDown.Value),'UtilityTout',q(optionalValue(obj.UtilityToutField),obj.UtilityToutUnitDropDown.Value),'CatalystDensity',q(obj.CatalystDensityField.Value,'kg/m^3'),'CatalystPorosity',q(obj.CatalystPorosityField.Value,'1'),'InitialTGuess',q(optionalValue(obj.InitialTField),obj.InitialTUnitDropDown.Value));if obj.ReactorType=="PFR",obj.DataModel.L=q(obj.LField.Value,obj.LUnitDropDown.Value);obj.DataModel.D=q(obj.DField.Value,obj.DUnitDropDown.Value);obj.DataModel.NTubes=q(obj.NTubesField.Value,'1');obj.DataModel.ParticleDiameter=q(obj.ParticleDiameterField.Value,obj.ParticleDiameterUnitDropDown.Value);obj.DataModel.Density=q(obj.DensityField.Value,obj.DensityUnitDropDown.Value);obj.DataModel.Viscosity=q(obj.ViscosityField.Value,obj.ViscosityUnitDropDown.Value);end
             if obj.ReactorType=="PFR",names={'V','L','D','NTubes'};for i=1:4,obj.DataModel.(names{i}).origin=obj.GeometryOrigins(i);end,end
         end
         function valid=closeGeometry(obj,highlight)
@@ -165,7 +159,7 @@ classdef ReactorDialog < handle
         function geometryModeChanged(obj),if obj.ReactorType~="PFR"||obj.UpdatingGeometry,return,end;if strcmp(obj.GeometryModeDropDown.Value,'Length'),obj.GeometryOrigins(1)="calculated";obj.GeometryOrigins(2)="specified";else,obj.GeometryOrigins(1)="specified";obj.GeometryOrigins(2)="calculated";end;obj.closeGeometry();end
         function finishGeometryUpdate(obj),obj.UpdatingGeometry=false;end
         function setOne(obj,name,value)
-            key=lower(char(string(name)));map=struct('v','VField','l','LField','d','DField','ntubes','NTubesField','bypassratio','BypassField','u','UField','a','AField','utilitytin','UtilityTinField','utilitytout','UtilityToutField','specifiedt','SpecifiedTField','specifiedq','SpecifiedQField','particlediameter','ParticleDiameterField','density','DensityField','viscosity','ViscosityField','catalystdensity','CatalystDensityField','catalystporosity','CatalystPorosityField','initialtguess','InitialTField','vsource','VSourceDropDown','asource','ASourceDropDown','utilitytinsource','UtilityTinSourceDropDown');if strcmp(key,'heatmode'),obj.setHeatMode(value);elseif isfield(map,key),field=obj.(map.(key));index=[];if obj.ReactorType=="PFR",index=find(strcmp(key,{'v','l','d','ntubes'}),1);end;if ~isempty(index)&&isnumeric(value)&&isscalar(value)&&isnan(value),obj.GeometryOrigins(index)="calculated";elseif isa(field,'matlab.ui.control.EditField'),field.Value=char(string(value));else,field.Value=value;if ~isempty(index),obj.GeometryOrigins(index)="specified";end,end;else,error('nirp:flowsheet:unknownParameter','Unknown reactor parameter "%s".',name);end
+            key=lower(char(string(name)));map=struct('v','VField','l','LField','d','DField','ntubes','NTubesField','u','UField','a','AField','utilitytin','UtilityTinField','utilitytout','UtilityToutField','particlediameter','ParticleDiameterField','density','DensityField','viscosity','ViscosityField','catalystdensity','CatalystDensityField','catalystporosity','CatalystPorosityField','initialtguess','InitialTField','vsource','VSourceDropDown','asource','ASourceDropDown','utilitytinsource','UtilityTinSourceDropDown');if strcmp(key,'heatmode'),obj.setHeatMode(value);elseif isfield(map,key),field=obj.(map.(key));index=[];if obj.ReactorType=="PFR",index=find(strcmp(key,{'v','l','d','ntubes'}),1);end;if ~isempty(index)&&isnumeric(value)&&isscalar(value)&&isnan(value),obj.GeometryOrigins(index)="calculated";elseif isa(field,'matlab.ui.control.EditField'),field.Value=char(string(value));else,field.Value=value;if ~isempty(index),obj.GeometryOrigins(index)="specified";end,end;else,error('nirp:flowsheet:unknownParameter','Unknown reactor parameter "%s".',name);end
         end
     end
 end
@@ -186,3 +180,12 @@ function flag=ison(value),flag=strcmp(value,'on')||strcmp(value,'1');end
 function value=n(x),value=num2str(x,17);end
 function value=optionalValue(field),value=str2double(field.Value);if ~(isfinite(value)||isnan(value)),error('nirp:flowsheet:invalidParameter','Optional temperature must be numeric or NaN.');end,end
 function value=joinNames(names),if isempty(names),value='<missing>';else,value=char(strjoin(string(names),', '));end,end
+function value=signalLabel(port)
+    % T-131: a parameter port fed by a signal block (e.g. an Adjust) is a
+    % signal connection, not a missing stream.
+    value='<missing>';line=get_param(port,'Line');if line==-1,return,end
+    source=get_param(line,'SrcBlockHandle');if source==-1,return,end
+    try,kind=string(get_param(source,'System'));catch,kind=string(get_param(source,'BlockType'));end
+    if startsWith(kind,"nirp.blocks."),kind=extractAfter(kind,"nirp.blocks.");end
+    value=sprintf('%s (signal): %s',kind,get_param(source,'Name'));
+end

@@ -2,7 +2,7 @@ classdef NirpCollectionProblems4Test < matlab.unittest.TestCase
     % NirpCollectionProblems4Test verifies the fourth collection batch.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 4, 2026. Last update: October 4, 2026
+    % Created: October 4, 2026. Last update: October 7, 2026
     % =========================================================================
 
     properties
@@ -176,7 +176,7 @@ function verifyProblem48(testCase,file)
     rs = nirp.pkg.toReactionSys(pkg) ; feed = nirp.pkg.feedStream(pkg,"F1") ;
     cstrVolume = diagnosticParameter(results,name,"Adjust CSTR") ;
     pfrVolume = diagnosticParameter(results,name,"Adjust PFR") ;
-    intermediate = nirp.units.cstr(struct('V',cstrVolume, ...
+    [intermediate,intermediateInfo] = nirp.units.cstr(struct('V',cstrVolume, ...
         'heatMode','Specified T','specifiedT',404.1),feed,rs) ;
     expected = nirp.units.pfr(struct('V',pfrVolume,'D',0.1, ...
         'heatMode','Adiabatic'),intermediate,rs) ;
@@ -186,6 +186,12 @@ function verifyProblem48(testCase,file)
     testCase.verifyEqual(streamConversion(feed, ...
         results.Streams.CSTROutlet.streamSI),0.2,'AbsTol',1e-6) ;
     testCase.verifyEqual(results.Streams.Product.conversion,0.25,'AbsTol',1e-6) ;
+    % T-131 (D-057): Heater to 404.1 K plus isothermal CSTR; the total heat
+    % equals the former specified-temperature duty.
+    totalHeat = diagnosticHeat(results,name,"Heater")+ ...
+        diagnosticHeat(results,name,"CSTR") ;
+    testCase.verifyEqual(totalHeat,intermediateInfo.heatDuty,'RelTol',1e-6) ;
+    testCase.verifyEqual(totalHeat*60,5.897e7,'RelTol',1e-3) ;
 end
 
 function verifyProblem33d(testCase,file)
@@ -221,6 +227,11 @@ end
 function value = diagnosticParameter(results,model,block)
     field = matlab.lang.makeValidName(model+"_"+block) ;
     value = results.Diagnostics.(field).lastInfo.value ;
+end
+
+function value = diagnosticHeat(results,model,block)
+    field = matlab.lang.makeValidName(model+"_"+block) ;
+    value = results.Diagnostics.(field).lastInfo.heatDuty ;
 end
 
 function value = streamConversion(feed,product)

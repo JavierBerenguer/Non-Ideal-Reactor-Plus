@@ -2,7 +2,7 @@ classdef HeaterDialog < handle
 %HEATERDIALOG Structured editor for Heater/Cooler Simulink blocks.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 2, 2026. Last update: October 3, 2026
+% Created: October 2, 2026. Last update: October 7, 2026
 % =========================================================================
     properties (SetAccess=private)
         BlockPath;Figure;NameField;ModeGroup;ToutField;ToutUnitDropDown
@@ -31,7 +31,7 @@ classdef HeaterDialog < handle
     methods (Static),function dialog=open(blockPath),dialog=nirp.flowsheet.HeaterDialog(blockPath);end,end
     methods (Access=private)
         function build(obj,visible)
-            obj.Figure=uifigure('Name','Heater / Cooler','Tag','NirpHeaterDialog','Visible',visible,'Position',[120 100 720 470]);main=uigridlayout(obj.Figure,[4 1],'RowHeight',{40,'1x',25,38},'Padding',[12 10 12 10]);
+            obj.Figure=uifigure('Name','Heater / Cooler','Tag','NirpHeaterDialog','Visible',visible,'Position',[120 100 720 470],'WindowStyle','alwaysontop');main=uigridlayout(obj.Figure,[4 1],'RowHeight',{40,'1x',25,38},'Padding',[12 10 12 10]);
             h=uigridlayout(main,[1 4],'ColumnWidth',{160,60,'1x',180});uibutton(h,'Text','Unit conversion helper','ButtonPushedFcn',@(~,~) UnitConverterHelper.launch());uilabel(h,'Text','Name','HorizontalAlignment','right');obj.NameField=uieditfield(h,'text');
             tabs=uitabgroup(main);general=uitab(tabs,'Title','Heater / Cooler');connections=uitab(tabs,'Title','Connections');g=uigridlayout(general,[6 3],'ColumnWidth',{210,170,130},'RowHeight',{72,32,32,32,32,'1x'});obj.GeneralGrid=g;
             obj.ModeGroup=uibuttongroup(g,'Title','Mode','SelectionChangedFcn',@(~,~) obj.updateVisibility());obj.ModeGroup.Layout.Row=1;obj.ModeGroup.Layout.Column=[1 3];uiradiobutton(obj.ModeGroup,'Text','Outlet T','Position',[20 12 120 22]);uiradiobutton(obj.ModeGroup,'Text','Duty','Position',[180 12 120 22]);

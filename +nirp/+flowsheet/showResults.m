@@ -7,7 +7,7 @@ function tables = showResults(model,varargin)
 %   ...showResults(MODEL,'Visible',VALUE) controls the results window.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 2, 2026. Last update: October 4, 2026
+% Created: October 2, 2026. Last update: October 7, 2026
 % =========================================================================
 
     if nargin < 1 || isempty(model), model = bdroot ; end
@@ -283,7 +283,9 @@ end
 
 function unit = heatUnit(block,type)
     if any(type == ["CSTR","PFR"])
-        unit = string(get_param(block,'SpecifiedQUnit')) ;
+        % T-131: reactors no longer expose a specified-Q unit; the heat
+        % port is in W.
+        unit = "W" ;
     elseif type == "Heater"
         unit = string(get_param(block,'DutyUnit')) ;
     else
