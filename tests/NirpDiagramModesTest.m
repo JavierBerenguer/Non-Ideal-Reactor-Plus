@@ -21,12 +21,15 @@ classdef NirpDiagramModesTest < matlab.unittest.TestCase
     end
     methods (Test)
         function reactorBlocksOfferOnlyDiagramModes(testCase)
+            % The System-object set retains the obsolete value solely so a
+            % saved model can load far enough to emit jacketRequired. The
+            % structured reactor dialog below is the user-facing offer.
             expected={'Isothermal','Adiabatic','Heat exchange'};
             testCase.verifyEqual(reshape(getAllowedValues(nirp.blocks.CSTR.HeatModeSet),1,[]),expected);
             testCase.verifyEqual(reshape(getAllowedValues(nirp.blocks.PFR.HeatModeSet),1,[]),expected);
             for className=["nirp.blocks.CSTR","nirp.blocks.PFR"]
                 properties=meta.class.fromName(className).PropertyList;
-                for name=["BypassRatio","SpecifiedT","SpecifiedTUnit","SpecifiedQ","SpecifiedQUnit"]
+                for name=["BypassRatio","SpecifiedT","SpecifiedTUnit","SpecifiedQ","SpecifiedQUnit","U","A","UtilityTin","UtilityTout","ASource","UtilityTinSource"]
                     item=properties(strcmp({properties.Name},name));
                     testCase.verifyTrue(item.Hidden,sprintf('%s.%s must be hidden.',className,name));
                 end
@@ -60,7 +63,7 @@ classdef NirpDiagramModesTest < matlab.unittest.TestCase
                 addUnit('modes_model',char(type),"nirp.blocks."+type,[240 120 350 190]);
                 d=nirp.flowsheet.ReactorDialog("modes_model/"+type,'Visible','off');
                 testCase.verifyEqual(sort(string({d.HeatModeGroup.Children.Text})), ...
-                    sort(["Isothermal","Adiabatic","Heat exchange"]));
+                    sort(["Isothermal","Adiabatic"]));
                 for name=["BypassField","SpecifiedTField","SpecifiedQField"]
                     testCase.verifyFalse(isprop(d,name));
                 end
@@ -100,9 +103,11 @@ classdef NirpDiagramModesTest < matlab.unittest.TestCase
         end
         function unitDialogsStayOnTop(testCase)
             addUnit('modes_model','Heater','nirp.blocks.Heater',[240 120 350 190]);
+            addUnit('modes_model','Jacket','nirp.blocks.Jacket',[240 190 350 250]);
             addUnit('modes_model','Mixer','nirp.blocks.Mixer',[240 260 350 330]);
             addUnit('modes_model','Splitter','nirp.blocks.Splitter',[240 400 350 470]);
             dialogs={nirp.flowsheet.HeaterDialog('modes_model/Heater','Visible','off'), ...
+                nirp.flowsheet.JacketDialog('modes_model/Jacket','Visible','off'), ...
                 nirp.flowsheet.MixerDialog('modes_model/Mixer','Visible','off'), ...
                 nirp.flowsheet.SplitterDialog('modes_model/Splitter','Visible','off'), ...
                 nirp.flowsheet.ReactiveSystemDialog('Visible','off')};

@@ -4,7 +4,7 @@ classdef PFR < matlab.System
     % pressure-correlation data when pressure is nonconstant.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 2, 2026. Last update: October 7, 2026
+    % Created: October 2, 2026. Last update: October 8, 2026
     % =========================================================================
 
     properties (Nontunable)
@@ -14,10 +14,6 @@ classdef PFR < matlab.System
         V = 0.1
         % Source of reactor volume.
         VSource = 'Dialog'
-        % Source of heat-transfer area.
-        ASource = 'Dialog'
-        % Source of utility inlet temperature.
-        UtilityTinSource = 'Dialog'
         % Reactor-volume unit.
         VUnit = 'm^3'
         % Tube length.
@@ -36,22 +32,6 @@ classdef PFR < matlab.System
         CatalystPorosity = 0
         % Thermal operating mode.
         HeatMode = 'Isothermal'
-        % Overall heat-transfer coefficient.
-        U = 0
-        % Heat-transfer-coefficient unit.
-        UUnit = 'W/(m^2*K)'
-        % Heat-transfer area.
-        A = 1
-        % Heat-transfer-area unit.
-        AUnit = 'm^2'
-        % Utility inlet temperature.
-        UtilityTin = 300
-        % Utility-inlet-temperature unit.
-        UtilityTinUnit = 'K'
-        % Utility outlet temperature; NaN means constant temperature.
-        UtilityTout = NaN
-        % Utility-outlet-temperature unit.
-        UtilityToutUnit = 'K'
         % Optional outlet-temperature initial guess.
         InitialTGuess = NaN
         % Initial-temperature-guess unit.
@@ -74,6 +54,8 @@ classdef PFR < matlab.System
         ViscosityUnit = 'Pa*s'
         % Show the heat-duty output port.
         ShowHeatPort (1,1) logical = false
+        % Show the Jacket signal input port.
+        ShowJacketPort (1,1) logical = false
     end
     properties (Nontunable, Hidden)
         % Hidden since T-131 (D-057): no bypass or specified T/Q in the
@@ -83,6 +65,16 @@ classdef PFR < matlab.System
         SpecifiedTUnit = 'K'
         SpecifiedQ = 0
         SpecifiedQUnit = 'W'
+        ASource = 'Dialog'
+        UtilityTinSource = 'Dialog'
+        U = 0
+        UUnit = 'W/(m^2*K)'
+        A = 1
+        AUnit = 'm^2'
+        UtilityTin = 300
+        UtilityTinUnit = 'K'
+        UtilityTout = NaN
+        UtilityToutUnit = 'K'
     end
     properties (Constant, Hidden)
         GeometryModeSet=matlab.system.StringSet({'Volume','Length'})
@@ -92,7 +84,7 @@ classdef PFR < matlab.System
         UtilityTinSourceSet=matlab.system.StringSet({'Dialog','Input port'})
         LUnitSet=matlab.system.StringSet(UnitConverterHelper.getUnits('Length'))
         DUnitSet=matlab.system.StringSet(UnitConverterHelper.getUnits('Length'))
-        % Flowsheet modes (D-057); 'Heat exchange' stays until the Jacket block (T-137).
+        % Heat exchange remains accepted only to diagnose saved old models.
         HeatModeSet=matlab.system.StringSet({'Isothermal','Adiabatic','Heat exchange'})
         SpecifiedTUnitSet=matlab.system.StringSet({'K',[char(176) 'C']})
         SpecifiedQUnitSet=matlab.system.StringSet(UnitConverterHelper.getUnits('Power'))
@@ -113,12 +105,13 @@ classdef PFR < matlab.System
     end
     methods (Access=protected)
         function setupImpl(obj)
-            if (~strcmp(obj.ASource,'Dialog')||~strcmp(obj.UtilityTinSource,'Dialog'))&&~strcmp(obj.HeatMode,'Heat exchange')
-                error('nirp:blocks:invalidParameterSource','PFR A and UtilityTin input ports require Heat exchange mode.');
+            if strcmp(obj.HeatMode,'Heat exchange')
+                error('nirp:blocks:jacketRequired', ...
+                    ['PFR Heat exchange mode is obsolete. Add a Jacket block, ' ...
+                    'enable the Jacket input port, and connect it to the reactor.']);
             end
             [obj.Model,~,obj.RS]=nirp.blocks.internal.modelPackage(); obj.Block=get_param(gcb,'Name');
             obj.Params=nirp.blocks.internal.thermalParameters(obj);
-            if strcmp(obj.Params.heatMode,'Heat exchange'), obj.Params.heatMode='Other'; end
             geometry=[UnitConverterHelper.convertToSI('Volume',obj.V,char(obj.VUnit)) ...
                 UnitConverterHelper.convertToSI('Length',obj.L,char(obj.LUnit)) ...
                 UnitConverterHelper.convertToSI('Length',obj.D,char(obj.DUnit)) obj.NTubes];
@@ -153,15 +146,15 @@ classdef PFR < matlab.System
                 params.V=value;
             end
             index=1+strcmp(obj.VSource,'Input port');
-            if strcmp(obj.ASource,'Input port')
-                value=varargin{index};index=index+1;
-                if ~isnumeric(value)||~isscalar(value)||~isfinite(value)||value<=0,error('nirp:blocks:invalidParameterPort','PFR A input must be positive m^2.');end
-                params.A=value;
-            end
-            if strcmp(obj.UtilityTinSource,'Input port')
-                value=varargin{index};
-                if ~isnumeric(value)||~isscalar(value)||~isfinite(value)||value<=0,error('nirp:blocks:invalidParameterPort','PFR UtilityTin input must be positive K.');end
-                params.utilityTin=value;
+            if obj.ShowJacketPort
+                jacket=varargin{index};
+                if ~isnumeric(jacket)||~isequal(size(jacket),[4 1])|| ...
+                        any(~isfinite(jacket(1:3)))||jacket(1)<0||any(jacket(2:3)<=0)|| ...
+                        (~isnan(jacket(4))&&(~isfinite(jacket(4))||jacket(4)<=0))
+                    error('nirp:blocks:invalidJacket','PFR Jacket input must be [U; A; Tin; Tout] in SI, with Tout optionally NaN.');
+                end
+                params.heatMode='Other';params.U=jacket(1);params.A=jacket(2);params.utilityTin=jacket(3);
+                if isnan(jacket(4)),params.utilityTout=[];else,params.utilityTout=jacket(4);end
             end
             if ~isfield(params,'V'),params.V=pi/4*params.D^2*params.nTubes*params.L;end
             cacheInput={in,varargin{:}};
@@ -173,19 +166,19 @@ classdef PFR < matlab.System
             end
             varargout{1}=out; if obj.ShowHeatPort, varargout{2}=info.heatDuty; end
         end
-        function n=getNumInputsImpl(obj),n=1+strcmp(obj.VSource,'Input port')+strcmp(obj.ASource,'Input port')+strcmp(obj.UtilityTinSource,'Input port');end
+        function n=getNumInputsImpl(obj),n=1+strcmp(obj.VSource,'Input port')+double(obj.ShowJacketPort);end
         function n=getNumOutputsImpl(obj), n=1+double(obj.ShowHeatPort); end
         function varargout=getOutputDataTypeImpl(obj), varargout{1}='NirpStream'; if obj.ShowHeatPort,varargout{2}='double';end,end
         function varargout=getOutputSizeImpl(obj),varargout=repmat({[1 1]},1,1+double(obj.ShowHeatPort));end
         function varargout=isOutputFixedSizeImpl(obj),varargout=repmat({true},1,1+double(obj.ShowHeatPort));end
         function varargout=isOutputComplexImpl(obj),varargout=repmat({false},1,1+double(obj.ShowHeatPort));end
-        function varargout=getInputNamesImpl(obj),varargout{1}='Feed';index=1;if strcmp(obj.VSource,'Input port'),index=index+1;varargout{index}='V (m^3)';end;if strcmp(obj.ASource,'Input port'),index=index+1;varargout{index}='A (m^2)';end;if strcmp(obj.UtilityTinSource,'Input port'),index=index+1;varargout{index}='UtilityTin (K)';end,end
+        function varargout=getInputNamesImpl(obj),varargout{1}='Feed';index=1;if strcmp(obj.VSource,'Input port'),index=index+1;varargout{index}='V (m^3)';end;if obj.ShowJacketPort,index=index+1;varargout{index}='Jacket';end,end
         function varargout=getOutputNamesImpl(obj),varargout{1}='Product';if obj.ShowHeatPort,varargout{2}='Heat (W)';end,end
         function icon=getIconImpl(~),icon='PFR';end
     end
     methods (Static,Access=protected)
         function groups=getPropertyGroupsImpl()
-            groups=matlab.system.display.Section('Title','PFR','PropertyList',{'GeometryMode','VSource','V','VUnit','L','LUnit','D','DUnit','NTubes','HeatMode','U','UUnit','ASource','A','AUnit','UtilityTinSource','UtilityTin','UtilityTinUnit','UtilityTout','UtilityToutUnit','CatalystDensity','CatalystPorosity','InitialTGuess','InitialTGuessUnit','PressureMode','PressureDropEqn','ParticleDiameter','ParticleDiameterUnit','Density','DensityUnit','Viscosity','ViscosityUnit','ShowHeatPort'});
+            groups=matlab.system.display.Section('Title','PFR','PropertyList',{'GeometryMode','VSource','V','VUnit','L','LUnit','D','DUnit','NTubes','HeatMode','CatalystDensity','CatalystPorosity','InitialTGuess','InitialTGuessUnit','PressureMode','PressureDropEqn','ParticleDiameter','ParticleDiameterUnit','Density','DensityUnit','Viscosity','ViscosityUnit','ShowJacketPort','ShowHeatPort'});
         end
         function mode=getSimulateUsingImpl(),mode='Interpreted execution';end
         function flag=showSimulateUsingImpl(),flag=false;end

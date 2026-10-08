@@ -14,9 +14,9 @@ function libraryFile = build_library(folder)
     new_system(name,'Library');
     cleanup=onCleanup(@() closeLoaded(name));
     set_param(name,'EnableLBRepository','on');
-    labels={'Feed stream','Stream','Product stream','CSTR','PFR','Mixer','Splitter','Heater','Recycle','Adjust'};
-    classes={'Stream','Stream','Stream','CSTR','PFR','Mixer','Splitter','Heater','Recycle','Adjust'};
-    roles={'Feed','Intermediate','Product','','','','','','',''};
+    labels={'Feed stream','Stream','Product stream','CSTR','PFR','Mixer','Splitter','Heater','Jacket','Recycle','Adjust'};
+    classes={'Stream','Stream','Stream','CSTR','PFR','Mixer','Splitter','Heater','Jacket','Recycle','Adjust'};
+    roles={'Feed','Intermediate','Product','','','','','','','',''};
     for i=1:numel(classes)
         row=mod(i-1,3); col=floor((i-1)/3);
         block=[name '/' labels{i}];

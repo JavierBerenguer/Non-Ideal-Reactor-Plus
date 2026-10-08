@@ -98,20 +98,16 @@ classdef NirpParameterPortsTest < matlab.unittest.TestCase
                 expected,1e-12) ;
         end
 
-        function thermalPortsRequireHeatExchangeMode(testCase)
+        function thermalPortsBelongToJacket(testCase)
             for className = ["nirp.blocks.CSTR","nirp.blocks.PFR"]
-                for source = ["ASource","UtilityTinSource"]
-                    name = char("invalid_"+erase(className,"nirp.blocks.")+"_"+source) ;
-                    buildInvalidThermalModel(testCase.Folder,name,char(className),char(source)) ;
-                    thrown = false ;
-                    try
-                        simulateExample(fullfile(testCase.Folder,name+".slx"),name) ;
-                    catch exception
-                        thrown = true ;
-                        testCase.verifySubstring(exception.message,'error occurred') ;
-                    end
-                    testCase.verifyTrue(thrown,'The invalid thermal source did not fail.') ;
+                properties=meta.class.fromName(className).PropertyList;
+                for name=["ASource","UtilityTinSource"]
+                    testCase.verifyTrue(properties(strcmp({properties.Name},name)).Hidden);
                 end
+            end
+            properties=meta.class.fromName('nirp.blocks.Jacket').PropertyList;
+            for name=["ASource","UtilityTinSource"]
+                testCase.verifyFalse(properties(strcmp({properties.Name},name)).Hidden);
             end
         end
 

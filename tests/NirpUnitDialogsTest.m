@@ -17,15 +17,13 @@ classdef NirpUnitDialogsTest < matlab.unittest.TestCase
         end
     end
     methods (Test)
-        function cstrAppliesHeatExchangeAndVisibility(testCase)
-            addUnit('dialog_model','CSTR','nirp.blocks.CSTR',[240 120 350 190]);
-            d=nirp.flowsheet.ReactorDialog('dialog_model/CSTR','Visible','off');testCase.addTeardown(@() deleteValid(d));
-            d.setHeatMode('Heat exchange');d.setValues('U',2,'A',3,'UtilityTin',320);d.UUnitDropDown.Value='W/(m^2*K)';d.AUnitDropDown.Value='m^2';d.UtilityTinUnitDropDown.Value='K';
-            testCase.verifyTrue(strcmp(d.UField.Visible,'on'));testCase.verifyFalse(isprop(d,'SpecifiedTField'));d.apply();
-            testCase.verifyEqual(str2double(get_param('dialog_model/CSTR','U')),2);testCase.verifyEqual(get_param('dialog_model/CSTR','HeatMode'),'Heat exchange');
+        function jacketDialogAppliesParametersAndVisibility(testCase)
+            addUnit('dialog_model','Jacket','nirp.blocks.Jacket',[240 120 350 190]);
+            d=nirp.flowsheet.JacketDialog('dialog_model/Jacket','Visible','off');testCase.addTeardown(@() deleteValid(d));
+            d.setValues('U',2,'A',3,'UtilityTin',320,'ASource','Input port');d.UUnitDropDown.Value='W/(m^2*K)';d.AUnitDropDown.Value='m^2';d.UtilityTinUnitDropDown.Value='K';
+            testCase.verifyEqual(string(d.AField.Visible),"off");d.setValues('ASource','Dialog');d.apply();
+            testCase.verifyEqual(str2double(get_param('dialog_model/Jacket','U')),2);testCase.verifyEqual(str2double(get_param('dialog_model/Jacket','A')),3);
             values=d.getValues();testCase.verifyEqual(values.U.origin,"specified");
-            addStream('dialog_model','Product','Product',[430 130 540 180]);set_param('dialog_model/Product','ReferenceFeed','F1','KeyComponent','A');add_line('dialog_model','F1/1','CSTR/1');add_line('dialog_model','CSTR/1','Product/1');sim('dialog_model');fromDialog=evalin('base','nirpResults.Streams.Product.streamSI.F');
-            set_param('dialog_model/CSTR','U','2','UUnit','W/(m^2*K)','A','3','AUnit','m^2','UtilityTin','320','UtilityTinUnit','K');sim('dialog_model');fromSetParam=evalin('base','nirpResults.Streams.Product.streamSI.F');testCase.verifyEqual(fromDialog,fromSetParam,'AbsTol',1e-12);
         end
         function pfrGeometryAndErgun(testCase)
             addUnit('dialog_model','PFR','nirp.blocks.PFR',[240 120 350 190]);d=nirp.flowsheet.ReactorDialog('dialog_model/PFR','Visible','off');testCase.addTeardown(@() deleteValid(d));
@@ -51,7 +49,7 @@ classdef NirpUnitDialogsTest < matlab.unittest.TestCase
         function reactorVisibleControlsStayInsideAndDoNotOverlap(testCase)
             addUnit('dialog_model','PFR','nirp.blocks.PFR',[240 120 350 190]);
             d=nirp.flowsheet.ReactorDialog('dialog_model/PFR','Visible','off');testCase.addTeardown(@() deleteValid(d));
-            d.Figure.Visible='on';d.setHeatMode('Heat exchange');select(d.PressureModeGroup,'Non constant');select(d.PressureEquationGroup,'Ergun');drawnow;
+            d.Figure.Visible='on';select(d.PressureModeGroup,'Non constant');select(d.PressureEquationGroup,'Ergun');drawnow;
             verifyVisibleLayout(testCase,d.Figure,'Reactor');
             d.setHeatMode('Adiabatic');drawnow;verifyVisibleLayout(testCase,d.Figure,'Reactor');
             d.Figure.Visible='off';
@@ -70,7 +68,7 @@ classdef NirpUnitDialogsTest < matlab.unittest.TestCase
             dialogs{1}.Figure.Visible='off';
         end
         function callbacksOpenStructuredDialogs(testCase)
-            classes={'CSTR','PFR','Heater','Splitter','Mixer'};for i=1:numel(classes),addUnit('dialog_model',classes{i},['nirp.blocks.' classes{i}],[220 40+60*i 340 90+60*i]);testCase.verifySubstring(get_param(['dialog_model/' classes{i}],'OpenFcn'),'Dialog.open');end
+            classes={'CSTR','PFR','Heater','Jacket','Splitter','Mixer'};for i=1:numel(classes),addUnit('dialog_model',classes{i},['nirp.blocks.' classes{i}],[220 40+60*i 340 90+60*i]);testCase.verifySubstring(get_param(['dialog_model/' classes{i}],'OpenFcn'),'Dialog.open');end
             flow=find_system('dialog_model','SearchDepth',1,'BlockType','SubSystem');testCase.verifySubstring(get_param(flow{1},'OpenFcn'),'ReactiveSystemDialog');
         end
         function reactiveSystemAddsReactionAndCreatesModel(testCase)

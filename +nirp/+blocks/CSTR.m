@@ -4,7 +4,7 @@ classdef CSTR < matlab.System
     % material and energy balances determine the outlet stream.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 2, 2026. Last update: October 7, 2026
+    % Created: October 2, 2026. Last update: October 8, 2026
     % =========================================================================
 
     properties (Nontunable)
@@ -12,10 +12,6 @@ classdef CSTR < matlab.System
         V = 0.1
         % Source of reactor volume.
         VSource = 'Dialog'
-        % Source of heat-transfer area.
-        ASource = 'Dialog'
-        % Source of utility inlet temperature.
-        UtilityTinSource = 'Dialog'
         % Reactor-volume unit.
         VUnit = 'm^3'
         % Catalyst bulk density.
@@ -24,28 +20,14 @@ classdef CSTR < matlab.System
         CatalystPorosity = 0
         % Thermal operating mode.
         HeatMode = 'Isothermal'
-        % Overall heat-transfer coefficient.
-        U = 0
-        % Heat-transfer-coefficient unit.
-        UUnit = 'W/(m^2*K)'
-        % Heat-transfer area.
-        A = 1
-        % Heat-transfer-area unit.
-        AUnit = 'm^2'
-        % Utility inlet temperature.
-        UtilityTin = 300
-        % Utility-inlet-temperature unit.
-        UtilityTinUnit = 'K'
-        % Utility outlet temperature; NaN means constant utility temperature.
-        UtilityTout = NaN
-        % Utility-outlet-temperature unit.
-        UtilityToutUnit = 'K'
         % Optional reactor outlet-temperature initial guess.
         InitialTGuess = NaN
         % Initial-temperature-guess unit.
         InitialTGuessUnit = 'K'
         % Show the heat-duty output port.
         ShowHeatPort (1,1) logical = false
+        % Show the Jacket signal input port.
+        ShowJacketPort (1,1) logical = false
     end
 
     properties (Nontunable, Hidden)
@@ -58,6 +40,18 @@ classdef CSTR < matlab.System
         SpecifiedTUnit = 'K'
         SpecifiedQ = 0
         SpecifiedQUnit = 'W'
+        % Legacy heat-exchange properties retained only so old models can
+        % load and report an actionable migration error.
+        ASource = 'Dialog'
+        UtilityTinSource = 'Dialog'
+        U = 0
+        UUnit = 'W/(m^2*K)'
+        A = 1
+        AUnit = 'm^2'
+        UtilityTin = 300
+        UtilityTinUnit = 'K'
+        UtilityTout = NaN
+        UtilityToutUnit = 'K'
     end
 
     properties (Constant, Hidden)
@@ -65,8 +59,7 @@ classdef CSTR < matlab.System
         VSourceSet = matlab.system.StringSet({'Dialog','Input port'})
         ASourceSet = matlab.system.StringSet({'Dialog','Input port'})
         UtilityTinSourceSet = matlab.system.StringSet({'Dialog','Input port'})
-        % Flowsheet modes (D-057); 'Heat exchange' stays until the Jacket
-        % block replaces it (T-137).
+        % Heat exchange remains accepted only to diagnose saved old models.
         HeatModeSet = matlab.system.StringSet({'Isothermal','Adiabatic', ...
             'Heat exchange'})
         SpecifiedTUnitSet = matlab.system.StringSet({'K',[char(176) 'C']})
@@ -92,19 +85,15 @@ classdef CSTR < matlab.System
 
     methods (Access = protected)
         function setupImpl(obj)
-            if (~strcmp(obj.ASource,'Dialog') || ...
-                    ~strcmp(obj.UtilityTinSource,'Dialog')) && ...
-                    ~strcmp(obj.HeatMode,'Heat exchange')
-                error('nirp:blocks:invalidParameterSource', ...
-                    'CSTR A and UtilityTin input ports require Heat exchange mode.') ;
+            if strcmp(obj.HeatMode,'Heat exchange')
+                error('nirp:blocks:jacketRequired', ...
+                    ['CSTR Heat exchange mode is obsolete. Add a Jacket block, ' ...
+                    'enable the Jacket input port, and connect it to the reactor.']) ;
             end
             [obj.Model,~,obj.RS] = nirp.blocks.internal.modelPackage() ;
             obj.Block = get_param(gcb,'Name') ;
             obj.Params = nirp.blocks.internal.thermalParameters(obj) ;
             obj.Params.V = UnitConverterHelper.convertToSI('Volume',obj.V,char(obj.VUnit)) ;
-            if strcmp(obj.Params.heatMode,'Heat exchange')
-                obj.Params.heatMode = 'Other' ;
-            end
             obj.HasCache = false ;
             obj.CalculationCount = 0 ;
         end
@@ -120,19 +109,17 @@ classdef CSTR < matlab.System
                 params.V = value ;
             end
             index = 1+strcmp(obj.VSource,'Input port') ;
-            if strcmp(obj.ASource,'Input port')
-                value = varargin{index} ; index = index+1 ;
-                if ~isnumeric(value) || ~isscalar(value) || ~isfinite(value) || value <= 0
-                    error('nirp:blocks:invalidParameterPort','CSTR A input must be positive m^2.') ;
+            if obj.ShowJacketPort
+                jacket = varargin{index} ;
+                if ~isnumeric(jacket) || ~isequal(size(jacket),[4 1]) || ...
+                        any(~isfinite(jacket(1:3))) || jacket(1)<0 || any(jacket(2:3)<=0) || ...
+                        (~isnan(jacket(4)) && (~isfinite(jacket(4)) || jacket(4)<=0))
+                    error('nirp:blocks:invalidJacket', ...
+                        'CSTR Jacket input must be [U; A; Tin; Tout] in SI, with Tout optionally NaN.') ;
                 end
-                params.A = value ;
-            end
-            if strcmp(obj.UtilityTinSource,'Input port')
-                value = varargin{index} ;
-                if ~isnumeric(value) || ~isscalar(value) || ~isfinite(value) || value <= 0
-                    error('nirp:blocks:invalidParameterPort','CSTR UtilityTin input must be positive K.') ;
-                end
-                params.utilityTin = value ;
+                params.heatMode = 'Other' ; params.U = jacket(1) ;
+                params.A = jacket(2) ; params.utilityTin = jacket(3) ;
+                if isnan(jacket(4)), params.utilityTout = [] ; else, params.utilityTout = jacket(4) ; end
             end
             cacheInput = {in,varargin{:}} ;
             if obj.HasCache && isequaln(cacheInput,obj.LastInput)
@@ -149,8 +136,7 @@ classdef CSTR < matlab.System
         end
 
         function n = getNumInputsImpl(obj)
-            n = 1+strcmp(obj.VSource,'Input port')+strcmp(obj.ASource,'Input port')+ ...
-                strcmp(obj.UtilityTinSource,'Input port') ;
+            n = 1+strcmp(obj.VSource,'Input port')+double(obj.ShowJacketPort) ;
         end
         function n = getNumOutputsImpl(obj), n = 1+double(obj.ShowHeatPort) ; end
         function varargout = getOutputDataTypeImpl(obj)
@@ -170,8 +156,7 @@ classdef CSTR < matlab.System
             varargout{1} = 'Feed' ;
             index = 1 ;
             if strcmp(obj.VSource,'Input port'), index=index+1;varargout{index}='V (m^3)';end
-            if strcmp(obj.ASource,'Input port'), index=index+1;varargout{index}='A (m^2)';end
-            if strcmp(obj.UtilityTinSource,'Input port'), index=index+1;varargout{index}='UtilityTin (K)';end
+            if obj.ShowJacketPort, index=index+1;varargout{index}='Jacket';end
         end
         function varargout = getOutputNamesImpl(obj)
             varargout{1} = 'Product' ;
@@ -184,10 +169,8 @@ classdef CSTR < matlab.System
         function groups = getPropertyGroupsImpl()
             groups = matlab.system.display.Section('Title','CSTR', ...
                 'PropertyList',{'VSource','V','VUnit','HeatMode', ...
-                'U','UUnit', ...
-                'ASource','A','AUnit','UtilityTinSource','UtilityTin','UtilityTinUnit','UtilityTout', ...
-                'UtilityToutUnit','CatalystDensity', ...
-                'CatalystPorosity','InitialTGuess','InitialTGuessUnit','ShowHeatPort'}) ;
+                'CatalystDensity','CatalystPorosity','InitialTGuess', ...
+                'InitialTGuessUnit','ShowJacketPort','ShowHeatPort'}) ;
         end
         function mode = getSimulateUsingImpl(), mode = 'Interpreted execution' ; end
         function flag = showSimulateUsingImpl(), flag = false ; end

@@ -88,7 +88,13 @@ classdef NirpUnitResultsTest < matlab.unittest.TestCase
             for i = 1:numel(resultTables)
                 testCase.verifyFalse(hasVisibleNaN(resultTables(i).Data)) ;
                 widths = resultTables(i).ColumnWidth ;
-                testCase.verifyLessThanOrEqual(sum([widths{:}]),1000) ;
+                if numel(widths) == 18
+                    testCase.verifyGreaterThan(sum([widths{:}]),1000) ;
+                    testCase.verifyGreaterThanOrEqual([widths{:}], ...
+                        [130 75 65 110 65 110 65 110 95 110 75 110 75 140 70 130 80 320]) ;
+                else
+                    testCase.verifyLessThanOrEqual(sum([widths{:}]),1000) ;
+                end
                 names = string(resultTables(i).ColumnName) ;
                 verifyIntegerColumn(testCase,resultTables(i).Data,names,'Status') ;
                 verifyIntegerColumn(testCase,resultTables(i).Data,names,'Iterations') ;

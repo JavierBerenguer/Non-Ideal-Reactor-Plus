@@ -2,12 +2,13 @@ function tables = showResults(model,varargin)
 %SHOWRESULTS Return and optionally display unit and Stream result tables.
 %   TABLES = nirp.flowsheet.showResults(MODEL) returns Units and Adjust
 %   tables followed by one table per Stream in nirpResults.Streams. Unit
-%   volumes, heat-transfer parameters, and heat duties use display units.
+%   volumes, Jacket heat-transfer parameters, heat duties, and optional
+%   utility mass flows use display units (mass flow is reported in kg/s).
 %   ...showResults(MODEL,'NoWindow',true) never creates a UI window.
 %   ...showResults(MODEL,'Visible',VALUE) controls the results window.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 2, 2026. Last update: October 7, 2026
+% Created: October 2, 2026. Last update: October 8, 2026
 % =========================================================================
 
     if nargin < 1 || isempty(model), model = bdroot ; end
@@ -71,8 +72,12 @@ function tables = showResults(model,varargin)
     unitGrid = uigridlayout(unitTab,[4 1], ...
         'RowHeight',{22,'1x',22,'1x'},'Padding',[10 10 10 10]) ;
     uilabel(unitGrid,'Text','Units','FontWeight','bold') ;
+    % Keep each result and unit in its typed column. The table deliberately
+    % scrolls horizontally so neither engineering values nor headings are
+    % truncated at the default window size.
     createDisplayTable(unitGrid,tables.Units,2, ...
-        {105,65,50,70,55,70,55,85,60,85,60,220},true) ;
+        {130,75,65,110,65,110,65,110,95,110,75,110,75,140,70, ...
+        130,80,320},true) ;
     uilabel(unitGrid,'Text','Adjust','FontWeight','bold') ;
     createDisplayTable(unitGrid,tables.Adjust,4, ...
         {115,55,80,95,105,70,90,75,80,75,160},true) ;
@@ -113,14 +118,16 @@ function [units,adjusts] = unitTables(model,results)
             if isfield(info,'status'), row{3} = double(info.status) ;
             elseif isfield(item,'lastOutput'), row{3} = outputStatus(item.lastOutput) ;
             end
-            if isfield(info,'message'), row{12} = string(info.message) ; end
+            if isfield(info,'message'), row{18} = string(info.message) ; end
             if any(type == ["CSTR","PFR"])
                 row = reactorValues(block,info,row) ;
+            elseif type == "Jacket"
+                row = jacketValues(model,block,info,row,diagnostics) ;
             end
             if isfield(info,'heatDuty')
-                row{11} = heatUnit(block,type) ;
-                row{10} = UnitConverterHelper.convertFromSI( ...
-                    'Power',info.heatDuty,char(row{11})) ;
+                row{15} = heatUnit(block,type) ;
+                row{14} = UnitConverterHelper.convertFromSI( ...
+                    'Power',info.heatDuty,char(row{15})) ;
             end
             if type == "Adjust"
                 adjusts(end+1,:) = adjustValues(block,info,registryEntries) ; %#ok<AGROW>
@@ -137,18 +144,21 @@ function [units,adjusts] = unitTables(model,results)
                 adjusts(end+1,:) = failed ; %#ok<AGROW>
                 continue
             end
-            row{12} = string(exception.message) ;
+            row{18} = string(exception.message) ;
         end
         units(end+1,:) = row ; %#ok<AGROW>
     end
+    units = clearUnitsWithoutValues(units) ;
 end
 
 function value = emptyUnitTable()
-    columns = {'Block','Type','Status','V','VUnit','A','AUnit', ...
-        'UtilityTin','UtilityTinUnit','HeatDuty','QUnit','Message'} ;
+    columns = {'Block','Type','Status','V','VUnit','A','AUnit','U','UUnit', ...
+        'UtilityTin','UtilityTinUnit','UtilityTout','UtilityToutUnit', ...
+        'HeatDuty','QUnit','ServiceFlow','ServiceFlowUnit','Message'} ;
     value = table('Size',[0 numel(columns)], ...
         'VariableTypes',{'string','string','double','double','string', ...
-        'double','string','double','string','double','string','string'}, ...
+        'double','string','double','string','double','string','double','string', ...
+        'double','string','double','string','string'}, ...
         'VariableNames',columns) ;
 end
 
@@ -163,7 +173,7 @@ end
 
 function row = emptyUnitRow(block,type)
     row = {string(get_param(block,'Name')),type,NaN,NaN,"",NaN,"", ...
-        NaN,"",NaN,"",""} ;
+        NaN,"",NaN,"",NaN,"",NaN,"",NaN,"",""} ;
 end
 
 function row = emptyAdjustRow(block)
@@ -172,7 +182,7 @@ function row = emptyAdjustRow(block)
 end
 
 function [blocks,types] = functionalBlocks(model)
-    supported = ["CSTR","PFR","Heater","Mixer","Splitter","Adjust","Recycle"] ;
+    supported = ["CSTR","PFR","Heater","Jacket","Mixer","Splitter","Adjust","Recycle"] ;
     paths = find_system(model,'LookUnderMasks','all','SearchDepth',1, ...
         'BlockType','MATLABSystem') ;
     blocks = cell(0,1) ; types = strings(0,1) ;
@@ -222,14 +232,47 @@ function row = reactorValues(block,info,row)
         row{4} = UnitConverterHelper.convertFromSI( ...
             'Volume',info.V,char(row{5})) ;
     end
-    if ~strcmp(get_param(block,'HeatMode'),'Heat exchange'), return, end
-    row{7} = string(get_param(block,'AUnit')) ;
-    area = parameterSI(block,'A','Area') ;
-    row{6} = UnitConverterHelper.convertFromSI('Area',area,char(row{7})) ;
-    row{9} = string(get_param(block,'UtilityTinUnit')) ;
-    utilityTin = parameterSI(block,'UtilityTin','Temperature') ;
-    row{8} = UnitConverterHelper.convertFromSI( ...
-        'Temperature',utilityTin,char(row{9})) ;
+end
+
+function units = clearUnitsWithoutValues(units)
+    pairs = {'V','VUnit';'A','AUnit';'U','UUnit'; ...
+        'UtilityTin','UtilityTinUnit';'UtilityTout','UtilityToutUnit'; ...
+        'HeatDuty','QUnit';'ServiceFlow','ServiceFlowUnit'} ;
+    for i = 1:size(pairs,1)
+        missing = ismissing(units.(pairs{i,1})) ;
+        units.(pairs{i,2})(missing) = "" ;
+    end
+end
+
+function row = jacketValues(model,block,info,row,diagnostics)
+    if isempty(fieldnames(info)), return, end
+    row{7}=string(get_param(block,'AUnit'));row{6}=UnitConverterHelper.convertFromSI('Area',info.A,char(row{7}));
+    row{9}=string(get_param(block,'UUnit'));row{8}=UnitConverterHelper.convertFromSI('HeatTransferCoefficient',info.U,char(row{9}));
+    row{11}=string(get_param(block,'UtilityTinUnit'));row{10}=UnitConverterHelper.convertFromSI('Temperature',info.utilityTin,char(row{11}));
+    row{13}=string(get_param(block,'UtilityToutUnit'));
+    if ~isnan(info.utilityTout),row{12}=UnitConverterHelper.convertFromSI('Temperature',info.utilityTout,char(row{13}));end
+    reactorInfo=connectedReactorInfo(model,block,diagnostics);
+    if isfield(reactorInfo,'heatDuty')
+        row{14}=reactorInfo.heatDuty;row{15}="W";
+        latent=str2double(get_param(block,'LatentHeat'));cp=str2double(get_param(block,'UtilityCp'));
+        if ison(get_param(block,'Condenses'))&&isfinite(latent)&&latent>0
+            row{16}=abs(reactorInfo.heatDuty)/latent;row{17}="kg/s";
+        elseif isfinite(cp)&&cp>0&&~isnan(info.utilityTout)&&info.utilityTout~=info.utilityTin
+            row{16}=abs(reactorInfo.heatDuty)/(cp*abs(info.utilityTout-info.utilityTin));row{17}="kg/s";
+        end
+    end
+end
+
+function info = connectedReactorInfo(model,block,diagnostics)
+    info=struct();ports=get_param(block,'PortHandles');
+    if isempty(ports.Outport),return,end;line=get_param(ports.Outport(1),'Line');if line==-1,return,end
+    destinations=get_param(line,'DstBlockHandle');
+    for destination=reshape(destinations,1,[])
+        try,className=string(get_param(destination,'System'));catch,continue,end
+        if ~any(className==["nirp.blocks.CSTR","nirp.blocks.PFR"]),continue,end
+        field=matlab.lang.makeValidName([char(string(model)) '_' get_param(destination,'Name')]);
+        if isfield(diagnostics,field)&&isfield(diagnostics.(field),'lastInfo'),info=diagnostics.(field).lastInfo;return,end
+    end
 end
 
 function value = parameterSI(block,name,category)
@@ -288,10 +331,14 @@ function unit = heatUnit(block,type)
         unit = "W" ;
     elseif type == "Heater"
         unit = string(get_param(block,'DutyUnit')) ;
+    elseif type == "Jacket"
+        unit = "W" ;
     else
         unit = "kW" ;
     end
 end
+
+function flag=ison(value),flag=strcmp(value,'on')||strcmp(value,'1');end
 
 function row = adjustValues(block,info,entries)
     row = emptyAdjustRow(block) ;
@@ -324,8 +371,14 @@ function createDisplayTable(parent,value,row,columnWidths,formatUnitResults)
     if formatUnitResults
         data = formatUnitResultData(data,value.Properties.VariableNames) ;
     end
+    columnNames = value.Properties.VariableNames ;
+    if formatUnitResults && width(value) == 18
+        columnNames = {'Block','Type','Status','V','V unit','A','A unit', ...
+            'U','U unit','Tin','Tin unit','Tout','Tout unit','Q','Q unit', ...
+            'Service flow','Flow unit','Message'} ;
+    end
     control = uitable(parent,'Data',data, ...
-        'ColumnName',value.Properties.VariableNames,'RowName',{}, ...
+        'ColumnName',columnNames,'RowName',{}, ...
         'ColumnWidth',columnWidths) ;
     control.Layout.Row = row ;
 end

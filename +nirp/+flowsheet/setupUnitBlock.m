@@ -10,6 +10,8 @@ function setupUnitBlock(block)
             callback='nirp.flowsheet.ReactorDialog.open(gcb);';
         case "nirp.blocks.Heater"
             callback='nirp.flowsheet.HeaterDialog.open(gcb);';
+        case "nirp.blocks.Jacket"
+            callback='nirp.flowsheet.JacketDialog.open(gcb);';
         case "nirp.blocks.Splitter"
             callback='nirp.flowsheet.SplitterDialog.open(gcb);';
         case "nirp.blocks.Mixer"

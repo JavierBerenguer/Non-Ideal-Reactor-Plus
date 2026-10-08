@@ -22,7 +22,8 @@ function graph = topology(model)
         if className == "nirp.blocks.Stream"
             streamPaths(end+1,1) = string(blocks{i}) ;
         elseif startsWith(className,"nirp.blocks.") && ...
-                ~any(className == ["nirp.blocks.Flowsheet","nirp.blocks.Adjust"])
+                ~any(className == ["nirp.blocks.Flowsheet","nirp.blocks.Adjust", ...
+                "nirp.blocks.Jacket"])
             unitPaths(end+1,1) = string(blocks{i}) ;
             unitTypes(end+1,1) = extractAfter(className,"nirp.blocks.") ;
         end

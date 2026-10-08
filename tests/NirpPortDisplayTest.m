@@ -57,33 +57,35 @@ classdef NirpPortDisplayTest < matlab.unittest.TestCase
                 "ex34_problem45c_cooled_tanks") ;
             expected = [0.195240;0.090622] ;
             adjusts = ismember(tables.Adjust.Block,["Adjust 2","Adjust 3"]) ;
-            reactors = ismember(tables.Units.Block,["CSTR 2","CSTR 3"]) ;
+            jackets = ismember(tables.Units.Block,["Jacket 2","Jacket 3"]) ;
             testCase.verifyNotEmpty(tables.Units) ;
             testCase.verifyNotEmpty(tables.Adjust) ;
             testCase.verifyEqual(tables.Adjust.Parameter(adjusts),expected, ...
                 'RelTol',1e-5) ;
             testCase.verifyEqual(tables.Adjust.ParameterUnit(adjusts),["m^2";"m^2"]) ;
-            testCase.verifyEqual(tables.Units.A(reactors),expected,'RelTol',1e-5) ;
-            testCase.verifyEqual(tables.Units.AUnit(reactors),["m^2";"m^2"]) ;
+            testCase.verifyEqual(tables.Units.A(jackets),expected,'RelTol',1e-5) ;
+            testCase.verifyEqual(tables.Units.AUnit(jackets),["m^2";"m^2"]) ;
 
             tables = simulateTables(testCase.Files(35), ...
                 "ex35_problem28_steam_jacket") ;
-            reactor = tables.Units.Block=="CSTR" ;
+            jacket = tables.Units.Block=="Jacket" ;
             testCase.verifyNotEmpty(tables.Units) ;
             testCase.verifyNotEmpty(tables.Adjust) ;
             testCase.verifyEqual(tables.Adjust.Parameter,401.4397,'RelTol',1e-5) ;
-            testCase.verifyEqual(tables.Units.UtilityTin(reactor),401.4397, ...
+            testCase.verifyEqual(tables.Units.UtilityTin(jacket),401.4397, ...
                 'RelTol',1e-5) ;
-            testCase.verifyEqual(tables.Units.UtilityTinUnit(reactor),"K") ;
+            testCase.verifyEqual(tables.Units.UtilityTinUnit(jacket),"K") ;
+            testCase.verifyTrue(isfinite(tables.Units.ServiceFlow(jacket))) ;
+            testCase.verifyEqual(tables.Units.ServiceFlowUnit(jacket),"kg/s") ;
 
             tables = simulateTables(testCase.Files(36), ...
                 "ex36_problem36_air_cooled_cstr") ;
-            reactor = tables.Units.Block=="CSTR" ;
+            jacket = tables.Units.Block=="Jacket" ;
             testCase.verifyNotEmpty(tables.Units) ;
             testCase.verifyNotEmpty(tables.Adjust) ;
             testCase.verifyEqual(tables.Adjust.Parameter,9.4288,'RelTol',1e-5) ;
-            testCase.verifyEqual(tables.Units.A(reactor),9.4288,'RelTol',1e-5) ;
-            testCase.verifyEqual(tables.Units.AUnit(reactor),"m^2") ;
+            testCase.verifyEqual(tables.Units.A(jacket),9.4288,'RelTol',1e-5) ;
+            testCase.verifyEqual(tables.Units.AUnit(jacket),"m^2") ;
         end
 
         function failedRowIsReportedWithoutClearingTables(testCase)
@@ -105,16 +107,16 @@ classdef NirpPortDisplayTest < matlab.unittest.TestCase
 
         function dialogsIdentifyParametersFromPorts(testCase)
             load_system(char(testCase.Files(34))) ;
-            reactor = nirp.flowsheet.ReactorDialog( ...
-                'ex34_problem45c_cooled_tanks/CSTR 2','Visible','off') ;
-            testCase.verifyEqual(string(reactor.AField.Visible),"off") ;
-            testCase.verifyEqual(string(reactor.AField.Editable),"off") ;
-            testCase.verifyEqual(string(reactor.APortLabel.Visible),"on") ;
-            testCase.verifyEqual(string(reactor.APortLabel.Text),"From input port") ;
-            reactor.setValues('ASource','Dialog') ;
-            testCase.verifyEqual(string(reactor.AField.Visible),"on") ;
-            testCase.verifyEqual(string(reactor.AField.Editable),"on") ;
-            delete(reactor) ; close_system('ex34_problem45c_cooled_tanks',0) ;
+            jacket = nirp.flowsheet.JacketDialog( ...
+                'ex34_problem45c_cooled_tanks/Jacket 2','Visible','off') ;
+            testCase.verifyEqual(string(jacket.AField.Visible),"off") ;
+            testCase.verifyEqual(string(jacket.AField.Editable),"off") ;
+            testCase.verifyEqual(string(jacket.APortLabel.Visible),"on") ;
+            testCase.verifyEqual(string(jacket.APortLabel.Text),"From input port") ;
+            jacket.setValues('ASource','Dialog') ;
+            testCase.verifyEqual(string(jacket.AField.Visible),"on") ;
+            testCase.verifyEqual(string(jacket.AField.Editable),"on") ;
+            delete(jacket) ; close_system('ex34_problem45c_cooled_tanks',0) ;
             Simulink.data.dictionary.closeAll('-discard') ;
 
             load_system(char(testCase.Files(31))) ;
