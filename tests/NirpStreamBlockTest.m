@@ -2,7 +2,7 @@ classdef NirpStreamBlockTest < matlab.unittest.TestCase
     % NirpStreamBlockTest verifies named Stream blocks and their dialog.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 2, 2026. Last update: October 3, 2026
+    % Created: October 2, 2026. Last update: October 8, 2026
     % =========================================================================
 
     properties
@@ -59,9 +59,8 @@ classdef NirpStreamBlockTest < matlab.unittest.TestCase
             testCase.verifyEmpty(emptyDialog.getValue('Viscosity')) ;
             testCase.verifyEqual(string(emptyDialog.DensityField.Editable),"off") ;
             testCase.verifyEqual(string(emptyDialog.ViscosityField.Editable),"off") ;
-            feedTips=findall(emptyDialog.Figure,'Type','uitextarea') ;
-            testCase.verifyTrue(contains(strjoin(string(feedTips.Value),' '), ...
-                'Two of molar flow, concentration, and liquid Q complete the third.')) ;
+            % T-131: the tips box was removed at the user's request.
+            testCase.verifyEmpty(findall(emptyDialog.Figure,'Type','uitextarea')) ;
         end
 
         function resultDialogConvertsAndReportsState(testCase)
@@ -86,9 +85,7 @@ classdef NirpStreamBlockTest < matlab.unittest.TestCase
             testCase.verifyEmpty(middle.getValue('Viscosity')) ;
             testCase.verifyEqual(string(middle.DensityField.Editable),"off") ;
             testCase.verifyEqual(string(middle.ViscosityField.Editable),"off") ;
-            resultTips=findall(middle.Figure,'Type','uitextarea') ;
-            testCase.verifyTrue(contains(strjoin(string(resultTips.Value),' '), ...
-                'Results of the last run.')) ;
+            testCase.verifyEmpty(findall(middle.Figure,'Type','uitextarea')) ;
             product=nirp.flowsheet.StreamDialog( ...
                 'ex2_cstr_adiabatic_cooler/Product','Visible','off') ;
             testCase.addTeardown(@() deleteValid(product)) ;
