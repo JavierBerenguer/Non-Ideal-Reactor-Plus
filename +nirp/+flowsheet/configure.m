@@ -18,6 +18,7 @@ function configure(modelName)
         'System','nirp.blocks.Stream') ;
     for i = 1:numel(streams)
         nirp.flowsheet.setupStreamBlock(streams{i}) ;
+        nirp.flowsheet.streamRole(streams{i}) ;
     end
     units=find_system(model,'SearchDepth',1,'BlockType','MATLABSystem') ;
     for i=1:numel(units),nirp.flowsheet.setupUnitBlock(units{i});end

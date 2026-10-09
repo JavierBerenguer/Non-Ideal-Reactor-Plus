@@ -29,6 +29,16 @@ end
 
 function [status,message] = streamStatus(results,block)
     status = "none" ; message = "" ;
+    role = nirp.flowsheet.streamRole(block) ;
+    if role == "Unconnected"
+        status = "warning" ;
+        message = "Stream is unconnected." ;
+        return
+    elseif role == "Feed" && ~feedIsDefined(block)
+        status = "warning" ;
+        message = "Feed data are not defined in the flowsheet package." ;
+        return
+    end
     field = matlab.lang.makeValidName(get_param(block,'Name')) ;
     if ~isfield(results,'Streams') || ~isstruct(results.Streams) || ...
             ~isfield(results.Streams,field)
@@ -42,6 +52,16 @@ function [status,message] = streamStatus(results,block)
         return
     end
     [status,message] = numericStatus(item.status,"Stream calculation failed.") ;
+end
+
+function value = feedIsDefined(block)
+    value = false ;
+    try
+        dictionary = nirp.flowsheet.modelDictionary(bdroot(block)) ;
+        pkg = nirp.pkg.readDictionary(dictionary) ;
+        value = any(string({pkg.feeds.name}) == string(get_param(block,'Name'))) ;
+    catch
+    end
 end
 
 function value = flowsheetDidNotConverge(results)

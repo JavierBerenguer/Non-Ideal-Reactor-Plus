@@ -1,13 +1,13 @@
 classdef Stream < matlab.System
-    % Stream represents a named feed, intermediate, or product stream.
+    % Stream represents a named stream whose role may follow connectivity.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 2, 2026. Last update: October 2, 2026
+    % Created: October 2, 2026. Last update: October 9, 2026
     % =========================================================================
 
     properties (Nontunable)
         % Stream role in the flowsheet.
-        Role = 'Intermediate'
+        Role = 'Auto'
         % Source of feed temperature (Feed role only).
         TSource = 'Dialog'
         % Source of feed volumetric flow (Feed role only).
@@ -28,7 +28,7 @@ classdef Stream < matlab.System
     end
 
     properties (Constant, Hidden)
-        RoleSet = matlab.system.StringSet({'Feed','Intermediate','Product'})
+        RoleSet = matlab.system.StringSet({'Auto','Feed','Intermediate','Product'})
         TSourceSet = matlab.system.StringSet({'Dialog','Input port'})
         QSourceSet = matlab.system.StringSet({'Dialog','Input port'})
         TUnitSet = matlab.system.StringSet({'K',[char(176) 'C']})
@@ -45,13 +45,20 @@ classdef Stream < matlab.System
         FeedStream
         Reference
         KeyIndex = []
+        RunRole = "Intermediate"
     end
 
     methods (Access = protected)
         function setupImpl(obj)
             [~,obj.Package,obj.ReactionSystem] = nirp.blocks.internal.modelPackage() ;
             obj.BlockName = get_param(gcb,'Name') ;
-            if strcmp(obj.Role,'Feed')
+            obj.RunRole = obj.runtimeRole() ;
+            if strcmp(obj.Role,'Auto')
+                connectedRole = nirp.flowsheet.streamRole(gcb) ;
+                if connectedRole ~= "Unconnected", obj.RunRole = connectedRole ; end
+            end
+            role = obj.RunRole ;
+            if role == "Feed"
                 try
                     obj.FeedStream = nirp.pkg.feedStream(obj.Package,obj.BlockName) ;
                 catch exception
@@ -82,7 +89,8 @@ classdef Stream < matlab.System
         end
 
         function varargout = stepImpl(obj,varargin)
-            if strcmp(obj.Role,'Feed')
+            role = obj.RunRole ;
+            if role == "Feed"
                 stream = obj.FeedStream ;
                 if strcmp(obj.TSource,'Input port')
                     temperature = varargin{1} ;
@@ -121,7 +129,7 @@ classdef Stream < matlab.System
                 nirp.stream.validate(stream,obj.ReactionSystem.nComponents) ;
             end
             obj.publish(stream) ;
-            if ~strcmp(obj.Role,'Product')
+            if role ~= "Product" || strcmp(obj.Role,'Auto')
                 varargout{1} = stream ;
             end
         end
@@ -144,7 +152,7 @@ classdef Stream < matlab.System
                 'Concentration',concentration,char(obj.ConcentrationUnit)) ;
             item = struct() ;
             item.name = obj.BlockName ;
-            item.role = obj.Role ;
+            item.role = char(obj.RunRole) ;
             item.streamSI = stream ;
             item.streamTable = table(names,flow,concentration, ...
                 'VariableNames',{'Component','F','C'}) ;
@@ -184,6 +192,12 @@ classdef Stream < matlab.System
         end
 
         function n = getNumInputsImpl(obj)
+            if strcmp(obj.Role,'Auto')
+                % Auto blocks keep one material input and output so users can
+                % reconnect them before the next configure/update operation.
+                n = 1 ;
+                return
+            end
             if strcmp(obj.Role,'Feed')
                 n = double(strcmp(obj.TSource,'Input port'))+ ...
                     double(strcmp(obj.QSource,'Input port')) ;
@@ -191,13 +205,16 @@ classdef Stream < matlab.System
                 n = 1 ;
             end
         end
-        function n = getNumOutputsImpl(obj), n = double(~strcmp(obj.Role,'Product')) ; end
+        function n = getNumOutputsImpl(obj)
+            n = double(strcmp(obj.Role,'Auto') || ~strcmp(obj.Role,'Product')) ;
+        end
         function type = getOutputDataTypeImpl(~), type = 'NirpStream' ; end
         function size = getOutputSizeImpl(~), size = [1 1] ; end
         function flag = isOutputFixedSizeImpl(~), flag = true ; end
         function flag = isOutputComplexImpl(~), flag = false ; end
         function name = getOutputNamesImpl(~), name = '' ; end % short icons, no port labels (Claude, T-111 review)
         function varargout = getInputNamesImpl(obj)
+            if strcmp(obj.Role,'Auto'), varargout{1} = '' ; return, end
             if ~strcmp(obj.Role,'Feed'), varargout{1} = '' ; return, end
             index = 0 ;
             if strcmp(obj.TSource,'Input port')
@@ -209,10 +226,23 @@ classdef Stream < matlab.System
         end
         function icon = getIconImpl(obj)
             labels = struct('Feed','Feed','Intermediate','Stream','Product','Product') ;
-            icon = labels.(char(obj.Role)) ;
+            icon = labels.(char(obj.runtimeRole())) ;
         end
         function sts = getSampleTimeImpl(obj)
             sts = createSampleTime(obj,'Type','Discrete','SampleTime',1) ;
+        end
+    end
+
+    methods (Access = private)
+        function role = runtimeRole(obj)
+            role = string(obj.Role) ;
+            if role ~= "Auto", return, end
+            role = "Intermediate" ;
+            try
+                connectedRole = nirp.flowsheet.streamRole(gcb) ;
+                if connectedRole ~= "Unconnected", role = connectedRole ; end
+            catch
+            end
         end
     end
 

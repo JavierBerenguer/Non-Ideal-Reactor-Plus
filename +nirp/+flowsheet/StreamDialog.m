@@ -8,6 +8,7 @@ classdef StreamDialog < handle
     properties (SetAccess = private)
         BlockPath
         Role
+        RoleDropDown
         Figure
         ComponentTable
         NameField
@@ -22,6 +23,8 @@ classdef StreamDialog < handle
         QSourceDropDown
         TPortLabel
         QPortLabel
+        TSourceLabel
+        QSourceLabel
         DensityField
         DensityUnitDropDown
         ViscosityField
@@ -53,7 +56,7 @@ classdef StreamDialog < handle
             parser = inputParser ;
             addParameter(parser,'Visible','on') ; parse(parser,varargin{:}) ;
             obj.BlockPath = getfullname(blockPath) ;
-            obj.Role = string(get_param(obj.BlockPath,'Role')) ;
+            obj.Role = nirp.flowsheet.streamRole(obj.BlockPath) ;
             obj.DictionaryPath = nirp.flowsheet.modelDictionary(bdroot(obj.BlockPath)) ;
             obj.Package = nirp.pkg.readDictionary(obj.DictionaryPath) ;
             obj.ComponentNames = nirp.pkg.componentNames(obj.Package)' ;
@@ -117,6 +120,8 @@ classdef StreamDialog < handle
                 case 'tsource', value = string(obj.TSourceDropDown.Value) ;
                 case 'qsource', value = string(obj.QSourceDropDown.Value) ;
                 case 'phase', value = string(obj.PhaseDropDown.Value) ;
+                case 'role', value = obj.Role ;
+                case 'declaredrole', value = string(get_param(obj.BlockPath,'Role')) ;
                 case 'name'
                     obj.NameField.Value=get_param(obj.BlockPath,'Name') ;
                     value = string(obj.NameField.Value) ;
@@ -250,7 +255,14 @@ classdef StreamDialog < handle
             helper.Layout.Row=1; helper.Layout.Column=1 ;
             title = uilabel(grid,'Text','Stream','FontWeight','bold', ...
                 'FontSize',16,'HorizontalAlignment','center') ;
-            title.Layout.Row=1; title.Layout.Column=[2 4] ;
+            title.Layout.Row=1; title.Layout.Column=[2 3] ;
+            roleLabel = uilabel(grid,'Text','Role','HorizontalAlignment','right', ...
+                'FontWeight','bold') ;
+            roleLabel.Layout.Row=1; roleLabel.Layout.Column=4 ;
+            obj.RoleDropDown = uidropdown(grid, ...
+                'ValueChangedFcn',@(~,~) obj.roleEdited()) ;
+            obj.RoleDropDown.Layout.Row=1; obj.RoleDropDown.Layout.Column=5 ;
+            obj.updateRoleSelector() ;
             nameLabel = uilabel(grid,'Text','Name','HorizontalAlignment','right', ...
                 'FontWeight','bold') ; nameLabel.Layout.Row=2; nameLabel.Layout.Column=4 ;
             obj.NameField=uieditfield(grid,'text','Value',get_param(obj.BlockPath,'Name'), ...
@@ -269,12 +281,10 @@ classdef StreamDialog < handle
             [obj.VolumetricFlowField,obj.VolumetricFlowUnitDropDown] = quantityRow( ...
                 grid,6,'Volumetric Flow','VolumetricFlow') ;
             obj.QPortLabel = portLabel(obj.VolumetricFlowField.Parent) ;
-            [obj.TSourceDropDown,tSourceLabel] = rowControl(grid,7,'T source', ...
+            [obj.TSourceDropDown,obj.TSourceLabel] = rowControl(grid,7,'T source', ...
                 {'Dialog','Input port'},'dropdown') ;
-            [obj.QSourceDropDown,qSourceLabel] = rowControl(grid,8,'Q source', ...
+            [obj.QSourceDropDown,obj.QSourceLabel] = rowControl(grid,8,'Q source', ...
                 {'Dialog','Input port'},'dropdown') ;
-            tSourceLabel.Visible=onOff(obj.Role=="Feed") ;
-            qSourceLabel.Visible=onOff(obj.Role=="Feed") ;
             obj.TSourceDropDown.ValueChangedFcn=@(~,~) obj.updatePortSources() ;
             obj.QSourceDropDown.ValueChangedFcn=@(~,~) obj.updatePortSources() ;
             [obj.DensityField,obj.DensityUnitDropDown] = quantityRow( ...
@@ -309,27 +319,16 @@ classdef StreamDialog < handle
                 'Visible',onOff(obj.Role=="Product"), ...
                 'ValueChangedFcn',@(~,~) obj.updateConversion()) ;
             obj.KeyComponentDropDown.Layout.Row=2; obj.KeyComponentDropDown.Layout.Column=3 ;
-            if obj.Role=="Feed"
-                obj.OKButton=uibutton(bottom,'Text','OK', ...
-                    'ButtonPushedFcn',@(~,~) obj.accept()) ;
-                obj.OKButton.Layout.Row=2; obj.OKButton.Layout.Column=2 ;
-                obj.CancelButton=uibutton(bottom,'Text','Cancel', ...
-                    'ButtonPushedFcn',@(~,~) obj.cancel()) ;
-                obj.CancelButton.Layout.Row=2; obj.CancelButton.Layout.Column=3 ;
-                obj.ApplyButton=uibutton(bottom,'Text','Apply', ...
-                    'ButtonPushedFcn',@(~,~) obj.apply()) ;
-                obj.ApplyButton.Layout.Row=2; obj.ApplyButton.Layout.Column=4 ;
-                obj.SaveButton=obj.ApplyButton ;
-            else
-                obj.CancelButton=uibutton(bottom,'Text','Close', ...
-                    'ButtonPushedFcn',@(~,~) obj.cancel()) ;
-                obj.CancelButton.Layout.Row=2; obj.CancelButton.Layout.Column=4 ;
-                obj.SaveButton=obj.CancelButton ;
-            end
-            editable = onOff(obj.Role=="Feed") ;
-            obj.TSourceDropDown.Visible=editable;obj.QSourceDropDown.Visible=editable;
-            obj.PhaseDropDown.Enable=editable; obj.PressureField.Editable=editable;
-            obj.TemperatureField.Editable=editable;obj.VolumetricFlowField.Editable=editable;
+            obj.OKButton=uibutton(bottom,'Text','OK', ...
+                'ButtonPushedFcn',@(~,~) obj.accept()) ;
+            obj.OKButton.Layout.Row=2; obj.OKButton.Layout.Column=2 ;
+            obj.CancelButton=uibutton(bottom,'Text','Cancel', ...
+                'ButtonPushedFcn',@(~,~) obj.cancel()) ;
+            obj.CancelButton.Layout.Row=2; obj.CancelButton.Layout.Column=3 ;
+            obj.ApplyButton=uibutton(bottom,'Text','Apply', ...
+                'ButtonPushedFcn',@(~,~) obj.apply()) ;
+            obj.ApplyButton.Layout.Row=2; obj.ApplyButton.Layout.Column=4 ;
+            obj.SaveButton=obj.ApplyButton ;
             obj.DensityField.Editable='off';obj.ViscosityField.Editable='off';
             obj.PhaseDropDown.ValueChangedFcn=@(~,~) obj.phaseEdited() ;
             obj.TemperatureField.ValueChangedFcn=@(~,~) obj.scalarEdited('T') ;
@@ -338,6 +337,57 @@ classdef StreamDialog < handle
             obj.TemperatureUnitDropDown.ValueChangedFcn=@(source,event) obj.unitEdited('Temperature',source,event,obj.TemperatureField) ;
             obj.PressureUnitDropDown.ValueChangedFcn=@(source,event) obj.unitEdited('Pressure',source,event,obj.PressureField) ;
             obj.VolumetricFlowUnitDropDown.ValueChangedFcn=@(source,event) obj.unitEdited('VolumetricFlow',source,event,obj.VolumetricFlowField) ;
+            obj.updateRolePresentation() ;
+        end
+
+        function roleEdited(obj)
+            declared = char(string(obj.RoleDropDown.Value)) ;
+            try
+                set_param(obj.BlockPath,'Role',declared) ;
+                obj.Role = nirp.flowsheet.streamRole(obj.BlockPath) ;
+                obj.updateRoleSelector() ;
+                obj.updateRolePresentation() ;
+                obj.loadData() ;
+                [~,~,label] = nirp.flowsheet.blockStatus(obj.BlockPath) ;
+                obj.StatusLabel.Text = char(label) ;
+            catch exception
+                obj.StatusLabel.Text = exception.message ;
+                obj.updateRoleSelector() ;
+            end
+        end
+
+        function updateRoleSelector(obj)
+            declared = char(string(get_param(obj.BlockPath,'Role'))) ;
+            [~,~,autoRole] = nirp.flowsheet.streamRole(obj.BlockPath) ;
+            autoLabel = char(autoRole+" (auto)") ;
+            obj.RoleDropDown.Items = {autoLabel,'Feed','Intermediate','Product'} ;
+            obj.RoleDropDown.ItemsData = {'Auto','Feed','Intermediate','Product'} ;
+            obj.RoleDropDown.Value = declared ;
+        end
+
+        function updateRolePresentation(obj)
+            isFeed = obj.Role == "Feed" ;
+            isProduct = obj.Role == "Product" ;
+            editable = onOff(isFeed) ;
+            obj.ComponentTable.ColumnEditable = [false isFeed isFeed] ;
+            obj.TSourceLabel.Visible=editable;obj.QSourceLabel.Visible=editable;
+            obj.TSourceDropDown.Visible=editable;obj.QSourceDropDown.Visible=editable;
+            obj.PhaseDropDown.Enable=editable;obj.PressureField.Editable=editable;
+            obj.TemperatureField.Editable=editable;
+            obj.VolumetricFlowField.Editable=editable;
+            obj.ConversionLabel.Visible=onOff(isProduct) ;
+            obj.ReferenceFeedDropDown.Visible=onOff(isProduct) ;
+            obj.KeyComponentDropDown.Visible=onOff(isProduct) ;
+            obj.OKButton.Visible=editable;obj.ApplyButton.Visible=editable;
+            if isFeed
+                obj.CancelButton.Text='Cancel' ;
+                obj.CancelButton.Layout.Column=3 ;
+                obj.SaveButton=obj.ApplyButton ;
+            else
+                obj.CancelButton.Text='Close' ;
+                obj.CancelButton.Layout.Column=4 ;
+                obj.SaveButton=obj.CancelButton ;
+            end
             obj.updatePortSources() ;
         end
 
