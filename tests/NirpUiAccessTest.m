@@ -1,4 +1,5 @@
-classdef NirpUiAccessTest < matlab.unittest.TestCase
+classdef (SharedTestFixtures={nirptest.ExamplesFixture}) ...
+        NirpUiAccessTest < matlab.unittest.TestCase
     % NirpUiAccessTest verifies no-code access to the NIRP Simulink UI.
     % =========================================================================
     % Javier Berenguer Sabater
@@ -7,8 +8,9 @@ classdef NirpUiAccessTest < matlab.unittest.TestCase
 
     properties
         Folder
+        ExamplesFolder
         SimulinkFolder
-        FileGenerationConfig
+        Files
     end
 
     methods (TestMethodSetup)
@@ -18,16 +20,14 @@ classdef NirpUiAccessTest < matlab.unittest.TestCase
             testCase.Folder = fixture.Folder ;
             testCase.SimulinkFolder = fullfile( ...
                 fileparts(fileparts(mfilename('fullpath'))),'simulink') ;
-            addpath(testCase.SimulinkFolder) ; addpath(testCase.Folder) ;
-            testCase.FileGenerationConfig = Simulink.fileGenControl('getConfig') ;
-            Simulink.fileGenControl('set','CacheFolder',fullfile(testCase.Folder,'cache'), ...
-                'CodeGenFolder',fullfile(testCase.Folder,'codegen'),'createDir',true) ;
-            testCase.addTeardown(@() Simulink.fileGenControl( ...
-                'setConfig','config',testCase.FileGenerationConfig)) ;
+            examples = testCase.getSharedTestFixtures( ...
+                'nirptest.ExamplesFixture') ;
+            testCase.ExamplesFolder = examples.Folder ;
+            testCase.Files = examples.Files ;
+            addpath(testCase.Folder) ;
             testCase.addTeardown(@() closeAllUi()) ;
             testCase.addTeardown(@() rmpathIfPresent(fullfile( ...
                 testCase.SimulinkFolder,'examples'))) ;
-            testCase.addTeardown(@() rmpathIfPresent(testCase.SimulinkFolder)) ;
             testCase.addTeardown(@() rmpathIfPresent(testCase.Folder)) ;
             evalin('base','clear nirpResults') ;
         end
@@ -109,8 +109,7 @@ classdef NirpUiAccessTest < matlab.unittest.TestCase
         end
 
         function missingFeedMessageListsValidFeeds(testCase)
-            build_examples(testCase.Folder) ;
-            load_system(fullfile(testCase.Folder,'ex1_cstr_isothermal.slx')) ;
+            load_system(char(testCase.Files(1))) ;
             set_param('ex1_cstr_isothermal/F1','NameChangeFcn','') ;
             set_param('ex1_cstr_isothermal/F1','Name','missing') ;
             try

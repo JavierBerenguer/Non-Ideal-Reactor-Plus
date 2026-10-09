@@ -1,4 +1,5 @@
-classdef NirpStatusMessagesTest < matlab.unittest.TestCase
+classdef (SharedTestFixtures={nirptest.ExamplesFixture}) ...
+        NirpStatusMessagesTest < matlab.unittest.TestCase
     % NirpStatusMessagesTest verifies latest-run block colors and messages.
     % =========================================================================
     % Javier Berenguer Sabater
@@ -7,9 +8,8 @@ classdef NirpStatusMessagesTest < matlab.unittest.TestCase
 
     properties
         Folder
-        SimulinkFolder
+        ExamplesFolder
         Files
-        FileGenerationConfig
     end
 
     methods (TestClassSetup)
@@ -17,15 +17,11 @@ classdef NirpStatusMessagesTest < matlab.unittest.TestCase
             import matlab.unittest.fixtures.TemporaryFolderFixture
             fixture = testCase.applyFixture(TemporaryFolderFixture) ;
             testCase.Folder = fixture.Folder ;
-            testCase.SimulinkFolder = fullfile( ...
-                fileparts(fileparts(mfilename('fullpath'))),'simulink') ;
-            addpath(testCase.SimulinkFolder) ; addpath(testCase.Folder) ;
-            testCase.FileGenerationConfig = Simulink.fileGenControl('getConfig') ;
-            Simulink.fileGenControl('set', ...
-                'CacheFolder',fullfile(testCase.Folder,'cache'), ...
-                'CodeGenFolder',fullfile(testCase.Folder,'codegen'), ...
-                'createDir',true) ;
-            testCase.Files = build_examples(testCase.Folder) ;
+            examples = testCase.getSharedTestFixtures( ...
+                'nirptest.ExamplesFixture') ;
+            testCase.ExamplesFolder = examples.Folder ;
+            testCase.Files = examples.Files ;
+            addpath(testCase.Folder) ;
             testCase.addTeardown(@() restoreEnvironment(testCase)) ;
         end
     end
@@ -209,11 +205,7 @@ end
 
 function restoreEnvironment(testCase)
     bdclose('all') ; Simulink.data.dictionary.closeAll('-discard') ;
-    if contains([path pathsep],[testCase.SimulinkFolder pathsep])
-        rmpath(testCase.SimulinkFolder) ;
-    end
     if contains([path pathsep],[testCase.Folder pathsep]), rmpath(testCase.Folder) ; end
-    Simulink.fileGenControl('setConfig','config',testCase.FileGenerationConfig) ;
 end
 
 function deleteValid(value)

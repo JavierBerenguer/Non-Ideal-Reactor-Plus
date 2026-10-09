@@ -1,4 +1,5 @@
-classdef NirpStreamBlockTest < matlab.unittest.TestCase
+classdef (SharedTestFixtures={nirptest.ExamplesFixture}) ...
+        NirpStreamBlockTest < matlab.unittest.TestCase
     % NirpStreamBlockTest verifies named Stream blocks and their dialog.
     % =========================================================================
     % Javier Berenguer Sabater
@@ -7,8 +8,8 @@ classdef NirpStreamBlockTest < matlab.unittest.TestCase
 
     properties
         Folder
-        SimulinkFolder
-        FileGenerationConfig
+        ExamplesFolder
+        Files
     end
 
     methods (TestMethodSetup)
@@ -16,12 +17,9 @@ classdef NirpStreamBlockTest < matlab.unittest.TestCase
             import matlab.unittest.fixtures.TemporaryFolderFixture
             fixture=testCase.applyFixture(TemporaryFolderFixture) ;
             testCase.Folder=fixture.Folder ;
-            testCase.SimulinkFolder=fullfile(fileparts(fileparts( ...
-                mfilename('fullpath'))),'simulink') ;
-            addpath(testCase.Folder) ; addpath(testCase.SimulinkFolder) ;
-            testCase.FileGenerationConfig=Simulink.fileGenControl('getConfig') ;
-            Simulink.fileGenControl('set','CacheFolder',fullfile(testCase.Folder,'cache'), ...
-                'CodeGenFolder',fullfile(testCase.Folder,'codegen'),'createDir',true) ;
+            examples=testCase.getSharedTestFixtures('nirptest.ExamplesFixture') ;
+            testCase.ExamplesFolder=examples.Folder ;
+            testCase.Files=examples.Files ; addpath(testCase.Folder) ;
             testCase.addTeardown(@() cleanup(testCase)) ;
             evalin('base','clear nirpResults') ;
         end
@@ -64,7 +62,7 @@ classdef NirpStreamBlockTest < matlab.unittest.TestCase
         end
 
         function resultDialogConvertsAndReportsState(testCase)
-            files=build_examples(testCase.Folder) ;
+            files=testCase.Files ;
             load_system(char(files(2))) ;
             before=nirp.flowsheet.StreamDialog( ...
                 'ex2_cstr_adiabatic_cooler/CSTR outlet','Visible','off') ;
@@ -137,7 +135,7 @@ classdef NirpStreamBlockTest < matlab.unittest.TestCase
         end
 
         function exampleTopologyAndRenameAreConsistent(testCase)
-            files=build_examples(testCase.Folder) ; load_system(char(files(4))) ;
+            files=testCase.Files ; load_system(char(files(4))) ;
             graph=nirp.flowsheet.topology('ex4_problem40b_parallel') ;
             testCase.verifyNumElements(graph.Units.Splitter.Outputs,2) ;
             testCase.verifyNumElements(graph.Units.Mixer.Inputs,2) ;
@@ -159,7 +157,7 @@ classdef NirpStreamBlockTest < matlab.unittest.TestCase
             nirp.pkg.validate(pkg) ; dictionary=fullfile(testCase.Folder,'specs.sldd') ;
             nirp.pkg.writeDictionary(pkg,dictionary) ; actual=nirp.pkg.readDictionary(dictionary) ;
             testCase.verifyEqual(actual.streamSpecs,pkg.streamSpecs) ;
-            files=build_examples(testCase.Folder) ;
+            files=testCase.Files ;
             for i=1:numel(files)
                 [~,name]=fileparts(char(files(i))) ; load_system(char(files(i))) ;
                 graph=nirp.flowsheet.topology(name) ;
@@ -187,8 +185,7 @@ function cleanup(testCase)
     bdclose('all') ; Simulink.data.dictionary.closeAll('-discard') ;
     figures=findall(groot,'Type','Figure');if ~isempty(figures),delete(figures);end
     evalin('base','clear nirpResults') ;
-    Simulink.fileGenControl('setConfig','config',testCase.FileGenerationConfig) ;
-    removePath(testCase.Folder) ; removePath(testCase.SimulinkFolder) ;
+    removePath(testCase.Folder) ;
 end
 function removePath(folder),if contains([path pathsep],[folder pathsep]),rmpath(folder);end,end
 function deleteValid(value),try,if isvalid(value),delete(value);end;catch,end,end

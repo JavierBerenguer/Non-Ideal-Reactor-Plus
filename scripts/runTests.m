@@ -8,7 +8,7 @@
 % test fails, so it can be used by Claude and Codex as the verification step.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: September 30, 2026. Last update: September 30, 2026
+% Created: September 30, 2026. Last update: October 9, 2026
 % =========================================================================
 
 repoRoot = fileparts(fileparts(mfilename('fullpath'))) ;
@@ -19,6 +19,11 @@ if ~isfolder(testsDir)
     error('runTests:noTests', 'Tests folder not found: %s', testsDir) ;
 end
 
-results = runtests(testsDir, 'IncludeSubfolders', true) ;
+suite = testsuite(testsDir, 'IncludeSubfolders', true) ;
+suite = sortByFixtures(suite) ;
+usesExamples = arrayfun(@(test) any(arrayfun(@(fixture) ...
+    isa(fixture,'nirptest.ExamplesFixture'),test.SharedTestFixtures)),suite) ;
+suite = suite([find(usesExamples) find(~usesExamples)]) ;
+results = run(suite) ;
 disp(table(results)) ;
 assertSuccess(results) ;

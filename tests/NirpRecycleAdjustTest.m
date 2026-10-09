@@ -1,4 +1,5 @@
-classdef NirpRecycleAdjustTest < matlab.unittest.TestCase
+classdef (SharedTestFixtures={nirptest.ExamplesFixture}) ...
+        NirpRecycleAdjustTest < matlab.unittest.TestCase
     % NirpRecycleAdjustTest verifies iterative flowsheet blocks and CSTR recovery.
     % =========================================================================
     % Javier Berenguer Sabater
@@ -6,20 +7,16 @@ classdef NirpRecycleAdjustTest < matlab.unittest.TestCase
     % =========================================================================
     properties
         Folder
-        SimulinkFolder
-        FileGenerationConfig
+        ExamplesFolder
+        Files
     end
     methods (TestMethodSetup)
         function createTemporaryWorkspace(testCase)
             import matlab.unittest.fixtures.TemporaryFolderFixture
             fixture=testCase.applyFixture(TemporaryFolderFixture);testCase.Folder=fixture.Folder;
-            testCase.SimulinkFolder=fullfile(fileparts(fileparts(mfilename('fullpath'))),'simulink');
-            addpath(testCase.SimulinkFolder);addpath(testCase.Folder);
-            testCase.FileGenerationConfig=Simulink.fileGenControl('getConfig');
-            Simulink.fileGenControl('set','CacheFolder',fullfile(testCase.Folder,'cache'), ...
-                'CodeGenFolder',fullfile(testCase.Folder,'codegen'),'createDir',true);
-            testCase.addTeardown(@() Simulink.fileGenControl('setConfig','config',testCase.FileGenerationConfig));
-            testCase.addTeardown(@() removePath(testCase.SimulinkFolder));
+            examples=testCase.getSharedTestFixtures('nirptest.ExamplesFixture');
+            testCase.ExamplesFolder=examples.Folder;
+            testCase.Files=examples.Files;addpath(testCase.Folder);
             testCase.addTeardown(@() removePath(testCase.Folder));
             testCase.addTeardown(@() closeModels());
         end
@@ -57,7 +54,7 @@ classdef NirpRecycleAdjustTest < matlab.unittest.TestCase
                 testCase.verifyEqual(results.Diagnostics.([name '_CSTR']).lastInfo.V,0.9,'RelTol',1e-8);
                 close_system(name,0);Simulink.data.dictionary.closeAll('-discard');
             end
-            files=build_examples(testCase.Folder);load_system(char(files(6)));sim('ex6_adjust_volume');
+            files=testCase.Files;load_system(char(files(6)));sim('ex6_adjust_volume');
             results=evalin('base','nirpResults');
             testCase.verifyEqual(results.Streams.Product.conversion,0.8,'AbsTol',1e-8);
             testCase.verifyEqual(results.Diagnostics.ex6_adjust_volume_CSTR.lastInfo.V,0.4,'RelTol',1e-8);
@@ -71,7 +68,7 @@ classdef NirpRecycleAdjustTest < matlab.unittest.TestCase
             [failed,failedInfo]=nirp.units.cstr(struct('V',0.5,'heatMode','Adiabatic', ...
                 'initialTemperatureGuess',-1e9),feed,rs);
             testCase.verifyEqual(failedInfo.status,-1);testCase.verifyTrue(nirp.stream.isValid(failed));
-            files=build_examples(testCase.Folder);load_system(char(files(7)));sim('ex7_problem44c');
+            files=testCase.Files;load_system(char(files(7)));sim('ex7_problem44c');
             results=evalin('base','nirpResults');
             testCase.verifyEqual(results.Streams.Product500.conversion,0.977074,'AbsTol',1e-6);
             testCase.verifyEqual(results.Streams.ProductSeries.conversion,0.994737,'AbsTol',1e-6);

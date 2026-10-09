@@ -1,4 +1,5 @@
-classdef NirpPortDisplayTest < matlab.unittest.TestCase
+classdef (SharedTestFixtures={nirptest.ExamplesFixture}) ...
+        NirpPortDisplayTest < matlab.unittest.TestCase
     % NirpPortDisplayTest verifies parameter-port results and dialog cues.
     % =========================================================================
     % Javier Berenguer Sabater
@@ -7,10 +8,8 @@ classdef NirpPortDisplayTest < matlab.unittest.TestCase
 
     properties
         Folder
-        SimulinkFolder
+        ExamplesFolder
         Files
-        FileGenerationConfig
-        GeneratedFolder
     end
 
     methods (TestClassSetup)
@@ -18,19 +17,11 @@ classdef NirpPortDisplayTest < matlab.unittest.TestCase
             import matlab.unittest.fixtures.TemporaryFolderFixture
             fixture = testCase.applyFixture(TemporaryFolderFixture) ;
             testCase.Folder = fixture.Folder ; addpath(testCase.Folder) ;
-            testCase.SimulinkFolder = fullfile( ...
-                fileparts(fileparts(mfilename('fullpath'))),'simulink') ;
-            addpath(testCase.SimulinkFolder) ;
             testCase.addTeardown(@() rmpath(testCase.Folder)) ;
-            testCase.addTeardown(@() rmpath(testCase.SimulinkFolder)) ;
-            testCase.FileGenerationConfig = Simulink.fileGenControl('getConfig') ;
-            testCase.GeneratedFolder = fullfile(testCase.Folder,'generated') ;
-            Simulink.fileGenControl('set','CacheFolder', ...
-                fullfile(testCase.GeneratedFolder,'cache'),'CodeGenFolder', ...
-                fullfile(testCase.GeneratedFolder,'codegen'),'createDir',true) ;
-            testCase.addTeardown(@() Simulink.fileGenControl('setConfig', ...
-                'config',testCase.FileGenerationConfig)) ;
-            testCase.Files = build_examples(testCase.Folder) ;
+            examples = testCase.getSharedTestFixtures( ...
+                'nirptest.ExamplesFixture') ;
+            testCase.ExamplesFolder = examples.Folder ;
+            testCase.Files = examples.Files ;
         end
     end
 

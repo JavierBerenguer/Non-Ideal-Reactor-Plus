@@ -1,4 +1,5 @@
-classdef NirpCollectionProblems5Test < matlab.unittest.TestCase
+classdef (SharedTestFixtures={nirptest.ExamplesFixture}) ...
+        NirpCollectionProblems5Test < matlab.unittest.TestCase
     % NirpCollectionProblems5Test verifies problems 15 and 22 and the
     % problem 20b Adjust with default settings (T-128).
     % =========================================================================
@@ -8,9 +9,8 @@ classdef NirpCollectionProblems5Test < matlab.unittest.TestCase
 
     properties
         Folder
-        SimulinkFolder
+        ExamplesFolder
         Files
-        FileGenerationConfig
     end
 
     methods (TestClassSetup)
@@ -18,18 +18,11 @@ classdef NirpCollectionProblems5Test < matlab.unittest.TestCase
             import matlab.unittest.fixtures.TemporaryFolderFixture
             fixture = testCase.applyFixture(TemporaryFolderFixture) ;
             testCase.Folder = fixture.Folder ; addpath(testCase.Folder) ;
-            testCase.SimulinkFolder = fullfile( ...
-                fileparts(fileparts(mfilename('fullpath'))),'simulink') ;
-            addpath(testCase.SimulinkFolder) ;
             testCase.addTeardown(@() removePath(testCase.Folder)) ;
-            testCase.addTeardown(@() removePath(testCase.SimulinkFolder)) ;
-            testCase.FileGenerationConfig = Simulink.fileGenControl('getConfig') ;
-            generated = fullfile(testCase.Folder,'generated') ;
-            Simulink.fileGenControl('set','CacheFolder',fullfile(generated,'cache'), ...
-                'CodeGenFolder',fullfile(generated,'codegen'),'createDir',true) ;
-            testCase.addTeardown(@() Simulink.fileGenControl('setConfig', ...
-                'config',testCase.FileGenerationConfig)) ;
-            testCase.Files = build_examples(testCase.Folder) ;
+            examples = testCase.getSharedTestFixtures( ...
+                'nirptest.ExamplesFixture') ;
+            testCase.ExamplesFolder = examples.Folder ;
+            testCase.Files = examples.Files ;
         end
     end
 
