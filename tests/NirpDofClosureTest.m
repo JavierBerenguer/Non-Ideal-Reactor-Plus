@@ -2,7 +2,7 @@ classdef NirpDofClosureTest < matlab.unittest.TestCase
 %NIRPDOFCLOSURETEST Tests simple flowsheet degree-of-freedom closures.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 3, 2026. Last update: October 3, 2026
+% October 9, 2026
 % =========================================================================
     properties
         Folder
@@ -246,7 +246,9 @@ end
 
 function verifyActions(testCase,figure,expected)
     labels=["OK" "Cancel" "Apply" "Close" "Create flowsheet..." "Validate" "Save to model" "Save stream"];
-    buttons=findall(figure,'Type','uibutton');texts=string({buttons.Text});
+    % Only visible buttons count: since T-136 the Stream dialog keeps OK/Apply
+    % hidden on products so that the role can be changed from the dialog.
+    buttons=findall(figure,'Type','uibutton','Visible','on');texts=string({buttons.Text});
     action=buttons(ismember(texts,labels));texts=string({action.Text});
     x=zeros(size(action));
     for i=1:numel(action)
