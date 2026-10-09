@@ -2,7 +2,7 @@ function modelFiles = build_examples(folder)
 %BUILD_EXAMPLES Generate the milestone-1 NIRP example flowsheets.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 2, 2026. Last update: October 7, 2026
+% Created: October 2, 2026. Last update: October 9, 2026
 % =========================================================================
 
     repoRoot=fileparts(fileparts(mfilename('fullpath'))); addpath(repoRoot);
@@ -54,7 +54,10 @@ function modelFiles = build_examples(folder)
         'ex41_problem48_cstr_then_adiabatic_pfr',nirp.pkg.examples.problem48ReversibleGas(),@buildEx41; ...
         'ex42_problem33d_area_for_max_generation',nirp.pkg.examples.problem33Gas(),@buildEx42; ...
         'ex43_problem15_number_of_tubes',nirp.pkg.examples.problem15Acetylene(),@buildEx43; ...
-        'ex44_problem22_no_oxidation',nirp.pkg.examples.problem22NOOxidation(),@buildEx44};
+        'ex44_problem22_no_oxidation',nirp.pkg.examples.problem22NOOxidation(),@buildEx44; ...
+        'ex45_problem16_pfr_space_time',nirp.pkg.examples.problem16EmpiricalGas(),@buildEx45; ...
+        'ex46_problem35_isothermal_cstr',nirp.pkg.examples.problem35NOReduction(),@buildEx46; ...
+        'ex47_problem35_adiabatic_feed_T',nirp.pkg.examples.problem35NOReduction(),@buildEx47};
     modelFiles=strings(size(definitions,1),1);
     for i=1:size(definitions,1)
         name=definitions{i,1}; pkg=definitions{i,2}; builder=definitions{i,3};
@@ -803,6 +806,58 @@ function buildEx44(model)
         'Role','Product','ReferenceFeed','F1','KeyComponent','NO') ;
     add_line(model,'F1/1','PFR/1') ; add_line(model,'Adjust/1','PFR/2') ;
     add_line(model,'PFR/1','Adjust/1') ; add_line(model,'PFR/1','Product/1') ;
+end
+
+function buildEx45(model)
+    % Two identical feeds keep the adjusted and fixed-volume calculations
+    % independent while presenting both requested results in one flowsheet.
+    addSystem(model,'F1','nirp.blocks.Stream',[20 90 140 140],'Role','Feed') ;
+    addSystem(model,'PFR adjusted','nirp.blocks.PFR',[370 70 530 160], ...
+        'GeometryMode','Volume','VSource','Input port','D','1', ...
+        'DUnit','m','HeatMode','Isothermal') ;
+    addSystem(model,'Adjust','nirp.blocks.Adjust',[40 250 320 320], ...
+        'TargetVariable','Conversion','KeyComponent','A','ReferenceFeed','F1', ...
+        'TargetValue','0.8','InitialValue','50000','MinValue','10000', ...
+        'MaxValue','150000','ParameterUnit','L','Tolerance','1e-10') ;
+    addSystem(model,'Product adjusted','nirp.blocks.Stream',[600 90 760 140], ...
+        'Role','Product','ReferenceFeed','F1','KeyComponent','A') ;
+    addSystem(model,'F2','nirp.blocks.Stream',[20 390 140 440],'Role','Feed') ;
+    addSystem(model,'PFR 50000 L','nirp.blocks.PFR',[370 370 530 460], ...
+        'GeometryMode','Volume','V','50000','VUnit','L','D','1', ...
+        'DUnit','m','HeatMode','Isothermal') ;
+    addSystem(model,'Product 50000 L','nirp.blocks.Stream',[600 390 760 440], ...
+        'Role','Product','ReferenceFeed','F2','KeyComponent','A') ;
+    add_line(model,'F1/1','PFR adjusted/1') ;
+    add_line(model,'Adjust/1','PFR adjusted/2') ;
+    add_line(model,'PFR adjusted/1','Adjust/1') ;
+    add_line(model,'PFR adjusted/1','Product adjusted/1') ;
+    add_line(model,'F2/1','PFR 50000 L/1') ;
+    add_line(model,'PFR 50000 L/1','Product 50000 L/1') ;
+end
+
+function buildEx46(model)
+    addSystem(model,'F1','nirp.blocks.Stream',[20 135 140 185],'Role','Feed') ;
+    addSystem(model,'CSTR','nirp.blocks.CSTR',[250 115 410 205], ...
+        'V','200','VUnit','L','HeatMode','Isothermal') ;
+    addSystem(model,'Product','nirp.blocks.Stream',[480 135 620 185], ...
+        'Role','Product','ReferenceFeed','F1','KeyComponent','NO') ;
+    add_line(model,'F1/1','CSTR/1') ; add_line(model,'CSTR/1','Product/1') ;
+end
+
+function buildEx47(model)
+    addSystem(model,'F1','nirp.blocks.Stream',[250 120 380 170], ...
+        'Role','Feed','TSource','Input port') ;
+    addSystem(model,'CSTR','nirp.blocks.CSTR',[440 105 600 195], ...
+        'V','200','VUnit','L','HeatMode','Adiabatic','InitialTGuess','500', ...
+        'InitialTGuessUnit','K') ;
+    addSystem(model,'Adjust','nirp.blocks.Adjust',[20 250 300 320], ...
+        'TargetVariable','Temperature','TargetValue','500','TargetUnit','K', ...
+        'InitialValue','300','MinValue','250','MaxValue','400', ...
+        'ParameterUnit','K','Tolerance','1e-10') ;
+    addSystem(model,'Product','nirp.blocks.Stream',[670 120 810 170], ...
+        'Role','Product','ReferenceFeed','F1','KeyComponent','NO') ;
+    add_line(model,'Adjust/1','F1/1') ; add_line(model,'F1/1','CSTR/1') ;
+    add_line(model,'CSTR/1','Adjust/1') ; add_line(model,'CSTR/1','Product/1') ;
 end
 
 function buildAdjustedPfr(model,keyComponent,target,initialValue,minimum,maximum,unit,heatMode)

@@ -4,7 +4,7 @@ classdef (SharedTestFixtures={nirptest.ExamplesFixture}) ...
     % problem 20b Adjust with default settings (T-128).
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 6, 2026. Last update: October 6, 2026
+% Created: October 6, 2026. Last update: October 9, 2026
     % =========================================================================
 
     properties
@@ -43,7 +43,7 @@ classdef (SharedTestFixtures={nirptest.ExamplesFixture}) ...
             testCase.verifyEqual(names(43:44),["ex43_problem15_number_of_tubes"; ...
                 "ex44_problem22_no_oxidation"]) ;
             testCase.verifyTrue(all(strlength(descriptions(43:44)) > 20)) ;
-            testCase.verifyEqual(numel(testCase.Files),44) ;
+            testCase.verifyEqual(numel(testCase.Files),47) ;
         end
 
         function problem20bConvergesWithDefaultAdjust(testCase)

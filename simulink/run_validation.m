@@ -1,7 +1,7 @@
 % run_validation - Validate collection-problem flowsheets against scripts.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 3, 2026. Last update: October 7, 2026
+% Created: October 3, 2026. Last update: October 9, 2026
 % =========================================================================
 
 repoRoot = fileparts(fileparts(mfilename('fullpath'))) ; addpath(repoRoot) ;
@@ -555,6 +555,82 @@ assert(all(relative128(adjusted128) <= 1e-5),'nirp:validation:adjustMismatch128'
     'A T-128 adjusted parameter differs from its fzero result by more than 1e-5.') ;
 assert(abs(out22AtDiagramParameter.F(3)/out22AtDiagramParameter.F(1)-5) <= 1e-5, ...
     'nirp:validation:ratio128','P22 outlet NO2/NO ratio is not 5.') ;
+
+
+% T-135: problem 16 (empirical gas PFR) and problem 35 (NO reduction).
+pkg16 = nirp.pkg.examples.problem16EmpiricalGas() ;
+rs16 = nirp.pkg.toReactionSys(pkg16) ; feed16 = nirp.pkg.feedStream(pkg16,"F1") ;
+pfr16 = @(volume) nirp.units.pfr(struct('V',volume,'D',1, ...
+    'heatMode','Isothermal'),feed16,rs16) ;
+volume16 = fzero(@(volume) streamConversion(feed16,pfr16(volume),1)-0.8, ...
+    [10 150]) ;
+diagram16 = simulateValidationExample(files(45), ...
+    "ex45_problem16_pfr_space_time") ;
+diagramVolume16 = diagnosticParameter(diagram16, ...
+    "ex45_problem16_pfr_space_time","Adjust") ;
+out16AtDiagramParameter = pfr16(diagramVolume16) ;
+out16Fixed = pfr16(50) ;
+diagram16Fixed = diagram16.Streams.Product50000L.streamSI ;
+
+pkg35 = nirp.pkg.examples.problem35NOReduction() ;
+rs35 = nirp.pkg.toReactionSys(pkg35) ; feed35 = nirp.pkg.feedStream(pkg35,"F1") ;
+temperatures35 = (350:50:600)' ;
+extents35 = zeros(numel(temperatures35),2) ;
+for i = 1:numel(temperatures35)
+    inlet35 = atTemperature(feed35,temperatures35(i)) ;
+    out35 = nirp.units.cstr(struct('V',0.2,'heatMode','Isothermal'), ...
+        inlet35,rs35) ;
+    extents35(i,:) = reactionExtents(inlet35,out35,rs35) ;
+end
+diagram35a = simulateValidationExample(files(46), ...
+    "ex46_problem35_isothermal_cstr") ;
+diagramExtents35 = reactionExtents(feed35, ...
+    diagram35a.Streams.Product.streamSI,rs35) ;
+temperature35c = fzero(@(temperature) adiabaticCstrTemperature( ...
+    temperature,feed35,rs35)-500,[299 300]) ;
+diagram35c = simulateValidationExample(files(47), ...
+    "ex47_problem35_adiabatic_feed_T") ;
+diagramTemperature35c = diagnosticParameter(diagram35c, ...
+    "ex47_problem35_adiabatic_feed_T","Adjust") ;
+out35cAtDiagramParameter = nirp.units.cstr(struct('V',0.2, ...
+    'heatMode','Adiabatic','initialTemperatureGuess',500), ...
+    atTemperature(feed35,diagramTemperature35c),rs35) ;
+
+problem135 = ["P16a";"P16a";"P16b";repmat("P35a",12,1);"P35c"] ;
+magnitude135 = ["Adjusted PFR V (L)";"Space time (min)";"R flow (kmol/h)"; ...
+    reshape(["Extent 1 at "+temperatures35+" K", ...
+    "Extent 2 at "+temperatures35+" K"]',[],1);"Adjusted feed T (K)"] ;
+diagramExtentsAll35 = nan(size(extents35)) ;
+diagramExtentsAll35(temperatures35==500,:) = diagramExtents35 ;
+diagram135 = [diagramVolume16*1000;diagramVolume16/feed16.Q/60; ...
+    diagram16Fixed.F(3)*3.6;reshape(diagramExtentsAll35',[],1); ...
+    diagramTemperature35c] ;
+script135 = [volume16*1000;volume16/feed16.Q/60;out16Fixed.F(3)*3.6; ...
+    reshape(extents35',[],1);temperature35c] ;
+officialExtents35 = [3.53e-6 6.14e-8;NaN NaN;NaN NaN; ...
+    4.45e-4 1.23e-4;NaN NaN;NaN NaN] ;
+official135 = [NaN;0.974;29.6;reshape(officialExtents35',[],1);299.7] ;
+comparison135 = diagram135 ;
+comparison135(isnan(comparison135)) = script135(isnan(comparison135)) ;
+difference135 = abs(comparison135-official135) ;
+note135 = strings(size(problem135)) ;
+note135(problem135=="P35a" & ~contains(magnitude135,"500 K")) = ...
+    "Script result; the flowsheet represents the 500 K case" ;
+validation135 = table(problem135,magnitude135,diagram135,script135,official135, ...
+    difference135,note135,'VariableNames',{'Problem','Magnitude','Diagram', ...
+    'Script','Official','Difference','Note'}) ;
+disp(validation135) ;
+relative135 = abs(diagram135-script135)./max(abs(script135),1e-15) ;
+adjusted135 = contains(magnitude135,"Adjusted") | magnitude135=="Space time (min)" ;
+simulated135 = isfinite(diagram135) ;
+assert(all(relative135(~adjusted135 & simulated135) <= 1e-9), ...
+    'nirp:validation:mismatch135', ...
+    'A non-adjusted T-135 row differs from its script result by more than 1e-9.') ;
+assert(all(relative135(adjusted135 & simulated135) <= 1e-5), ...
+    'nirp:validation:adjustMismatch135', ...
+    'A T-135 adjusted row differs from its script result by more than 1e-5.') ;
+assert(abs(out35cAtDiagramParameter.T-500)/500 <= 1e-9, ...
+    'nirp:validation:temperature135','The adjusted P35 CSTR is not at 500 K.') ;
 function results = simulateValidationExample(file,name)
     evalin('base','clear nirpResults') ;
     load_system(char(file)) ; sim(char(name)) ;
@@ -705,6 +781,17 @@ function value = cstr45OutletTemperature(temperature,feed,rs)
     inlet = atTemperature(feed,temperature) ;
     product = nirp.units.cstr(struct('V',0.250480335, ...
         'heatMode','Adiabatic'),inlet,rs) ;
+    value = product.T ;
+end
+
+function extents = reactionExtents(feed,product,rs)
+    extents = (rs.stochiometricMatrix'\(product.F-feed.F))' ;
+end
+
+function value = adiabaticCstrTemperature(temperature,feed,rs)
+    inlet = atTemperature(feed,temperature) ;
+    product = nirp.units.cstr(struct('V',0.2,'heatMode','Adiabatic', ...
+        'initialTemperatureGuess',500),inlet,rs) ;
     value = product.T ;
 end
 
