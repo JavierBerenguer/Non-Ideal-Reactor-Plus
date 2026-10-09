@@ -2,7 +2,7 @@ classdef Adjust < matlab.System
     % Adjust drives a scalar SI parameter to a measured stream target.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 2, 2026. Last update: October 4, 2026
+    % Created: October 2, 2026. Last update: October 9, 2026
     % =========================================================================
     properties (Nontunable)
         TargetVariable = 'Conversion'
@@ -55,6 +55,12 @@ classdef Adjust < matlab.System
             obj.Block = get_param(gcb,'Name') ;
             category = nirp.blocks.internal.unitCategory(obj.ParameterUnit, ...
                 {'Volume','Temperature','VolumetricFlow','Area'}) ;
+            target = nirp.flowsheet.adjustTarget(gcb) ;
+            if target.Label ~= "<not connected>" && target.Category ~= string(category)
+                error('nirp:blocks:invalidAdjustParameterUnit', ...
+                    'Adjust "%s" moves %s (%s) but its parameter unit is %s (%s).', ...
+                    obj.Block,target.Label,target.Category,obj.ParameterUnit,category) ;
+            end
             obj.Current = UnitConverterHelper.convertToSI(category,obj.InitialValue,char(obj.ParameterUnit)) ;
             obj.Minimum = UnitConverterHelper.convertToSI(category,obj.MinValue,char(obj.ParameterUnit)) ;
             obj.Maximum = UnitConverterHelper.convertToSI(category,obj.MaxValue,char(obj.ParameterUnit)) ;

@@ -87,6 +87,10 @@ classdef (SharedTestFixtures={nirptest.ExamplesFixture}) ...
                     testCase.verifyGreaterThan(sum([widths{:}]),1000) ;
                     testCase.verifyGreaterThanOrEqual([widths{:}], ...
                         [130 75 65 110 65 110 65 110 95 110 75 110 75 140 70 130 80 320]) ;
+                elseif numel(widths) == 12
+                    testCase.verifyGreaterThan(sum([widths{:}]),1000) ;
+                    testCase.verifyTrue(any(string(resultTables(i).ColumnName) == ...
+                        "Adjusted variable")) ;
                 else
                     testCase.verifyLessThanOrEqual(sum([widths{:}]),1000) ;
                 end

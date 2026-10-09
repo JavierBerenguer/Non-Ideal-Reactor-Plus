@@ -89,7 +89,7 @@ function tables = showResults(model,varargin)
         130,80,320},true) ;
     uilabel(unitGrid,'Text','Adjust','FontWeight','bold') ;
     createDisplayTable(unitGrid,tables.Adjust,4, ...
-        {115,55,80,95,105,70,90,75,80,75,160},true) ;
+        {115,130,55,80,95,105,70,90,75,80,75,160},true) ;
     messageTab = uitab(tabs,'Title',messageTabTitle(tables.Messages)) ;
     messageGrid = uigridlayout(messageTab,[1 1], ...
         'Padding',[10 10 10 10]) ;
@@ -441,7 +441,7 @@ function [units,adjusts] = unitTables(model,results)
             warning('nirp:flowsheet:unitResultRow', ...
                 'Could not build results row for "%s": %s',name,exception.message) ;
             if type == "Adjust"
-                failed = emptyAdjustRow(block) ; failed{11} = string(exception.message) ;
+                failed = emptyAdjustRow(block) ; failed{12} = string(exception.message) ;
                 adjusts(end+1,:) = failed ; %#ok<AGROW>
                 continue
             end
@@ -464,10 +464,10 @@ function value = emptyUnitTable()
 end
 
 function value = emptyAdjustTable()
-    columns = {'Block','Status','Parameter','ParameterUnit','TargetVariable', ...
+    columns = {'Block','AdjustedVariable','Status','Parameter','ParameterUnit','TargetVariable', ...
         'Target','TargetUnit','Measured','Converged','Iterations','Message'} ;
     value = table('Size',[0 numel(columns)], ...
-        'VariableTypes',{'string','double','double','string','string', ...
+        'VariableTypes',{'string','string','double','double','string','string', ...
         'double','string','double','double','double','string'}, ...
         'VariableNames',columns) ;
 end
@@ -478,7 +478,8 @@ function row = emptyUnitRow(block,type)
 end
 
 function row = emptyAdjustRow(block)
-    row = {string(get_param(block,'Name')),NaN,NaN,"","",NaN,"", ...
+    target = nirp.flowsheet.adjustTarget(block) ;
+    row = {string(get_param(block,'Name')),target.Label,NaN,NaN,"","",NaN,"", ...
         NaN,NaN,NaN,""} ;
 end
 
@@ -645,18 +646,18 @@ function row = adjustValues(block,info,entries)
     row = emptyAdjustRow(block) ;
     entry = registryEntry(entries,block,'Adjust') ;
     if ~isempty(entry)
-        row{2} = double(entry.status) ; row{9} = double(entry.converged) ;
-        row{10} = double(entry.iteration) ;
+        row{3} = double(entry.status) ; row{10} = double(entry.converged) ;
+        row{11} = double(entry.iteration) ;
     end
     if isempty(fieldnames(info)), return, end
-    row{4} = string(info.parameterUnit) ;
+    row{5} = string(info.parameterUnit) ;
     category = nirp.blocks.internal.unitCategory( ...
-        char(row{4}),{'Volume','Temperature','VolumetricFlow','Area'}) ;
-    row{3} = UnitConverterHelper.convertFromSI( ...
-        category,info.value,char(row{4})) ;
-    row{5} = string(info.targetVariable) ; row{7} = string(info.targetUnit) ;
-    [row{6},row{8}] = displayTarget(info) ;
-    row{9} = double(info.converged) ; row{10} = double(info.iteration) ;
+        char(row{5}),{'Volume','Temperature','VolumetricFlow','Area'}) ;
+    row{4} = UnitConverterHelper.convertFromSI( ...
+        category,info.value,char(row{5})) ;
+    row{6} = string(info.targetVariable) ; row{8} = string(info.targetUnit) ;
+    [row{7},row{9}] = displayTarget(info) ;
+    row{10} = double(info.converged) ; row{11} = double(info.iteration) ;
 end
 
 function createDisplayTable(parent,value,row,columnWidths,formatUnitResults)
@@ -677,6 +678,8 @@ function createDisplayTable(parent,value,row,columnWidths,formatUnitResults)
         columnNames = {'Block','Type','Status','V','V unit','A','A unit', ...
             'U','U unit','Tin','Tin unit','Tout','Tout unit','Q','Q unit', ...
             'Service flow','Flow unit','Message'} ;
+    elseif formatUnitResults && any(strcmp(columnNames,'AdjustedVariable'))
+        columnNames{strcmp(columnNames,'AdjustedVariable')} = 'Adjusted variable' ;
     end
     control = uitable(parent,'Data',data, ...
         'ColumnName',columnNames,'RowName',{}, ...
