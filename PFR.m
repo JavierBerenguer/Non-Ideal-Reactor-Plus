@@ -9,6 +9,7 @@ classdef PFR < Reactor
     % Corrected: October 1, 2026 (T-101)
     % Updated: October 1, 2026 (T-102)
     % Updated: October 1, 2026 (T-103)
+    % Updated: October 9, 2026 (T-133)
     % =========================================================================
     
     properties
@@ -21,6 +22,7 @@ classdef PFR < Reactor
     
     properties (Hidden = true) % This property is not displayed on the property list
         heatArray = [] ; % Total dQ/dL for all tubes (W/m), used to compute OPEX
+        profile = [] ; % Complete tube-bank profile in SI units
     end
     
     methods
@@ -87,6 +89,13 @@ classdef PFR < Reactor
             % computeCost integrates heatArray on a uniform 0..L mesh.
             heatMesh = linspace(0,R.L,201)' ;
             heatStates = interp1(L,y,heatMesh,'pchip') ;
+            R.profile = struct( ...
+                'L',heatMesh, ... % m
+                'V',R.nTubes*pi*(R.diameterTubes/2)^2*heatMesh, ... % m^3
+                'F',heatStates(:,1:RS.nComponents)*R.nTubes, ... % mol/s
+                'T',heatStates(:,RS.nComponents+1), ... % K
+                'P',heatStates(:,RS.nComponents+2), ... % Pa
+                'Q',heatStates(:,RS.nComponents+4)) ; % W
             R.heatArray = zeros(size(heatMesh)) ;
             for iHeat = 1:numel(heatMesh)
                 R.heatArray(iHeat) = heatPerLength(heatStates(iHeat,:)) ;

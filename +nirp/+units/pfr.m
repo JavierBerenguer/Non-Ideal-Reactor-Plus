@@ -11,7 +11,7 @@ function [out,info] = pfr(params,in,rs)
 %   mode has zero remaining DOF after its displayed values are specified.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 1, 2026. Last update: October 1, 2026
+% Created: October 1, 2026. Last update: October 9, 2026
 % =========================================================================
 
     if ~isstruct(params) || ~isscalar(params)
@@ -90,6 +90,10 @@ function [out,info] = pfr(params,in,rs)
     out = nirp.stream.fromStream(product) ;
     info = baseInfo(in.status) ;
     info.heatDuty = reactor.heatDuty ;
+    info.profile = reactor.profile ;
+    if ~isempty(rs.componentNames)
+        info.profile.componentNames = rs.componentNames ;
+    end
     if in.status == -1
         info.status = -1 ;
     end

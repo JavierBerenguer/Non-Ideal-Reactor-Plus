@@ -1,8 +1,9 @@
 function tables = showResults(model,varargin)
 %SHOWRESULTS Return and optionally display unit and Stream result tables.
 %   TABLES = nirp.flowsheet.showResults(MODEL) returns Units, Adjust, and
-%   Messages tables followed by one table per Stream in nirpResults.Streams. Unit
-%   volumes, Jacket heat-transfer parameters, heat duties, and optional
+%   Messages tables followed by one table per Stream in nirpResults.Streams.
+%   PFR profiles, when available, are returned as SI tables in Profiles.
+%   Unit volumes, Jacket heat-transfer parameters, heat duties, and optional
 %   utility mass flows use display units (mass flow is reported in kg/s).
 %   ...showResults(MODEL,'NoWindow',true) never creates a UI window.
 %   ...showResults(MODEL,'Visible',VALUE) controls the results window.
@@ -39,6 +40,13 @@ function tables = showResults(model,varargin)
     tables.Adjust = emptyAdjustTable() ;
     if modelLoaded
         [tables.Units,tables.Adjust] = unitTables(model,results) ;
+    end
+    profileDisplays = struct([]) ;
+    if modelLoaded
+        [profileTables,profileDisplays] = pfrProfileTables(model,results) ;
+        if ~isempty(fieldnames(profileTables))
+            tables.Profiles = profileTables ;
+        end
     end
     for i = 1:numel(fields)
         item = results.Streams.(fields{i}) ;
@@ -86,11 +94,145 @@ function tables = showResults(model,varargin)
     messageGrid = uigridlayout(messageTab,[1 1], ...
         'Padding',[10 10 10 10]) ;
     createDisplayTable(messageGrid,tables.Messages,1,{90,150,650}) ;
-    names = setdiff(fieldnames(tables),{'Units','Adjust','Messages'},'stable') ;
+    if ~isempty(profileDisplays)
+        createPfrProfileTab(tabs,profileDisplays) ;
+    end
+    names = setdiff(fieldnames(tables), ...
+        {'Units','Adjust','Messages','Profiles'},'stable') ;
     for i = 1:numel(names)
         tab = uitab(tabs,'Title',names{i}) ;
         grid = uigridlayout(tab,[1 1],'Padding',[10 10 10 10]) ;
         createDisplayTable(grid,tables.(names{i}),1,'auto') ;
+    end
+end
+
+function [tables,displays] = pfrProfileTables(model,results)
+    tables = struct() ; displays = struct([]) ;
+    if ~isfield(results,'Diagnostics') || ~isstruct(results.Diagnostics)
+        return
+    end
+    [blocks,types] = functionalBlocks(model) ;
+    blocks = blocks(types == "PFR") ;
+    for i = 1:numel(blocks)
+        block = blocks{i} ; name = string(get_param(block,'Name')) ;
+        field = matlab.lang.makeValidName(char(string(model)+"_"+name)) ;
+        if ~isfield(results.Diagnostics,field), continue, end
+        diagnostic = results.Diagnostics.(field) ;
+        if ~isstruct(diagnostic) || ~isfield(diagnostic,'lastInfo') || ...
+                ~isstruct(diagnostic.lastInfo) || ...
+                ~isfield(diagnostic.lastInfo,'profile')
+            continue
+        end
+        profile = diagnostic.lastInfo.profile ;
+        if ~validPfrProfile(profile), continue, end
+        componentNames = profileComponentNames(profile,size(profile.F,2)) ;
+        flowVariables = cellstr(matlab.lang.makeUniqueStrings( ...
+            matlab.lang.makeValidName("F_"+componentNames))) ;
+        variableNames = [{'V','L','T','P','Q'} flowVariables] ;
+        value = array2table([profile.V(:) profile.L(:) profile.T(:) ...
+            profile.P(:) profile.Q(:) profile.F], ...
+            'VariableNames',variableNames) ;
+        value.Properties.VariableUnits = ...
+            [{'m^3','m','K','Pa','W'} repmat({'mol/s'},1,size(profile.F,2))] ;
+        tableField = matlab.lang.makeValidName(char(name)) ;
+        tables.(tableField) = value ;
+        entry = struct('Block',name,'VolumeUnit',string(get_param(block,'VUnit')), ...
+            'PressureMode',string(get_param(block,'PressureMode')), ...
+            'ComponentNames',{componentNames},'FlowVariables',{flowVariables}, ...
+            'Table',value) ;
+        displays = [displays;entry] ; %#ok<AGROW>
+    end
+end
+
+function result = validPfrProfile(profile)
+    fields = {'L','V','F','T','P','Q'} ;
+    result = isstruct(profile) && isscalar(profile) && ...
+        all(isfield(profile,fields)) && isnumeric(profile.F) && ...
+        size(profile.F,1) == 201 ;
+    if ~result, return, end
+    for i = [1 2 4 5 6]
+        value = profile.(fields{i}) ;
+        if ~isnumeric(value) || numel(value) ~= size(profile.F,1)
+            result = false ; return
+        end
+    end
+end
+
+function names = profileComponentNames(profile,count)
+    if isfield(profile,'componentNames') && ...
+            numel(profile.componentNames) == count
+        names = string(profile.componentNames(:)') ;
+    else
+        names = "Component "+string(1:count) ;
+    end
+    missing = ismissing(names) | strlength(names) == 0 ;
+    names(missing) = "Component "+string(find(missing)) ;
+    names = matlab.lang.makeUniqueStrings(names) ;
+end
+
+function createPfrProfileTab(tabs,profiles)
+    tab = uitab(tabs,'Title','PFR profiles') ;
+    profileGrid = uigridlayout(tab,[3 2], ...
+        'RowHeight',{22,'1x','1x'},'ColumnWidth',{'1x','1x'}, ...
+        'Padding',[10 10 10 10]) ;
+    selectors = uigridlayout(profileGrid,[1 4], ...
+        'ColumnWidth',{70,'1x',105,'1x'},'Padding',[0 0 0 0]) ;
+    selectors.Layout.Row = 1 ; selectors.Layout.Column = [1 2] ;
+    uilabel(selectors,'Text','PFR') ;
+    reactor = uidropdown(selectors,'Items',cellstr(string({profiles.Block}))) ;
+    uilabel(selectors,'Text','Key component') ;
+    component = uidropdown(selectors) ;
+    flowAxis = uiaxes(profileGrid) ; flowAxis.Layout.Row = 2 ; flowAxis.Layout.Column = 1 ;
+    temperatureAxis = uiaxes(profileGrid) ;
+    temperatureAxis.Layout.Row = 2 ; temperatureAxis.Layout.Column = 2 ;
+    conversionAxis = uiaxes(profileGrid) ;
+    conversionAxis.Layout.Row = 3 ; conversionAxis.Layout.Column = 1 ;
+    fourthAxis = uiaxes(profileGrid) ; fourthAxis.Layout.Row = 3 ; fourthAxis.Layout.Column = 2 ;
+    reactor.ValueChangedFcn = @(~,~) selectReactor() ;
+    component.ValueChangedFcn = @(~,~) drawProfiles() ;
+    selectReactor() ;
+
+    function selectReactor()
+        index = find(string({profiles.Block}) == string(reactor.Value),1) ;
+        names = profiles(index).ComponentNames ;
+        component.Items = cellstr(names) ;
+        values = profiles(index).Table{:,profiles(index).FlowVariables} ;
+        preferred = find(values(1,:) > 0 & values(end,:) < values(1,:),1) ;
+        if isempty(preferred), preferred = find(values(1,:) > 0,1) ; end
+        if isempty(preferred), preferred = 1 ; end
+        component.Value = char(names(preferred)) ;
+        drawProfiles() ;
+    end
+
+    function drawProfiles()
+        index = find(string({profiles.Block}) == string(reactor.Value),1) ;
+        item = profiles(index) ; value = item.Table ;
+        volume = UnitConverterHelper.convertFromSI( ...
+            'Volume',value.V,char(item.VolumeUnit)) ;
+        flows = value{:,item.FlowVariables} ;
+        cla(flowAxis) ; plot(flowAxis,volume,flows,'LineWidth',1.2) ;
+        title(flowAxis,'Molar-flow profiles') ;
+        xlabel(flowAxis,"V ("+item.VolumeUnit+")") ; ylabel(flowAxis,'F (mol/s)') ;
+        legend(flowAxis,cellstr(item.ComponentNames),'Location','best') ; grid(flowAxis,'on') ;
+        cla(temperatureAxis) ; plot(temperatureAxis,volume,value.T,'LineWidth',1.2) ;
+        title(temperatureAxis,'Temperature') ;
+        xlabel(temperatureAxis,"V ("+item.VolumeUnit+")") ; ylabel(temperatureAxis,'T (K)') ;
+        grid(temperatureAxis,'on') ;
+        componentIndex = find(item.ComponentNames == string(component.Value),1) ;
+        conversion = 1-flows(:,componentIndex)/flows(1,componentIndex) ;
+        cla(conversionAxis) ; plot(conversionAxis,volume,conversion,'LineWidth',1.2) ;
+        title(conversionAxis,"Conversion of "+item.ComponentNames(componentIndex)+" in this PFR") ;
+        xlabel(conversionAxis,"V ("+item.VolumeUnit+")") ; ylabel(conversionAxis,'X') ;
+        grid(conversionAxis,'on') ;
+        cla(fourthAxis) ;
+        if item.PressureMode == "Non constant"
+            plot(fourthAxis,volume,value.P/1000,'LineWidth',1.2) ;
+            title(fourthAxis,'Pressure') ; ylabel(fourthAxis,'P (kPa)') ;
+        else
+            plot(fourthAxis,volume,value.Q,'LineWidth',1.2) ;
+            title(fourthAxis,'Accumulated heat') ; ylabel(fourthAxis,'Q (W)') ;
+        end
+        xlabel(fourthAxis,"V ("+item.VolumeUnit+")") ; grid(fourthAxis,'on') ;
     end
 end
 
