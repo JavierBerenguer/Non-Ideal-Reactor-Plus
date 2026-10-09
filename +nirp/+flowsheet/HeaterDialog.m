@@ -2,7 +2,7 @@ classdef HeaterDialog < handle
 %HEATERDIALOG Structured editor for Heater/Cooler Simulink blocks.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 2, 2026. Last update: October 7, 2026
+% Created: October 2, 2026. Last update: October 9, 2026
 % =========================================================================
     properties (SetAccess=private)
         BlockPath;Figure;NameField;ModeGroup;ToutField;ToutUnitDropDown
@@ -15,6 +15,7 @@ classdef HeaterDialog < handle
             p=inputParser;addParameter(p,'Visible','on');parse(p,varargin{:});obj.BlockPath=getfullname(blockPath);
             if string(get_param(obj.BlockPath,'System'))~="nirp.blocks.Heater",error('nirp:flowsheet:invalidBlock','HeaterDialog requires a Heater block.');end
             obj.build(char(string(p.Results.Visible)));obj.load();obj.refreshConnections();
+            [~,~,label]=nirp.flowsheet.blockStatus(obj.BlockPath);obj.StatusLabel.Text=char(label);
         end
         function delete(obj),if ~isempty(obj.Figure)&&isvalid(obj.Figure),delete(obj.Figure);end,end
         function setMode(obj,mode),b=obj.ModeGroup.Children;i=find(strcmp({b.Text},char(string(mode))),1);if isempty(i),error('nirp:flowsheet:invalidMode','Unknown heater mode.');end;obj.ModeGroup.SelectedObject=b(i);obj.updateVisibility();obj.captureModel();end

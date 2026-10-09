@@ -2,13 +2,13 @@ classdef MixerDialog < handle
 %MIXERDIALOG Edit an arbitrary number of Mixer inlet streams.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 2, 2026. Last update: October 7, 2026
+% Created: October 2, 2026. Last update: October 9, 2026
 % =========================================================================
     properties (SetAccess=private)
         BlockPath;Figure;NameField;ConnectionTable;StatusLabel;DataModel
     end
     methods
-        function obj=MixerDialog(blockPath,varargin),p=inputParser;addParameter(p,'Visible','on');parse(p,varargin{:});obj.BlockPath=getfullname(blockPath);if string(get_param(obj.BlockPath,'System'))~="nirp.blocks.Mixer",error('nirp:flowsheet:invalidBlock','MixerDialog requires a Mixer block.');end;obj.build(char(string(p.Results.Visible)));obj.refreshConnections();end
+        function obj=MixerDialog(blockPath,varargin),p=inputParser;addParameter(p,'Visible','on');parse(p,varargin{:});obj.BlockPath=getfullname(blockPath);if string(get_param(obj.BlockPath,'System'))~="nirp.blocks.Mixer",error('nirp:flowsheet:invalidBlock','MixerDialog requires a Mixer block.');end;obj.build(char(string(p.Results.Visible)));obj.refreshConnections();[~,~,label]=nirp.flowsheet.blockStatus(obj.BlockPath);obj.StatusLabel.Text=char(label);end
         function delete(obj),if ~isempty(obj.Figure)&&isvalid(obj.Figure),delete(obj.Figure);end,end
         function setNumInputs(obj,count),if count<2||count>20||count~=fix(count),error('nirp:flowsheet:invalidPorts','A Mixer requires 2 to 20 inputs.');end;obj.DataModel.NumInputs.value=count;obj.rebuildRows(count);end
         function addInput(obj),obj.setNumInputs(obj.DataModel.NumInputs.value+1);end

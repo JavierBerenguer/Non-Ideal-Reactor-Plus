@@ -1,14 +1,14 @@
 function tables = showResults(model,varargin)
 %SHOWRESULTS Return and optionally display unit and Stream result tables.
-%   TABLES = nirp.flowsheet.showResults(MODEL) returns Units and Adjust
-%   tables followed by one table per Stream in nirpResults.Streams. Unit
+%   TABLES = nirp.flowsheet.showResults(MODEL) returns Units, Adjust, and
+%   Messages tables followed by one table per Stream in nirpResults.Streams. Unit
 %   volumes, Jacket heat-transfer parameters, heat duties, and optional
 %   utility mass flows use display units (mass flow is reported in kg/s).
 %   ...showResults(MODEL,'NoWindow',true) never creates a UI window.
 %   ...showResults(MODEL,'Visible',VALUE) controls the results window.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 2, 2026. Last update: October 8, 2026
+% Created: October 2, 2026. Last update: October 9, 2026
 % =========================================================================
 
     if nargin < 1 || isempty(model), model = bdroot ; end
@@ -58,6 +58,7 @@ function tables = showResults(model,varargin)
         tableValue.Conversion = repmat(conversion,n,1) ;
         tables.(fields{i}) = tableValue ;
     end
+    tables.Messages = messageTable(model,results,modelLoaded) ;
     if isempty(fieldnames(tables))
         error('nirp:flowsheet:noResults','nirpResults contains no Stream results.') ;
     end
@@ -81,12 +82,170 @@ function tables = showResults(model,varargin)
     uilabel(unitGrid,'Text','Adjust','FontWeight','bold') ;
     createDisplayTable(unitGrid,tables.Adjust,4, ...
         {115,55,80,95,105,70,90,75,80,75,160},true) ;
-    names = fieldnames(tables) ; names = names(3:end) ;
+    messageTab = uitab(tabs,'Title',messageTabTitle(tables.Messages)) ;
+    messageGrid = uigridlayout(messageTab,[1 1], ...
+        'Padding',[10 10 10 10]) ;
+    createDisplayTable(messageGrid,tables.Messages,1,{90,150,650}) ;
+    names = setdiff(fieldnames(tables),{'Units','Adjust','Messages'},'stable') ;
     for i = 1:numel(names)
         tab = uitab(tabs,'Title',names{i}) ;
         grid = uigridlayout(tab,[1 1],'Padding',[10 10 10 10]) ;
         createDisplayTable(grid,tables.(names{i}),1,'auto') ;
     end
+end
+
+function messages = messageTable(model,results,modelLoaded)
+    severity = strings(0,1) ; blocks = strings(0,1) ; text = strings(0,1) ;
+    diagnostics = struct() ;
+    if isfield(results,'Diagnostics') && isstruct(results.Diagnostics)
+        diagnostics = results.Diagnostics ;
+    end
+    prefix = matlab.lang.makeValidName([char(string(model)) '_']) ;
+    diagnosticFields = fieldnames(diagnostics) ;
+    diagnosticFields = diagnosticFields(startsWith(diagnosticFields,prefix)) ;
+    for i = 1:numel(diagnosticFields)
+        field = diagnosticFields{i} ; item = diagnostics.(field) ;
+        if ~isstruct(item) || ~isfield(item,'lastInfo') || ...
+                ~isstruct(item.lastInfo)
+            continue
+        end
+        info = item.lastInfo ; block = diagnosticBlockName( ...
+            model,field,prefix,modelLoaded) ;
+        hasMessage = isfield(info,'message') && ...
+            any(strlength(string(info.message)) > 0) ;
+        if hasMessage
+            kind = "Warning" ;
+            if isfield(info,'status') && isequal(info.status,-1), kind = "Error" ; end
+            [severity,blocks,text] = appendMessage( ...
+                severity,blocks,text,kind,block,string(info.message)) ;
+        elseif isfield(info,'status') && isequal(info.status,-1)
+            [severity,blocks,text] = appendMessage(severity,blocks,text, ...
+                "Error",block,"Calculation failed.") ;
+        end
+        if isfield(info,'warnings')
+            warnings = nonemptyText(info.warnings) ;
+            for j = 1:numel(warnings)
+                [severity,blocks,text] = appendMessage( ...
+                    severity,blocks,text,"Warning",block,warnings(j)) ;
+            end
+        end
+    end
+
+    flowsheetWarning = flowsheetDidNotConverge(results) ;
+    if isfield(results,'Streams') && isstruct(results.Streams)
+        streamFields = fieldnames(results.Streams) ;
+        for i = 1:numel(streamFields)
+            item = results.Streams.(streamFields{i}) ;
+            if ~isstruct(item) || ~isfield(item,'status') || item.status ~= -1
+                continue
+            end
+            block = string(streamFields{i}) ;
+            if isfield(item,'name'), block = string(item.name) ; end
+            if flowsheetWarning
+                [severity,blocks,text] = appendMessage(severity,blocks,text, ...
+                    "Warning",block, ...
+                    "Flowsheet did not converge; values are from the last iteration.") ;
+            else
+                [severity,blocks,text] = appendMessage(severity,blocks,text, ...
+                    "Error",block,"Stream calculation failed.") ;
+            end
+        end
+    end
+
+    entries = nirp.flowsheet.registry('list',model) ;
+    for i = 1:numel(entries)
+        if logical(entries(i).converged), continue, end
+        kind = string(entries(i).kind) ;
+        if ~any(kind == ["Adjust","Recycle"]), continue, end
+        if modelLoaded
+            block = string(get_param(entries(i).key,'Name')) ;
+        else
+            parts = split(string(entries(i).key),'/') ; block = parts(end) ;
+        end
+        [severity,blocks,text] = appendMessage(severity,blocks,text, ...
+            "Warning",block,kind+" did not converge.") ;
+    end
+    if isfield(results,'Flowsheet') && isstruct(results.Flowsheet) && ...
+            isfield(results.Flowsheet,'notConverged') && ...
+            ~isempty(results.Flowsheet.notConverged)
+        names = blockNames(results.Flowsheet.notConverged) ;
+        [severity,blocks,text] = appendMessage(severity,blocks,text, ...
+            "Info","Flowsheet","Blocks not converged: "+strjoin(names,", ")) ;
+    end
+    if isempty(severity)
+        severity = "Info" ; blocks = "Flowsheet" ;
+        text = "No warnings or errors" ;
+    else
+        rank = zeros(size(severity)) ; rank(severity == "Error") = 1 ;
+        rank(severity == "Warning") = 2 ; rank(severity == "Info") = 3 ;
+        [~,order] = sort(rank,'ascend') ; severity = severity(order) ;
+        blocks = blocks(order) ; text = text(order) ;
+    end
+    messages = table(severity,blocks,text, ...
+        'VariableNames',{'Severity','Block','Message'}) ;
+end
+
+function value = flowsheetDidNotConverge(results)
+    value = isfield(results,'Flowsheet') && isstruct(results.Flowsheet) && ...
+        isfield(results.Flowsheet,'notConverged') && ...
+        ~isempty(results.Flowsheet.notConverged) ;
+end
+
+function names = blockNames(paths)
+    names = string(paths(:)) ;
+    for i = 1:numel(names)
+        parts = split(names(i),'/') ;
+        names(i) = parts(end) ;
+    end
+end
+
+function name = diagnosticBlockName(model,field,prefix,modelLoaded)
+    name = string(extractAfter(field,strlength(prefix))) ;
+    if ~modelLoaded, return, end
+    candidates = find_system(model,'LookUnderMasks','all','SearchDepth',1, ...
+        'BlockType','MATLABSystem') ;
+    for i = 1:numel(candidates)
+        candidateField = matlab.lang.makeValidName( ...
+            [char(string(model)) '_' get_param(candidates{i},'Name')]) ;
+        if strcmp(candidateField,field)
+            name = string(get_param(candidates{i},'Name')) ; return
+        end
+    end
+end
+
+function values = nonemptyText(value)
+    values = strings(0,1) ;
+    if ischar(value) || isstring(value) || iscell(value)
+        values = strip(string(value(:))) ;
+        values = values(strlength(values) > 0) ;
+    end
+end
+
+function [severity,blocks,text] = appendMessage( ...
+        severity,blocks,text,kind,block,message)
+    message = strip(string(message)) ;
+    message = message(strlength(message) > 0) ;
+    for i = 1:numel(message)
+        severity(end+1,1) = string(kind) ; %#ok<AGROW>
+        blocks(end+1,1) = string(block) ; %#ok<AGROW>
+        text(end+1,1) = message(i) ; %#ok<AGROW>
+    end
+end
+
+function title = messageTabTitle(messages)
+    errors = nnz(messages.Severity == "Error") ;
+    warnings = nnz(messages.Severity == "Warning") ;
+    if errors == 0 && warnings == 0, title = 'Messages' ; return, end
+    % Only nonzero counts are shown, e.g. 'Messages (6 warnings)'.
+    parts = strings(0,1) ;
+    if errors > 0, parts(end+1) = countText(errors,"error") ; end
+    if warnings > 0, parts(end+1) = countText(warnings,"warning") ; end
+    title = char("Messages ("+strjoin(parts,", ")+")") ;
+end
+
+function text = countText(count,word)
+    if count ~= 1, word = word+"s" ; end
+    text = count+" "+word ;
 end
 
 function [units,adjusts] = unitTables(model,results)

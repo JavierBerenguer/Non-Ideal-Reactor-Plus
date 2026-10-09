@@ -2,13 +2,13 @@ classdef SplitterDialog < handle
 %SPLITTERDIALOG Edit arbitrary Splitter outlets and their fractions.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 2, 2026. Last update: October 7, 2026
+% Created: October 2, 2026. Last update: October 9, 2026
 % =========================================================================
     properties (SetAccess=private)
         BlockPath;Figure;NameField;FractionTable;ConnectionTable;StatusLabel;DataModel
     end
     methods
-        function obj=SplitterDialog(blockPath,varargin),p=inputParser;addParameter(p,'Visible','on');parse(p,varargin{:});obj.BlockPath=getfullname(blockPath);if string(get_param(obj.BlockPath,'System'))~="nirp.blocks.Splitter",error('nirp:flowsheet:invalidBlock','SplitterDialog requires a Splitter block.');end;obj.build(char(string(p.Results.Visible)));obj.load();end
+        function obj=SplitterDialog(blockPath,varargin),p=inputParser;addParameter(p,'Visible','on');parse(p,varargin{:});obj.BlockPath=getfullname(blockPath);if string(get_param(obj.BlockPath,'System'))~="nirp.blocks.Splitter",error('nirp:flowsheet:invalidBlock','SplitterDialog requires a Splitter block.');end;obj.build(char(string(p.Results.Visible)));obj.load();[~,~,label]=nirp.flowsheet.blockStatus(obj.BlockPath);obj.StatusLabel.Text=char(label);end
         function delete(obj),if ~isempty(obj.Figure)&&isvalid(obj.Figure),delete(obj.Figure);end,end
         function addOutlet(obj,fraction),if nargin<2,fraction=NaN;end;if size(obj.FractionTable.Data,1)>=20,error('nirp:flowsheet:portLimit','At most 20 outlets are supported.');end;d=obj.FractionTable.Data;d(end+1,:)={sprintf('<missing>'),fraction};obj.FractionTable.Data=d;obj.closeFractions(repmat("specified",1,size(d,1)));end
         function removeOutlet(obj),d=obj.FractionTable.Data;if size(d,1)<=2,error('nirp:flowsheet:invalidPorts','A Splitter requires at least two outlets.');end;d(end,:)=[];obj.FractionTable.Data=d;obj.closeFractions(repmat("specified",1,size(d,1)));end

@@ -2,7 +2,7 @@ classdef NirpStreamBlockTest < matlab.unittest.TestCase
     % NirpStreamBlockTest verifies named Stream blocks and their dialog.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 2, 2026. Last update: October 8, 2026
+    % Created: October 2, 2026. Last update: October 9, 2026
     % =========================================================================
 
     properties
@@ -102,7 +102,9 @@ classdef NirpStreamBlockTest < matlab.unittest.TestCase
             failed=nirp.flowsheet.StreamDialog( ...
                 'ex2_cstr_adiabatic_cooler/CSTR outlet','Visible','off') ;
             testCase.addTeardown(@() deleteValid(failed)) ;
-            testCase.verifyEqual(failed.getValue('Status'),"Not converged") ;
+            % T-132: a failed stream in a converged run is an error (A1).
+            testCase.verifyEqual(failed.getValue('Status'), ...
+                "Error: Stream calculation failed.") ;
         end
 
         function directFunctionalConnectionWarns(testCase)

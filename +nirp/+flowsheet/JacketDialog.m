@@ -2,7 +2,7 @@ classdef JacketDialog < handle
 %JACKETDIALOG Structured editor for Jacket Simulink blocks.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 8, 2026. Last update: October 8, 2026
+% Created: October 8, 2026. Last update: October 9, 2026
 % =========================================================================
     properties (SetAccess=private)
         BlockPath; Figure; NameField; UField; UUnitDropDown
@@ -20,6 +20,7 @@ classdef JacketDialog < handle
                 error('nirp:flowsheet:invalidBlock','JacketDialog requires a Jacket block.');
             end
             obj.build(char(string(p.Results.Visible)));obj.load();obj.refreshConnections();
+            [~,~,label]=nirp.flowsheet.blockStatus(obj.BlockPath);obj.StatusLabel.Text=char(label);
         end
         function delete(obj),if ~isempty(obj.Figure)&&isvalid(obj.Figure),delete(obj.Figure);end,end
         function setValues(obj,varargin)

@@ -61,8 +61,7 @@ classdef NirpJacketTest < matlab.unittest.TestCase
             addSystem('legacy_dialog','CSTR','nirp.blocks.CSTR',[220 90 360 160],'HeatMode','Heat exchange');
             dialog=nirp.flowsheet.ReactorDialog('legacy_dialog/CSTR','Visible','off');testCase.addTeardown(@() deleteValid(dialog));
             testCase.verifyEqual(dialog.HeatModeGroup.SelectedObject.Text,'Isothermal');
-            testCase.verifyEqual(dialog.StatusLabel.Text, ...
-                'Heat exchange is obsolete: add a Jacket block, tick "Show Jacket input port" and connect it');
+            testCase.verifyEqual(dialog.StatusLabel.Text,'Not calculated yet');
             dialog.setHeatMode('Adiabatic');
             testCase.verifyTrue(dialog.apply());
             testCase.verifyEqual(get_param('legacy_dialog/CSTR','HeatMode'),'Adiabatic');

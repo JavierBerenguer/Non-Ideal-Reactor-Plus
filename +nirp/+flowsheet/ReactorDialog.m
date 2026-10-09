@@ -2,7 +2,7 @@ classdef ReactorDialog < handle
 %REACTORDIALOG Structured editor for CSTR and PFR Simulink blocks.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 2, 2026. Last update: October 8, 2026
+% Created: October 2, 2026. Last update: October 9, 2026
 % =========================================================================
     properties (SetAccess=private)
         BlockPath; ReactorType; Figure; NameField; TypeField
@@ -30,6 +30,7 @@ classdef ReactorDialog < handle
             elseif cls=="nirp.blocks.PFR",obj.ReactorType="PFR";
             else,error('nirp:flowsheet:invalidBlock','ReactorDialog requires a CSTR or PFR block.');end
             obj.build(char(string(p.Results.Visible)));obj.load();obj.refreshConnections();
+            [~,~,label]=nirp.flowsheet.blockStatus(obj.BlockPath);obj.StatusLabel.Text=char(label);
         end
         function delete(obj),if ~isempty(obj.Figure)&&isvalid(obj.Figure),delete(obj.Figure);end,end
         function setHeatMode(obj,mode)

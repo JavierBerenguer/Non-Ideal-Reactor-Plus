@@ -2,7 +2,7 @@ classdef StreamDialog < handle
     % StreamDialog edits feeds and displays calculated stream results.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 2, 2026. Last update: October 7, 2026
+    % Created: October 2, 2026. Last update: October 9, 2026
     % =========================================================================
 
     properties (SetAccess = private)
@@ -59,6 +59,8 @@ classdef StreamDialog < handle
             obj.ComponentNames = nirp.pkg.componentNames(obj.Package)' ;
             obj.build(char(string(parser.Results.Visible))) ;
             obj.loadData() ;
+            [~,~,label] = nirp.flowsheet.blockStatus(obj.BlockPath) ;
+            obj.StatusLabel.Text = char(label) ;
         end
 
         function delete(obj)
