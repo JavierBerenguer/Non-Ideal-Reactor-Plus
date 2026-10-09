@@ -8,7 +8,7 @@ classdef NonIdealReactorApp < handle
 %
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: March 21, 2026. Last update: July 7, 2026
+% Created: March 21, 2026. Last update: October 9, 2026
 % =========================================================================
 
     properties (Access = private)
@@ -19,6 +19,7 @@ classdef NonIdealReactorApp < handle
 
         % Shared state
         rtd                 % Current RTD object (shared across tabs)
+        ConvolutionHelper   % Delegated UI/state for the Convolution tab
         DisplayControls = struct()
         DisplayCache = struct()
 
@@ -285,6 +286,9 @@ classdef NonIdealReactorApp < handle
 
             % Build tabs
             app.createRTDTab() ;
+            app.ConvolutionHelper = ConvolutionTabHelper(app.TabGroup, ...
+                @() app.rtd, @(signal) app.useConvolutionRTD(signal), ...
+                @(message) app.updateStatus(message)) ;
             app.createPredictionTab() ;
             app.createTISTab() ;
             app.createDispersionTab() ;
@@ -1024,6 +1028,7 @@ classdef NonIdealReactorApp < handle
                 'streamStatus', app.captureLabelState(app.Disp_StreamStatusLabel)) ;
 
             snapshot.designWorkspace = app.DW_buildSnapshot() ;
+            snapshot.convolution = app.ConvolutionHelper.buildSnapshot() ;
         end
 
         function applySessionSnapshot(app, snapshot)
@@ -1194,6 +1199,11 @@ classdef NonIdealReactorApp < handle
                     app.getStructField(snapshot, 'designTemplates', struct())) ;
             end
             app.DW_applySnapshot(designSnapshot) ;
+
+            % Optional for backward compatibility with sessions saved before
+            % the Convolution tab existed.
+            app.ConvolutionHelper.applySnapshot( ...
+                app.getStructField(snapshot, 'convolution', struct())) ;
 
             selectedTabTitle = app.getStructField(snapshot, 'selected_tab_title', '') ;
             if ~isempty(selectedTabTitle)
@@ -3412,6 +3422,27 @@ classdef NonIdealReactorApp < handle
         function updateStatus(app, msg)
             app.StatusBar.Text = ['  ' msg] ;
             drawnow limitrate ;
+        end
+
+        function useConvolutionRTD(app, signal)
+            % Load a deconvolved signal as a normalized tabulated RTD.
+            signal = nirp.conv.signal(signal.t, signal.C) ;
+            app.rtd = RTD(signal.t, signal.C) ;
+            app.rtd.source = 'deconvolution' ;
+            app.rtd.modelInfo = struct('source', 'Convolution tab') ;
+            app.RTD_SourceDropdown.Value = 'Tabular Input' ;
+            app.RTD_sourceChanged() ;
+            app.RTD_DataTypeDropdown.Value = 'Pulse C(t)' ;
+            app.RTD_DataTable.Data = [signal.t(:), signal.C(:)] ;
+            app.RTD_updateResults() ;
+            app.RTD_updatePlots() ;
+            app.RTD_updateFQuery() ;
+            app.RTD_ExportButton.Enable = 'on' ;
+            if ~isempty(app.Pred_RTDStatusLabel)
+                app.Pred_RTDStatusLabel.Text = app.htmlStatusTauSigma( ...
+                    'Deconvolution', app.rtd.tau, app.rtd.sigma2) ;
+                app.Pred_RTDStatusLabel.FontColor = [0 0.5 0] ;
+            end
         end
 
         %% ============== TAB 1: RTD ANALYSIS ==============
