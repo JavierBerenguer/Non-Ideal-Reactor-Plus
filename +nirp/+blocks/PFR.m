@@ -110,7 +110,10 @@ classdef PFR < matlab.System
                     ['PFR Heat exchange mode is obsolete. Add a Jacket block, ' ...
                     'enable the Jacket input port, and connect it to the reactor.']);
             end
-            [obj.Model,~,obj.RS]=nirp.blocks.internal.modelPackage(); obj.Block=get_param(gcb,'Name');
+            [obj.Model,pkg,obj.RS]=nirp.blocks.internal.modelPackage(); obj.Block=get_param(gcb,'Name');
+            if ~strcmp(obj.HeatMode,'Isothermal') || obj.ShowJacketPort
+                nirp.blocks.internal.requireThermodynamics(pkg,sprintf('PFR "%s"',obj.Block));
+            end
             obj.Params=nirp.blocks.internal.thermalParameters(obj);
             geometry=[UnitConverterHelper.convertToSI('Volume',obj.V,char(obj.VUnit)) ...
                 UnitConverterHelper.convertToSI('Length',obj.L,char(obj.LUnit)) ...

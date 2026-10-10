@@ -86,6 +86,25 @@ classdef NirpReactiveSystemDialogTest < matlab.unittest.TestCase
             testCase.verifyEqual(string(ed.ExpressionField.Visible),"off") ;
         end
 
+        function loadsReversibleAndWithoutThermodynamics(testCase)
+            % T-144: reversible packages load (Ea unit as string), orders round-trip,
+            % Ea check and the "Without thermodynamics" flag.
+            ed=nirp.flowsheet.ReactiveSystemDialog('Visible','off') ;
+            testCase.addTeardown(@() deleteValid(ed)) ;
+            pkg=nirp.pkg.examples.problem48ReversibleGas() ;
+            pkg.reactions.kinetics(1).reverse.Ea.unit="J/mol" ;
+            ed.setPackage(pkg) ; out=ed.getPackage() ;
+            testCase.verifyEqual(out.reactions.kinetics(1).reverse.orders, ...
+                pkg.reactions.kinetics(1).reverse.orders,'AbsTol',1e-12) ;
+            testCase.verifyEqual(string(ed.ReversePanel.Visible),"on") ;
+            testCase.verifySubstring(string(ed.RateEquationLabel.Text),"k0r") ;
+            testCase.verifyEqual(size(ed.OrdersField.Data,1),numel(pkg.components)) ;
+            ed.NoThermoCheckBox.Value=true ; out=ed.getPackage() ; nirp.pkg.validate(out) ;
+            testCase.verifyFalse(out.meta.thermodynamics) ;
+            testCase.verifyError(@() nirp.blocks.internal.requireThermodynamics(out,'Heater'), ...
+                'nirp:blocks:noThermodynamics') ;
+        end
+
         function reactionCountRefreshesKineticsAndThermodynamics(testCase)
             ed=nirp.flowsheet.ReactiveSystemDialog('Visible','off') ;
             testCase.addTeardown(@() deleteValid(ed)) ;

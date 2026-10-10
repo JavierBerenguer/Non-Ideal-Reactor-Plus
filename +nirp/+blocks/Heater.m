@@ -44,8 +44,9 @@ classdef Heater < matlab.System
     end
     methods (Access = protected)
         function setupImpl(obj)
-            [obj.Model,~,obj.RS] = nirp.blocks.internal.modelPackage() ;
+            [obj.Model,pkg,obj.RS] = nirp.blocks.internal.modelPackage() ;
             obj.Block = get_param(gcb,'Name') ;
+            nirp.blocks.internal.requireThermodynamics(pkg,sprintf('Heater "%s"',obj.Block)) ;
             obj.Params.mode = char(obj.Mode) ;
             obj.Params.Tout = UnitConverterHelper.convertToSI('Temperature',obj.Tout,char(obj.ToutUnit)) ;
             obj.Params.Q = UnitConverterHelper.convertToSI('Power',obj.Duty,char(obj.DutyUnit)) ;

@@ -50,8 +50,9 @@ classdef Jacket < matlab.System
     end
     methods (Access=protected)
         function setupImpl(obj)
-            [obj.Model,~,~] = nirp.blocks.internal.modelPackage() ;
+            [obj.Model,pkg,~] = nirp.blocks.internal.modelPackage() ;
             obj.Block = get_param(gcb,'Name') ;
+            nirp.blocks.internal.requireThermodynamics(pkg,sprintf('Jacket "%s"',obj.Block)) ;
             obj.Values = [convert('HeatTransferCoefficient',obj.U,obj.UUnit); ...
                 convert('Area',obj.A,obj.AUnit); ...
                 convert('Temperature',obj.UtilityTin,obj.UtilityTinUnit); ...
