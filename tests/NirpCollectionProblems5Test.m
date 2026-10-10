@@ -43,7 +43,7 @@ classdef (SharedTestFixtures={nirptest.ExamplesFixture}) ...
             testCase.verifyEqual(names(43:44),["ex43_problem15_number_of_tubes"; ...
                 "ex44_problem22_no_oxidation"]) ;
             testCase.verifyTrue(all(strlength(descriptions(43:44)) > 20)) ;
-            testCase.verifyEqual(numel(testCase.Files),47) ;
+            testCase.verifyEqual(numel(testCase.Files),50) ;
         end
 
         function problem20bConvergesWithDefaultAdjust(testCase)

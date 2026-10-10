@@ -41,7 +41,7 @@ classdef (SharedTestFixtures={nirptest.ExamplesFixture}) ...
                 "ex46_problem35_isothermal_cstr"; ...
                 "ex47_problem35_adiabatic_feed_T"]) ;
             testCase.verifyTrue(all(strlength(descriptions(45:47)) > 20)) ;
-            testCase.verifyEqual(numel(testCase.Files),47) ;
+            testCase.verifyEqual(numel(testCase.Files),50) ;
         end
 
         function problem16MatchesScriptAndReferences(testCase)
