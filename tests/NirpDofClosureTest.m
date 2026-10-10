@@ -219,7 +219,7 @@ classdef NirpDofClosureTest < matlab.unittest.TestCase
 
             addSystem('buttons_dof','Product','nirp.blocks.Stream',[600 70 720 130],'Role','Product');
             readOnly=nirp.flowsheet.StreamDialog('buttons_dof/Product','Visible','off');testCase.addTeardown(@() deleteValid(readOnly));verifyActions(testCase,readOnly.Figure,"Close");
-            editor=nirp.flowsheet.ReactiveSystemDialog('Mode','edit','Model','buttons_dof','Visible','off');testCase.addTeardown(@() deleteValid(editor));verifyActions(testCase,editor.Figure,["OK" "Cancel" "Apply"]);
+            editor=nirp.flowsheet.ReactiveSystemDialog('Mode','edit','Model','buttons_dof','Visible','off');testCase.addTeardown(@() deleteValid(editor));verifyActions(testCase,editor.Figure,["OK" "Cancel"]); % T-144: no Apply
             fresh=nirp.flowsheet.ReactiveSystemDialog('Visible','off');testCase.addTeardown(@() deleteValid(fresh));verifyActions(testCase,fresh.Figure,["Create flowsheet..." "Cancel"]);
 
             invalid=dialogs{4};invalid.setFractions([0.5 NaN NaN]);invalid.accept();

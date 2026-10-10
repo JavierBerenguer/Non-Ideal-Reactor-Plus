@@ -116,7 +116,7 @@ classdef (SharedTestFixtures={nirptest.ExamplesFixture}) ...
             testCase.verifyEqual(string(stream.VolumetricFlowField.Visible),"off") ;
             testCase.verifyEqual(string(stream.VolumetricFlowField.Editable),"off") ;
             testCase.verifyEqual(string(stream.QPortLabel.Visible),"on") ;
-            testCase.verifyEqual(string(stream.QPortLabel.Text),"Input port") ;
+            testCase.verifyEqual(string(stream.QPortLabel.Text),"From input port") ;
             stream.setValues('QSource','Dialog') ;
             testCase.verifyEqual(string(stream.VolumetricFlowField.Visible),"on") ;
             testCase.verifyEqual(string(stream.VolumetricFlowField.Editable),"on") ;
