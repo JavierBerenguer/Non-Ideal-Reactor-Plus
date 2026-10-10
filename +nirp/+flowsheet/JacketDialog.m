@@ -11,6 +11,7 @@ classdef JacketDialog < handle
         UtilityTinPortLabel; UtilityToutField; UtilityToutUnitDropDown
         UtilityCpField; CondensesCheckBox; LatentHeatField
         ConnectionTable; StatusLabel; DataModel
+        ModeDropDown; SpecifiedTField; SpecifiedTUnitDropDown; SpecifiedQField; SpecifiedQUnitDropDown
     end
     methods
         function obj=JacketDialog(blockPath,varargin)
@@ -42,6 +43,9 @@ classdef JacketDialog < handle
             applied=false;
             try
                 name=strtrim(obj.NameField.Value);if isempty(name),error('nirp:flowsheet:invalidName','Name cannot be empty.');end
+                set_param(obj.BlockPath,'Mode',obj.ModeDropDown.Value, ...
+                    'SpecifiedT',n(obj.SpecifiedTField.Value),'SpecifiedTUnit',obj.SpecifiedTUnitDropDown.Value, ...
+                    'SpecifiedQ',n(obj.SpecifiedQField.Value),'SpecifiedQUnit',obj.SpecifiedQUnitDropDown.Value);
                 set_param(obj.BlockPath,'U',n(obj.UField.Value),'UUnit',obj.UUnitDropDown.Value, ...
                     'ASource',obj.ASourceDropDown.Value,'A',n(obj.AField.Value),'AUnit',obj.AUnitDropDown.Value, ...
                     'UtilityTinSource',obj.UtilityTinSourceDropDown.Value, ...
@@ -64,10 +68,13 @@ classdef JacketDialog < handle
             obj.Figure=uifigure('Name','Jacket','Tag','NirpJacketDialog','Visible',visible, ...
                 'Position',[120 120 900 480],'WindowStyle','alwaysontop');
             main=uigridlayout(obj.Figure,[4 1],'RowHeight',{42,'1x',26,38},'Padding',[12 10 12 10]);
-            head=uigridlayout(main,[1 3],'ColumnWidth',{55,'1x',160});uilabel(head,'Text','Name','HorizontalAlignment','right');obj.NameField=uieditfield(head,'text');uibutton(head,'Text','Unit conversion helper','ButtonPushedFcn',@(~,~) UnitConverterHelper.launch());
+            head=uigridlayout(main,[1 5],'ColumnWidth',{55,'1x',50,190,160});uilabel(head,'Text','Name','HorizontalAlignment','right');obj.NameField=uieditfield(head,'text');
+            uilabel(head,'Text','Mode','HorizontalAlignment','right');obj.ModeDropDown=uidropdown(head,'Items',{'Utility (U*A)','Specified reactor T','Specified Q'},'ItemsData',{'Utility','Specified T','Specified Q'},'ValueChangedFcn',@(~,~) obj.updateVisibility());uibutton(head,'Text','Unit conversion helper','ButtonPushedFcn',@(~,~) UnitConverterHelper.launch());
             tabs=uitabgroup(main);general=uitab(tabs,'Title','Jacket');connections=uitab(tabs,'Title','Connections');
             grid=uigridlayout(general,[7 6],'ColumnWidth',{175,135,110,175,110,'1x'},'RowHeight',repmat({30},1,7));
             [obj.UField,obj.UUnitDropDown]=qty(grid,1,'U','HeatTransferCoefficient');
+            [obj.SpecifiedTField,obj.SpecifiedTUnitDropDown]=qty(grid,1,'Reactor temperature','Temperature');obj.SpecifiedTUnitDropDown.Items={'K',[char(176) 'C']};
+            [obj.SpecifiedQField,obj.SpecifiedQUnitDropDown]=qty(grid,1,'Heat duty (Q > 0 heats)','Power');
             [obj.AField,obj.AUnitDropDown]=qty(grid,2,'Area','Area');obj.APortLabel=portLabel(grid,2);
             [obj.UtilityTinField,obj.UtilityTinUnitDropDown]=qty(grid,3,'Utility inlet T','Temperature');obj.UtilityTinPortLabel=portLabel(grid,3);
             [obj.UtilityToutField,obj.UtilityToutUnitDropDown]=textqty(grid,4,'Utility outlet T (optional)','Temperature');
@@ -83,9 +90,20 @@ classdef JacketDialog < handle
             numeric={'U',obj.UField;'A',obj.AField;'UtilityTin',obj.UtilityTinField};for i=1:size(numeric,1),numeric{i,2}.Value=str2double(get_param(obj.BlockPath,numeric{i,1}));end
             text={'UtilityTout',obj.UtilityToutField;'UtilityCp',obj.UtilityCpField;'LatentHeat',obj.LatentHeatField};for i=1:size(text,1),text{i,2}.Value=get_param(obj.BlockPath,text{i,1});end
             values={'UUnit',obj.UUnitDropDown;'AUnit',obj.AUnitDropDown;'ASource',obj.ASourceDropDown;'UtilityTinUnit',obj.UtilityTinUnitDropDown;'UtilityTinSource',obj.UtilityTinSourceDropDown;'UtilityToutUnit',obj.UtilityToutUnitDropDown};for i=1:size(values,1),values{i,2}.Value=get_param(obj.BlockPath,values{i,1});end
+            obj.ModeDropDown.Value=get_param(obj.BlockPath,'Mode');obj.SpecifiedTField.Value=str2double(get_param(obj.BlockPath,'SpecifiedT'));obj.SpecifiedQField.Value=str2double(get_param(obj.BlockPath,'SpecifiedQ'));
+            obj.SpecifiedTUnitDropDown.Value=get_param(obj.BlockPath,'SpecifiedTUnit');obj.SpecifiedQUnitDropDown.Value=get_param(obj.BlockPath,'SpecifiedQUnit');
             obj.CondensesCheckBox.Value=ison(get_param(obj.BlockPath,'Condenses'));obj.updateVisibility();obj.captureModel();
         end
         function updateVisibility(obj)
+            % T-146: only the controls of the selected Jacket mode are shown.
+            mode=obj.ModeDropDown.Value;utility=strcmp(mode,'Utility');children=obj.UField.Parent.Children;
+            for i=1:numel(children),children(i).Visible=onoff(utility);end
+            specT={'Reactor temperature'};specQ={'Heat duty (Q > 0 heats)'};
+            labels=findobj(obj.UField.Parent,'Type','uilabel');
+            for i=1:numel(labels),if strcmp(labels(i).Text,specT{1}),labels(i).Visible=onoff(strcmp(mode,'Specified T'));elseif strcmp(labels(i).Text,specQ{1}),labels(i).Visible=onoff(strcmp(mode,'Specified Q'));end,end
+            set([obj.SpecifiedTField obj.SpecifiedTUnitDropDown],'Visible',onoff(strcmp(mode,'Specified T')));
+            set([obj.SpecifiedQField obj.SpecifiedQUnitDropDown],'Visible',onoff(strcmp(mode,'Specified Q')));
+            if ~utility,return,end
             inputA=strcmp(obj.ASourceDropDown.Value,'Input port');obj.AField.Visible=onoff(~inputA);obj.AField.Editable=onoff(~inputA);obj.APortLabel.Visible=onoff(inputA);if inputA,obj.APortLabel.Text=nirp.flowsheet.receivedValue(obj.BlockPath,'A','Area',obj.AUnitDropDown.Value,1);end
             inputTin=strcmp(obj.UtilityTinSourceDropDown.Value,'Input port');obj.UtilityTinField.Visible=onoff(~inputTin);obj.UtilityTinField.Editable=onoff(~inputTin);obj.UtilityTinPortLabel.Visible=onoff(inputTin);if inputTin,obj.UtilityTinPortLabel.Text=nirp.flowsheet.receivedValue(obj.BlockPath,'utilityTin','Temperature',obj.UtilityTinUnitDropDown.Value,1+inputA);end
             obj.LatentHeatField.Enable=onoff(obj.CondensesCheckBox.Value);

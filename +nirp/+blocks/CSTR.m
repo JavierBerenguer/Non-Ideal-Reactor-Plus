@@ -85,11 +85,6 @@ classdef CSTR < matlab.System
 
     methods (Access = protected)
         function setupImpl(obj)
-            if strcmp(obj.HeatMode,'Heat exchange')
-                error('nirp:blocks:jacketRequired', ...
-                    ['CSTR Heat exchange mode is obsolete. Add a Jacket block, ' ...
-                    'enable the Jacket input port, and connect it to the reactor.']) ;
-            end
             [obj.Model,pkg,obj.RS] = nirp.blocks.internal.modelPackage() ;
             obj.Block = get_param(gcb,'Name') ;
             if ~strcmp(obj.HeatMode,'Isothermal') || obj.ShowJacketPort
@@ -112,17 +107,8 @@ classdef CSTR < matlab.System
                 params.V = value ;
             end
             index = 1+strcmp(obj.VSource,'Input port') ;
-            if obj.ShowJacketPort
-                jacket = varargin{index} ;
-                if ~isnumeric(jacket) || ~isequal(size(jacket),[4 1]) || ...
-                        any(~isfinite(jacket(1:3))) || jacket(1)<0 || any(jacket(2:3)<=0) || ...
-                        (~isnan(jacket(4)) && (~isfinite(jacket(4)) || jacket(4)<=0))
-                    error('nirp:blocks:invalidJacket', ...
-                        'CSTR Jacket input must be [U; A; Tin; Tout] in SI, with Tout optionally NaN.') ;
-                end
-                params.heatMode = 'Other' ; params.U = jacket(1) ;
-                params.A = jacket(2) ; params.utilityTin = jacket(3) ;
-                if isnan(jacket(4)), params.utilityTout = [] ; else, params.utilityTout = jacket(4) ; end
+            if obj.hasJacket()
+                params = nirp.blocks.internal.applyJacket(params,varargin{index},'CSTR') ;
             end
             cacheInput = {in,varargin{:}} ;
             if obj.HasCache && isequaln(cacheInput,obj.LastInput)
@@ -139,7 +125,7 @@ classdef CSTR < matlab.System
         end
 
         function n = getNumInputsImpl(obj)
-            n = 1+strcmp(obj.VSource,'Input port')+double(obj.ShowJacketPort) ;
+            n = 1+strcmp(obj.VSource,'Input port')+double(obj.hasJacket()) ;
         end
         function n = getNumOutputsImpl(obj), n = 1+double(obj.ShowHeatPort) ; end
         function varargout = getOutputDataTypeImpl(obj)
@@ -159,7 +145,7 @@ classdef CSTR < matlab.System
             varargout{1} = 'Feed' ;
             index = 1 ;
             if strcmp(obj.VSource,'Input port'), index=index+1;varargout{index}='V (m^3)';end
-            if obj.ShowJacketPort, index=index+1;varargout{index}='Jacket';end
+            if obj.hasJacket(), index=index+1;varargout{index}='Jacket';end
         end
         function varargout = getOutputNamesImpl(obj)
             varargout{1} = 'Product' ;
@@ -177,5 +163,12 @@ classdef CSTR < matlab.System
         end
         function mode = getSimulateUsingImpl(), mode = 'Interpreted execution' ; end
         function flag = showSimulateUsingImpl(), flag = false ; end
+    end
+    methods (Access = private)
+        function flag = hasJacket(obj)
+            % T-146: Heat exchange opens the Jacket port; ShowJacketPort is
+            % kept for models saved before (Isothermal + Jacket port).
+            flag = strcmp(obj.HeatMode,'Heat exchange') || obj.ShowJacketPort ;
+        end
     end
 end

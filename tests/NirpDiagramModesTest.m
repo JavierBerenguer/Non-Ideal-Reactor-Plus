@@ -63,7 +63,7 @@ classdef NirpDiagramModesTest < matlab.unittest.TestCase
                 addUnit('modes_model',char(type),"nirp.blocks."+type,[240 120 350 190]);
                 d=nirp.flowsheet.ReactorDialog("modes_model/"+type,'Visible','off');
                 testCase.verifyEqual(sort(string({d.HeatModeGroup.Children.Text})), ...
-                    sort(["Isothermal","Adiabatic"]));
+                    sort(["Isothermal","Adiabatic","Heat exchange"]));
                 for name=["BypassField","SpecifiedTField","SpecifiedQField"]
                     testCase.verifyFalse(isprop(d,name));
                 end

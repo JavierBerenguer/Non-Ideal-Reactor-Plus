@@ -105,11 +105,6 @@ classdef PFR < matlab.System
     end
     methods (Access=protected)
         function setupImpl(obj)
-            if strcmp(obj.HeatMode,'Heat exchange')
-                error('nirp:blocks:jacketRequired', ...
-                    ['PFR Heat exchange mode is obsolete. Add a Jacket block, ' ...
-                    'enable the Jacket input port, and connect it to the reactor.']);
-            end
             [obj.Model,pkg,obj.RS]=nirp.blocks.internal.modelPackage(); obj.Block=get_param(gcb,'Name');
             if ~strcmp(obj.HeatMode,'Isothermal') || obj.ShowJacketPort
                 nirp.blocks.internal.requireThermodynamics(pkg,sprintf('PFR "%s"',obj.Block));
@@ -149,15 +144,8 @@ classdef PFR < matlab.System
                 params.V=value;
             end
             index=1+strcmp(obj.VSource,'Input port');
-            if obj.ShowJacketPort
-                jacket=varargin{index};
-                if ~isnumeric(jacket)||~isequal(size(jacket),[4 1])|| ...
-                        any(~isfinite(jacket(1:3)))||jacket(1)<0||any(jacket(2:3)<=0)|| ...
-                        (~isnan(jacket(4))&&(~isfinite(jacket(4))||jacket(4)<=0))
-                    error('nirp:blocks:invalidJacket','PFR Jacket input must be [U; A; Tin; Tout] in SI, with Tout optionally NaN.');
-                end
-                params.heatMode='Other';params.U=jacket(1);params.A=jacket(2);params.utilityTin=jacket(3);
-                if isnan(jacket(4)),params.utilityTout=[];else,params.utilityTout=jacket(4);end
+            if obj.hasJacket()
+                params=nirp.blocks.internal.applyJacket(params,varargin{index},'PFR');
             end
             if ~isfield(params,'V'),params.V=pi/4*params.D^2*params.nTubes*params.L;end
             cacheInput={in,varargin{:}};
@@ -169,13 +157,13 @@ classdef PFR < matlab.System
             end
             varargout{1}=out; if obj.ShowHeatPort, varargout{2}=info.heatDuty; end
         end
-        function n=getNumInputsImpl(obj),n=1+strcmp(obj.VSource,'Input port')+double(obj.ShowJacketPort);end
+        function n=getNumInputsImpl(obj),n=1+strcmp(obj.VSource,'Input port')+double(obj.hasJacket());end
         function n=getNumOutputsImpl(obj), n=1+double(obj.ShowHeatPort); end
         function varargout=getOutputDataTypeImpl(obj), varargout{1}='NirpStream'; if obj.ShowHeatPort,varargout{2}='double';end,end
         function varargout=getOutputSizeImpl(obj),varargout=repmat({[1 1]},1,1+double(obj.ShowHeatPort));end
         function varargout=isOutputFixedSizeImpl(obj),varargout=repmat({true},1,1+double(obj.ShowHeatPort));end
         function varargout=isOutputComplexImpl(obj),varargout=repmat({false},1,1+double(obj.ShowHeatPort));end
-        function varargout=getInputNamesImpl(obj),varargout{1}='Feed';index=1;if strcmp(obj.VSource,'Input port'),index=index+1;varargout{index}='V (m^3)';end;if obj.ShowJacketPort,index=index+1;varargout{index}='Jacket';end,end
+        function varargout=getInputNamesImpl(obj),varargout{1}='Feed';index=1;if strcmp(obj.VSource,'Input port'),index=index+1;varargout{index}='V (m^3)';end;if obj.hasJacket(),index=index+1;varargout{index}='Jacket';end,end
         function varargout=getOutputNamesImpl(obj),varargout{1}='Product';if obj.ShowHeatPort,varargout{2}='Heat (W)';end,end
         function icon=getIconImpl(~),icon='PFR';end
     end
@@ -185,5 +173,12 @@ classdef PFR < matlab.System
         end
         function mode=getSimulateUsingImpl(),mode='Interpreted execution';end
         function flag=showSimulateUsingImpl(),flag=false;end
+    end
+    methods (Access = private)
+        function flag = hasJacket(obj)
+            % T-146: Heat exchange opens the Jacket port; ShowJacketPort is
+            % kept for models saved before (Isothermal + Jacket port).
+            flag = strcmp(obj.HeatMode,'Heat exchange') || obj.ShowJacketPort ;
+        end
     end
 end

@@ -56,25 +56,37 @@ classdef NirpJacketTest < matlab.unittest.TestCase
             testCase.verifyTrue(isnan(jacket.ServiceFlow));
             testCase.verifyEqual(jacket.ServiceFlowUnit,"");
         end
-        function oldHeatExchangeDialogGuidesMigration(testCase)
+        function heatExchangeModeIsOfferedInDialog(testCase)
+            % T-146: Heat exchange is a reactor mode again and opens the Jacket port.
             createModel(testCase.Folder,'legacy_dialog',nirp.pkg.examples.problem27Jacketed());
             addSystem('legacy_dialog','CSTR','nirp.blocks.CSTR',[220 90 360 160],'HeatMode','Heat exchange');
+            ports=get_param('legacy_dialog/CSTR','PortHandles');testCase.verifyNumElements(ports.Inport,2);
             dialog=nirp.flowsheet.ReactorDialog('legacy_dialog/CSTR','Visible','off');testCase.addTeardown(@() deleteValid(dialog));
-            testCase.verifyEqual(dialog.HeatModeGroup.SelectedObject.Text,'Isothermal');
+            testCase.verifyEqual(dialog.HeatModeGroup.SelectedObject.Text,'Heat exchange');
             testCase.verifyEqual(dialog.StatusLabel.Text,'Not calculated yet');
             dialog.setHeatMode('Adiabatic');
             testCase.verifyTrue(dialog.apply());
             testCase.verifyEqual(get_param('legacy_dialog/CSTR','HeatMode'),'Adiabatic');
         end
-        function oldHeatExchangeModeExplainsMigration(testCase)
+        function heatExchangeWithoutJacketDoesNotRun(testCase)
             createModel(testCase.Folder,'legacy',nirp.pkg.examples.problem27Jacketed());
             addSystem('legacy','F1','nirp.blocks.Stream',[20 100 140 150],'Role','Feed');
             addSystem('legacy','CSTR','nirp.blocks.CSTR',[220 90 360 160],'HeatMode','Heat exchange');
             addSystem('legacy','Product','nirp.blocks.Stream',[430 100 550 150],'Role','Product');
             add_line('legacy','F1/1','CSTR/1');add_line('legacy','CSTR/1','Product/1');
             nirp.flowsheet.configure('legacy');
-            try,sim('legacy');testCase.assertFail('Expected obsolete mode to fail.');
-            catch exception,testCase.verifySubstring(getReport(exception,'basic','hyperlinks','off'),'Add a Jacket block');end
+            testCase.verifyError(@() sim('legacy'),?MException);
+        end
+        function jacketSpecifiedModesMatchCore(testCase)
+            % T-146: Specified reactor T and Specified Q through the Jacket.
+            buildModel(testCase.Folder,'jacket_modes','CSTR',NaN);load_system(fullfile(testCase.Folder,'jacket_modes.slx'));
+            pkg=nirp.pkg.examples.problem27Jacketed();rs=nirp.pkg.toReactionSys(pkg);feed=nirp.pkg.feedStream(pkg,"F1");
+            set_param('jacket_modes/Jacket','Mode','Specified T','SpecifiedT','330');sim('jacket_modes');
+            results=evalin('base','nirpResults');testCase.verifyEqual(results.Streams.Product.streamSI.T,330,'AbsTol',1e-6);
+            set_param('jacket_modes/Jacket','Mode','Specified Q','SpecifiedQ','-2e5');sim('jacket_modes');
+            results=evalin('base','nirpResults');
+            expected=nirp.units.cstr(struct('V',0.2,'heatMode','Specified Q','specifiedQ',-2e5),feed,rs);
+            verifyStream(testCase,results.Streams.Product.streamSI,expected);
         end
         function topologyTreatsJacketAsSignal(testCase)
             buildModel(testCase.Folder,'jacket_topology','CSTR',NaN);load_system(fullfile(testCase.Folder,'jacket_topology.slx'));
