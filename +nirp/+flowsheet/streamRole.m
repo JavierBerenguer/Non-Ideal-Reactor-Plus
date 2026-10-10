@@ -62,8 +62,9 @@ end
 function value = isMaterialPort(className,direction,port)
     % Simulink numbers ports from zero in PortConnectivity. Splitter has
     % only material outputs and Mixer has only material inputs; on every
-    % other supported unit the material connection is port zero.
+    % other supported unit the material connection is port zero. Separator
+    % outputs (Top and Bottom) are both material, like the Splitter (T-141).
     value = port == 0 || ...
-        (strcmp(direction,'in') && className == "nirp.blocks.Splitter") || ...
+        (strcmp(direction,'in') && any(className == ["nirp.blocks.Splitter","nirp.blocks.Separator"])) || ...
         (strcmp(direction,'out') && className == "nirp.blocks.Mixer") ;
 end

@@ -16,6 +16,8 @@ function setupUnitBlock(block)
             callback='nirp.flowsheet.AdjustDialog.open(gcb);';
         case "nirp.blocks.Splitter"
             callback='nirp.flowsheet.SplitterDialog.open(gcb);';
+        case "nirp.blocks.Separator"
+            callback='nirp.flowsheet.SeparatorDialog.open(gcb);';
         case "nirp.blocks.Mixer"
             callback='nirp.flowsheet.MixerDialog.open(gcb);';
         otherwise

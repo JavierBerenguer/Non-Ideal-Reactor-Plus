@@ -484,7 +484,7 @@ function row = emptyAdjustRow(block)
 end
 
 function [blocks,types] = functionalBlocks(model)
-    supported = ["CSTR","PFR","Heater","Jacket","Mixer","Splitter","Adjust","Recycle"] ;
+    supported = ["CSTR","PFR","Heater","Jacket","Mixer","Splitter","Separator","Adjust","Recycle"] ;
     paths = find_system(model,'LookUnderMasks','all','SearchDepth',1, ...
         'BlockType','MATLABSystem') ;
     blocks = cell(0,1) ; types = strings(0,1) ;
