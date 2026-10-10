@@ -14,7 +14,7 @@ classdef ReactorDialog < handle
         ViscosityField; ViscosityUnitDropDown; CatalyticCheckBox
         CatalystDensityField; CatalystPorosityField; InitialTField
         InitialTUnitDropDown; VSourceDropDown; HeatPortCheckBox
-        JacketPortCheckBox; VPortLabel
+        JacketPortCheckBox; VPortLabel; ReactionsTable
         ConnectionTable; StatusLabel; DataModel
     end
     properties (Access=private)
@@ -57,6 +57,7 @@ classdef ReactorDialog < handle
                 names=[names {'GeometryMode','L','LUnit','D','DUnit','NTubes','PressureMode','PressureDropEqn','ParticleDiameter','ParticleDiameterUnit','Density','DensityUnit','Viscosity','ViscosityUnit'}];
                 raw=[obj.VField.Value obj.LField.Value obj.DField.Value obj.NTubesField.Value];raw(obj.GeometryOrigins=="calculated")=NaN;values{1}=n(raw(1));values=[values {'Length',n(raw(2)),obj.LUnitDropDown.Value,n(raw(3)),obj.DUnitDropDown.Value,n(raw(4)),obj.PressureModeGroup.SelectedObject.Text,obj.PressureEquationGroup.SelectedObject.Text,n(obj.ParticleDiameterField.Value),obj.ParticleDiameterUnitDropDown.Value,n(obj.DensityField.Value),obj.DensityUnitDropDown.Value,n(obj.ViscosityField.Value),obj.ViscosityUnitDropDown.Value}];
             end
+            names{end+1}='Reactions';values{end+1}=obj.selectedReactions();
             args=reshape([names;values],1,[]);set_param(obj.BlockPath,args{:});
             newName=strtrim(obj.NameField.Value);if isempty(newName),error('nirp:flowsheet:invalidName','Name cannot be empty.');end
             if ~strcmp(newName,get_param(obj.BlockPath,'Name')),set_param(obj.BlockPath,'Name',newName);obj.BlockPath=getfullname([bdroot(obj.BlockPath) '/' newName]);end
@@ -76,7 +77,9 @@ classdef ReactorDialog < handle
             head=uigridlayout(main,[1 5],'ColumnWidth',{160,55,'1x',50,220});
             uibutton(head,'Text','Unit conversion helper','ButtonPushedFcn',@(~,~) UnitConverterHelper.launch());uilabel(head,'Text','Name','HorizontalAlignment','right');
             obj.NameField=uieditfield(head,'text');uilabel(head,'Text','Type','HorizontalAlignment','right');obj.TypeField=uieditfield(head,'text','Editable','off');
-            tabs=uitabgroup(main); general=uitab(tabs,'Title','Reactor');connections=uitab(tabs,'Title','Connections');advanced=uitab(tabs,'Title','Advanced');
+            tabs=uitabgroup(main); general=uitab(tabs,'Title','Reactor');reactionsTab=uitab(tabs,'Title','Reactions');connections=uitab(tabs,'Title','Connections');advanced=uitab(tabs,'Title','Advanced');
+            rgrid=uigridlayout(reactionsTab,[2 1],'RowHeight',{30,'1x'});uilabel(rgrid,'Text','Reactions that take place in this reactor (all by default)','FontWeight','bold');
+            obj.ReactionsTable=uitable(rgrid,'ColumnName',{'Use','Reaction'},'ColumnEditable',[true false],'ColumnWidth',{50,'auto'},'RowName',{});
             grid=uigridlayout(general,[15 6],'ColumnWidth',{145,110,105,145,110,105}, ...
                 'RowHeight',repmat({26},1,15),'RowSpacing',2,'Padding',[5 5 5 5]);obj.GeneralGrid=grid;
             [obj.VField,obj.VUnitDropDown]=qty(grid,1,1,'Volume','Volume');obj.VPortLabel=portLabel(grid,1,2);
@@ -102,7 +105,7 @@ classdef ReactorDialog < handle
         function load(obj)
             obj.NameField.Value=get_param(obj.BlockPath,'Name');obj.TypeField.Value=char(obj.ReactorType);
             pairs={'V',obj.VField;'CatalystDensity',obj.CatalystDensityField;'CatalystPorosity',obj.CatalystPorosityField};for i=1:size(pairs,1),value=str2double(get_param(obj.BlockPath,pairs{i,1}));if ~isnan(value),pairs{i,2}.Value=value;end,end
-            obj.InitialTField.Value=get_param(obj.BlockPath,'InitialTGuess');
+            obj.InitialTField.Value=get_param(obj.BlockPath,'InitialTGuess');obj.loadReactions();
             units={'VUnit',obj.VUnitDropDown;'InitialTGuessUnit',obj.InitialTUnitDropDown;'VSource',obj.VSourceDropDown};for i=1:size(units,1),units{i,2}.Value=get_param(obj.BlockPath,units{i,1});end
             legacy=get_param(obj.BlockPath,'HeatMode');if ison(get_param(obj.BlockPath,'ShowJacketPort')),legacy='Heat exchange';end
             obj.setHeatMode(legacy);obj.JacketPortCheckBox.Value=ison(get_param(obj.BlockPath,'ShowJacketPort'));obj.HeatPortCheckBox.Value=ison(get_param(obj.BlockPath,'ShowHeatPort'));obj.CatalyticCheckBox.Value=obj.CatalystDensityField.Value~=1||obj.CatalystPorosityField.Value~=0;
@@ -128,6 +131,24 @@ classdef ReactorDialog < handle
         function refreshConnections(obj)
             graph=nirp.flowsheet.topology(bdroot(obj.BlockPath));key=matlab.lang.makeValidName(get_param(obj.BlockPath,'Name'));data=cell(0,3);jacket='';if isfield(graph.Units,key),item=graph.Units.(key);ports=get_param(obj.BlockPath,'PortHandles');for i=1:numel(item.Inputs),label=joinNames(item.Inputs{i});if isempty(item.Inputs{i})&&i<=numel(ports.Inport),label=signalLabel(ports.Inport(i));end;if contains(label,'Jacket (signal):'),jacket=extractAfter(label,'Jacket (signal): ');end;data(end+1,:)={'Input',i,label};end;for i=1:numel(item.Outputs),data(end+1,:)={'Output',i,joinNames(item.Outputs{i})};end;end;obj.ConnectionTable.Data=data;obj.HeatModeGroup.Visible='on';if isempty(jacket),obj.JacketStatusLabel.Text='Heat exchange: connect a Jacket block to the Jacket port';else,name=char(jacket);if ~startsWith(jacket,"Jacket"),name=['Jacket ' name];end;obj.JacketStatusLabel.Text=['Heat exchange: ' name];end;obj.JacketStatusLabel.Visible=onoff(strcmp(obj.HeatModeGroup.SelectedObject.Text,'Heat exchange'));
         end
+        function loadReactions(obj)
+            % T-147: one row per package reaction; empty Reactions means all.
+            try,pkg=nirp.pkg.readDictionary(nirp.flowsheet.modelDictionary(bdroot(obj.BlockPath)));catch,obj.ReactionsTable.Data=cell(0,2);return,end
+            names=string({pkg.components.name});stoich=pkg.reactions.stoich;nR=size(stoich,1);
+            try,used=nirp.pkg.reactionIndices(pkg,get_param(obj.BlockPath,'Reactions'));catch,used=1:nR;end
+            data=cell(nR,2);for i=1:nR,data{i,1}=any(used==i);data{i,2}=reactionLabel(i,stoich(i,:),names);end
+            obj.ReactionsTable.Data=data;
+        end
+        function setReactionSelection(obj,value)
+            data=obj.ReactionsTable.Data;used=nirp.pkg.reactionIndices(struct('reactions',struct('stoich',zeros(size(data,1),1))),value);
+            for i=1:size(data,1),data{i,1}=any(used==i);end;obj.ReactionsTable.Data=data;
+        end
+        function text=selectedReactions(obj)
+            data=obj.ReactionsTable.Data;if isempty(data),text='';return,end
+            used=find(cell2mat(data(:,1)))';
+            if isempty(used),error('nirp:flowsheet:noReactions','Select at least one reaction.');end
+            if numel(used)==size(data,1),text='';else,text=['[' char(strjoin(string(used),' ')) ']'];end
+        end
         function captureModel(obj)
             q=@(v,u) struct('value',v,'unit',string(u),'origin',"specified");obj.DataModel=struct('V',q(obj.VField.Value,obj.VUnitDropDown.Value),'CatalystDensity',q(obj.CatalystDensityField.Value,'kg/m^3'),'CatalystPorosity',q(obj.CatalystPorosityField.Value,'1'),'InitialTGuess',q(optionalValue(obj.InitialTField),obj.InitialTUnitDropDown.Value));if obj.ReactorType=="PFR",obj.DataModel.L=q(obj.LField.Value,obj.LUnitDropDown.Value);obj.DataModel.D=q(obj.DField.Value,obj.DUnitDropDown.Value);obj.DataModel.NTubes=q(obj.NTubesField.Value,'1');obj.DataModel.ParticleDiameter=q(obj.ParticleDiameterField.Value,obj.ParticleDiameterUnitDropDown.Value);obj.DataModel.Density=q(obj.DensityField.Value,obj.DensityUnitDropDown.Value);obj.DataModel.Viscosity=q(obj.ViscosityField.Value,obj.ViscosityUnitDropDown.Value);end
             if obj.ReactorType=="PFR",names={'V','L','D','NTubes'};for i=1:4,obj.DataModel.(names{i}).origin=obj.GeometryOrigins(i);end,end
@@ -150,7 +171,7 @@ classdef ReactorDialog < handle
         function geometryModeChanged(obj),if obj.ReactorType~="PFR"||obj.UpdatingGeometry,return,end;if strcmp(obj.GeometryModeDropDown.Value,'Length'),obj.GeometryOrigins(1)="calculated";obj.GeometryOrigins(2)="specified";else,obj.GeometryOrigins(1)="specified";obj.GeometryOrigins(2)="calculated";end;obj.closeGeometry();end
         function finishGeometryUpdate(obj),obj.UpdatingGeometry=false;end
         function setOne(obj,name,value)
-            key=lower(char(string(name)));map=struct('v','VField','l','LField','d','DField','ntubes','NTubesField','particlediameter','ParticleDiameterField','density','DensityField','viscosity','ViscosityField','catalystdensity','CatalystDensityField','catalystporosity','CatalystPorosityField','initialtguess','InitialTField','vsource','VSourceDropDown','showjacketport','JacketPortCheckBox');if strcmp(key,'heatmode'),obj.setHeatMode(value);elseif strcmp(key,'showjacketport'),if ison(value),obj.setHeatMode('Heat exchange');end;elseif isfield(map,key),field=obj.(map.(key));index=[];if obj.ReactorType=="PFR",index=find(strcmp(key,{'v','l','d','ntubes'}),1);end;if ~isempty(index)&&isnumeric(value)&&isscalar(value)&&isnan(value),obj.GeometryOrigins(index)="calculated";elseif isa(field,'matlab.ui.control.EditField'),field.Value=char(string(value));elseif isa(field,'matlab.ui.control.CheckBox'),field.Value=ison(value);else,field.Value=value;if ~isempty(index),obj.GeometryOrigins(index)="specified";end,end;else,error('nirp:flowsheet:unknownParameter','Unknown reactor parameter "%s".',name);end
+            key=lower(char(string(name)));map=struct('v','VField','l','LField','d','DField','ntubes','NTubesField','particlediameter','ParticleDiameterField','density','DensityField','viscosity','ViscosityField','catalystdensity','CatalystDensityField','catalystporosity','CatalystPorosityField','initialtguess','InitialTField','vsource','VSourceDropDown','showjacketport','JacketPortCheckBox');if strcmp(key,'heatmode'),obj.setHeatMode(value);elseif strcmp(key,'reactions'),obj.setReactionSelection(value);elseif strcmp(key,'showjacketport'),if ison(value),obj.setHeatMode('Heat exchange');end;elseif isfield(map,key),field=obj.(map.(key));index=[];if obj.ReactorType=="PFR",index=find(strcmp(key,{'v','l','d','ntubes'}),1);end;if ~isempty(index)&&isnumeric(value)&&isscalar(value)&&isnan(value),obj.GeometryOrigins(index)="calculated";elseif isa(field,'matlab.ui.control.EditField'),field.Value=char(string(value));elseif isa(field,'matlab.ui.control.CheckBox'),field.Value=ison(value);else,field.Value=value;if ~isempty(index),obj.GeometryOrigins(index)="specified";end,end;else,error('nirp:flowsheet:unknownParameter','Unknown reactor parameter "%s".',name);end
         end
     end
 end
@@ -170,6 +191,12 @@ function value=onoff(flag),if flag,value='on';else,value='off';end,end
 function flag=ison(value),if islogical(value)||isnumeric(value),flag=logical(value);else,flag=strcmp(value,'on')||strcmp(value,'1');end,end
 function value=n(x),value=num2str(x,17);end
 function value=optionalValue(field),value=str2double(field.Value);if ~(isfinite(value)||isnan(value)),error('nirp:flowsheet:invalidParameter','Optional temperature must be numeric or NaN.');end,end
+function text=reactionLabel(index,coefficients,names)
+    sides={'',''};for side=1:2,if side==1,c=-min(coefficients,0);else,c=max(coefficients,0);end
+        terms=strings(0,1);for k=find(c>0),if abs(c(k)-1)<1e-12,terms(end+1)=names(k);else,terms(end+1)=sprintf('%g %s',c(k),names(k));end,end %#ok<AGROW>
+        sides{side}=char(strjoin(terms,' + '));end
+    text=sprintf('R%d: %s %s %s',index,sides{1},char(8594),sides{2});
+end
 function value=joinNames(names),if isempty(names),value='<missing>';else,value=char(strjoin(string(names),', '));end,end
 function value=signalLabel(port)
     % T-131: a parameter port fed by a signal block (e.g. an Adjust) is a

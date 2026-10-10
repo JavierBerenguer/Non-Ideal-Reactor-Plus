@@ -36,6 +36,8 @@ classdef PFR < matlab.System
         InitialTGuess = NaN
         % Initial-temperature-guess unit.
         InitialTGuessUnit = 'K'
+        % Reactions that take place here (package numbers); empty = all.
+        Reactions = ''
         % Pressure calculation mode.
         PressureMode = 'Constant'
         % Pressure-drop correlation (Pipe or Ergun).
@@ -106,6 +108,10 @@ classdef PFR < matlab.System
     methods (Access=protected)
         function setupImpl(obj)
             [obj.Model,pkg,obj.RS]=nirp.blocks.internal.modelPackage(); obj.Block=get_param(gcb,'Name');
+            if ~isempty(obj.Reactions) && any(strlength(strtrim(string(obj.Reactions))) > 0)
+                % T-147: the reactor only uses the selected reactions.
+                obj.RS = nirp.pkg.toReactionSys(nirp.pkg.selectReactions(pkg,obj.Reactions)) ;
+            end
             if ~strcmp(obj.HeatMode,'Isothermal') || obj.ShowJacketPort
                 nirp.blocks.internal.requireThermodynamics(pkg,sprintf('PFR "%s"',obj.Block));
             end
@@ -169,7 +175,7 @@ classdef PFR < matlab.System
     end
     methods (Static,Access=protected)
         function groups=getPropertyGroupsImpl()
-            groups=matlab.system.display.Section('Title','PFR','PropertyList',{'GeometryMode','VSource','V','VUnit','L','LUnit','D','DUnit','NTubes','HeatMode','CatalystDensity','CatalystPorosity','InitialTGuess','InitialTGuessUnit','PressureMode','PressureDropEqn','ParticleDiameter','ParticleDiameterUnit','Density','DensityUnit','Viscosity','ViscosityUnit','ShowJacketPort','ShowHeatPort'});
+            groups=matlab.system.display.Section('Title','PFR','PropertyList',{'GeometryMode','VSource','V','VUnit','L','LUnit','D','DUnit','NTubes','HeatMode','CatalystDensity','CatalystPorosity','InitialTGuess','InitialTGuessUnit','Reactions','PressureMode','PressureDropEqn','ParticleDiameter','ParticleDiameterUnit','Density','DensityUnit','Viscosity','ViscosityUnit','ShowJacketPort','ShowHeatPort'});
         end
         function mode=getSimulateUsingImpl(),mode='Interpreted execution';end
         function flag=showSimulateUsingImpl(),flag=false;end

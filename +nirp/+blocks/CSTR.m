@@ -24,6 +24,8 @@ classdef CSTR < matlab.System
         InitialTGuess = NaN
         % Initial-temperature-guess unit.
         InitialTGuessUnit = 'K'
+        % Reactions that take place here (package numbers); empty = all.
+        Reactions = ''
         % Show the heat-duty output port.
         ShowHeatPort (1,1) logical = false
         % Show the Jacket signal input port.
@@ -86,6 +88,10 @@ classdef CSTR < matlab.System
     methods (Access = protected)
         function setupImpl(obj)
             [obj.Model,pkg,obj.RS] = nirp.blocks.internal.modelPackage() ;
+            if ~isempty(obj.Reactions) && any(strlength(strtrim(string(obj.Reactions))) > 0)
+                % T-147: the reactor only uses the selected reactions.
+                obj.RS = nirp.pkg.toReactionSys(nirp.pkg.selectReactions(pkg,obj.Reactions)) ;
+            end
             obj.Block = get_param(gcb,'Name') ;
             if ~strcmp(obj.HeatMode,'Isothermal') || obj.ShowJacketPort
                 nirp.blocks.internal.requireThermodynamics(pkg,sprintf('CSTR "%s"',obj.Block)) ;
@@ -159,7 +165,7 @@ classdef CSTR < matlab.System
             groups = matlab.system.display.Section('Title','CSTR', ...
                 'PropertyList',{'VSource','V','VUnit','HeatMode', ...
                 'CatalystDensity','CatalystPorosity','InitialTGuess', ...
-                'InitialTGuessUnit','ShowJacketPort','ShowHeatPort'}) ;
+                'InitialTGuessUnit','Reactions','ShowJacketPort','ShowHeatPort'}) ;
         end
         function mode = getSimulateUsingImpl(), mode = 'Interpreted execution' ; end
         function flag = showSimulateUsingImpl(), flag = false ; end
