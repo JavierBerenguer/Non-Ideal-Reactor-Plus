@@ -48,12 +48,12 @@ function out = registry(action,model,key,value)
             if isKey(models,model), out = models(model).Count ; else, out = 0 ; end
         case 'list'
             if ~isKey(models,model)
-                out = struct('key',{},'converged',{},'status',{},'kind',{},'iteration',{}) ;
+                out = struct('key',{},'converged',{},'status',{},'kind',{},'iteration',{},'finalError',{}) ;
                 return
             end
             entries = models(model) ;
             keysCell = keys(entries) ;
-            out = repmat(struct('key','','converged',false,'status',0,'kind','','iteration',0), ...
+            out = repmat(struct('key','','converged',false,'status',0,'kind','','iteration',0,'finalError',NaN), ...
                 numel(keysCell),1) ;
             for i = 1:numel(keysCell)
                 item = entries(keysCell{i}) ;
@@ -62,6 +62,7 @@ function out = registry(action,model,key,value)
                 out(i).status = item.status ;
                 out(i).kind = item.kind ;
                 out(i).iteration = item.iteration ;
+                if isfield(item,'finalError'), out(i).finalError = item.finalError ; end
             end
         otherwise
             error('nirp:flowsheet:registry','Unknown registry action "%s".',action) ;

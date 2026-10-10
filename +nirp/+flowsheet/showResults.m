@@ -38,8 +38,10 @@ function tables = showResults(model,varargin)
     tables = struct() ;
     tables.Units = emptyUnitTable() ;
     tables.Adjust = emptyAdjustTable() ;
+    tables.Recycles = emptyRecycleTable() ;
     if modelLoaded
         [tables.Units,tables.Adjust] = unitTables(model,results) ;
+        tables.Recycles = recycleTable(model) ;
     end
     profileDisplays = struct([]) ;
     if modelLoaded
@@ -78,8 +80,8 @@ function tables = showResults(model,varargin)
         'Padding',[10 10 10 10]) ;
     tabs = uitabgroup(figureGrid) ;
     unitTab = uitab(tabs,'Title','Units') ;
-    unitGrid = uigridlayout(unitTab,[4 1], ...
-        'RowHeight',{22,'1x',22,'1x'},'Padding',[10 10 10 10]) ;
+    unitGrid = uigridlayout(unitTab,[6 1], ...
+        'RowHeight',{22,'1x',22,'1x',22,'0.6x'},'Padding',[10 10 10 10]) ;
     uilabel(unitGrid,'Text','Units','FontWeight','bold') ;
     % Keep each result and unit in its typed column. The table deliberately
     % scrolls horizontally so neither engineering values nor headings are
@@ -90,6 +92,8 @@ function tables = showResults(model,varargin)
     uilabel(unitGrid,'Text','Adjust','FontWeight','bold') ;
     createDisplayTable(unitGrid,tables.Adjust,4, ...
         {115,130,55,80,95,105,70,90,75,80,75,160},true) ;
+    uilabel(unitGrid,'Text','Recycle','FontWeight','bold') ;
+    createDisplayTable(unitGrid,tables.Recycles,6,{115,90,80,80,110,90,320}) ;
     messageTab = uitab(tabs,'Title',messageTabTitle(tables.Messages)) ;
     messageGrid = uigridlayout(messageTab,[1 1], ...
         'Padding',[10 10 10 10]) ;
@@ -98,7 +102,7 @@ function tables = showResults(model,varargin)
         createPfrProfileTab(tabs,profileDisplays) ;
     end
     names = setdiff(fieldnames(tables), ...
-        {'Units','Adjust','Messages','Profiles'},'stable') ;
+        {'Units','Adjust','Recycles','Messages','Profiles'},'stable') ;
     for i = 1:numel(names)
         tab = uitab(tabs,'Title',names{i}) ;
         grid = uigridlayout(tab,[1 1],'Padding',[10 10 10 10]) ;
@@ -304,8 +308,12 @@ function messages = messageTable(model,results,modelLoaded)
         else
             parts = split(string(entries(i).key),'/') ; block = parts(end) ;
         end
+        message = kind+" did not converge." ;
+        if kind == "Recycle" && isfinite(entries(i).finalError)
+            message = message+sprintf(" Final relative error %.3g.",entries(i).finalError) ;
+        end
         [severity,blocks,text] = appendMessage(severity,blocks,text, ...
-            "Warning",block,kind+" did not converge.") ;
+            "Warning",block,message) ;
     end
     if isfield(results,'Flowsheet') && isstruct(results.Flowsheet) && ...
             isfield(results.Flowsheet,'notConverged') && ...
@@ -461,6 +469,47 @@ function value = emptyUnitTable()
         'double','string','double','string','double','string','double','string', ...
         'double','string','double','string','string'}, ...
         'VariableNames',columns) ;
+end
+
+function value = emptyRecycleTable()
+    columns = {'Block','Method','Converged','Iterations','FinalError','Tolerance','TearStream'} ;
+    value = table('Size',[0 numel(columns)], ...
+        'VariableTypes',{'string','string','double','double','double','double','string'}, ...
+        'VariableNames',columns) ;
+end
+
+function value = recycleTable(model)
+    % T-142: one row per Recycle block with its convergence and tear stream.
+    value = emptyRecycleTable() ;
+    blocks = find_system(model,'LookUnderMasks','all','SearchDepth',1, ...
+        'BlockType','MATLABSystem','System','nirp.blocks.Recycle') ;
+    entries = nirp.flowsheet.registry('list',model) ;
+    for i = 1:numel(blocks)
+        block = blocks{i} ; converged = NaN ; iterations = NaN ; finalError = NaN ;
+        index = find(strcmp({entries.key},block),1) ;
+        if ~isempty(index)
+            converged = double(entries(index).converged) ;
+            iterations = double(entries(index).iteration) ;
+            finalError = entries(index).finalError ;
+        end
+        value(end+1,:) = {string(get_param(block,'Name')),string(get_param(block,'Method')), ...
+            converged,iterations,finalError,str2double(get_param(block,'Tolerance')), ...
+            tearStream(block)} ; %#ok<AGROW>
+    end
+end
+
+function text = tearStream(block)
+    ports = get_param(block,'PortConnectivity') ; source = "<missing>" ; targets = strings(0,1) ;
+    for i = 1:numel(ports)
+        if ~isempty(ports(i).SrcBlock) && all(ports(i).SrcBlock ~= -1)
+            source = string(get_param(ports(i).SrcBlock,'Name')) ;
+        end
+        for handle = ports(i).DstBlock(:)'
+            targets(end+1,1) = string(get_param(handle,'Name')) ; %#ok<AGROW>
+        end
+    end
+    if isempty(targets), targets = "<missing>" ; end
+    text = source+" -> "+strjoin(targets,", ") ;
 end
 
 function value = emptyAdjustTable()
