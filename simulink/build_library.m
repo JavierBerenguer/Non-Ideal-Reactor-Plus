@@ -23,7 +23,7 @@ function libraryFile = build_library(folder)
             'System',['nirp.blocks.' classes{i}],'Position', ...
             [40+col*320 50+row*115 320+col*320 125+row*115]);
         if strcmp(classes{i},'Stream')
-            set_param(block,'Role','Auto');nirp.flowsheet.setupStreamBlock(block);
+            set_param(block,'Role','Intermediate');nirp.flowsheet.setupStreamBlock(block);
         else
             nirp.flowsheet.setupUnitBlock(block);
         end

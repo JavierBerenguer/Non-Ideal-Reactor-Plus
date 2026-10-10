@@ -105,7 +105,9 @@ classdef NirpStreamRoleTest < matlab.unittest.TestCase
                 'missing_auto_feed/Fresh','Visible','off') ;
             testCase.addTeardown(@() deleteValid(dialog)) ;
             testCase.verifyEqual(dialog.getValue('Role'),"Feed") ;
-            testCase.verifyEqual(string(dialog.RoleDropDown.Items{1}),"Feed (auto)") ;
+            % T-145: opening the dialog replaces the old Auto role by the deduced one.
+            testCase.verifyEqual(string(get_param('missing_auto_feed/Fresh','Role')),"Feed") ;
+            testCase.verifyEqual(dialog.RoleDropDown.Items,{'Feed','Intermediate','Product'}) ;
             testCase.verifySubstring(dialog.getValue('Status'), ...
                 "Feed data are not defined") ;
             dialog.RoleDropDown.Value = 'Product' ;
@@ -115,14 +117,14 @@ classdef NirpStreamRoleTest < matlab.unittest.TestCase
             testCase.verifyEqual(dialog.getValue('Role'),"Product") ;
         end
 
-        function libraryContainsOneVisibleAutoStream(testCase)
+        function libraryContainsOneVisibleIntermediateStream(testCase)
             libraryFile = build_library(testCase.Folder) ;
             load_system(libraryFile) ;
             streams = find_system('NirpLibrary','SearchDepth',1, ...
                 'BlockType','MATLABSystem','System','nirp.blocks.Stream') ;
             testCase.verifyNumElements(streams,1) ;
             testCase.verifyEqual(string(get_param(streams{1},'Name')),"Stream") ;
-            testCase.verifyEqual(string(get_param(streams{1},'Role')),"Auto") ;
+            testCase.verifyEqual(string(get_param(streams{1},'Role')),"Intermediate") ;
         end
     end
 end

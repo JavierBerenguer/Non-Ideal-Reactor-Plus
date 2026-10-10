@@ -15,7 +15,7 @@ classdef SplitterDialog < handle
         function setFractions(obj,fractions),fractions=fractions(:);if numel(fractions)<2||numel(fractions)>20,error('nirp:flowsheet:invalidPorts','A Splitter requires 2 to 20 outlets.');end;d=cell(numel(fractions),2);old=obj.FractionTable.Data;for i=1:numel(fractions),if i<=size(old,1),d{i,1}=old{i,1};else,d{i,1}='<missing>';end;d{i,2}=fractions(i);end;obj.FractionTable.Data=d;obj.closeFractions(repmat("specified",1,numel(fractions)));end
         function values=getValues(obj),values=obj.DataModel;end
         function applied=apply(obj),applied=obj.closeFractions(obj.DataModel.Fractions.origin);if ~applied,return,end;fractions=obj.DataModel.Fractions.value;fractions(obj.DataModel.Fractions.origin=="calculated")=NaN;try,set_param(obj.BlockPath,'Fractions',mat2str(fractions,17));set_param(bdroot(obj.BlockPath),'SimulationCommand','update');obj.StatusLabel.Text='Applied.';obj.refreshConnections();catch exception,obj.StatusLabel.Text=exception.message;applied=false;end,end
-        function accept(obj),if obj.apply(),delete(obj);end,end
+        function accept(obj),if obj.apply(),block=obj.BlockPath;delete(obj);nirp.flowsheet.autoRun(block);end,end
         function cancel(obj),delete(obj);end
     end
     methods (Static),function dialog=open(blockPath),dialog=nirp.flowsheet.SplitterDialog(blockPath);end,end

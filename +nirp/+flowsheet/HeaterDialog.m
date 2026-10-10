@@ -26,7 +26,7 @@ classdef HeaterDialog < handle
             set_param(obj.BlockPath,'Mode',obj.ModeGroup.SelectedObject.Text,'Tout',num2str(obj.ToutField.Value,17),'ToutUnit',obj.ToutUnitDropDown.Value,'Duty',num2str(obj.DutyField.Value,17),'DutyUnit',obj.DutyUnitDropDown.Value,'PressureDrop',num2str(obj.PressureDropField.Value,17),'PressureDropUnit',obj.PressureDropUnitDropDown.Value,'ShowHeatPort',onoff(obj.HeatPortCheckBox.Value));
             if ~strcmp(name,get_param(obj.BlockPath,'Name')),set_param(obj.BlockPath,'Name',name);obj.BlockPath=[bdroot(obj.BlockPath) '/' name];end;obj.StatusLabel.Text='Applied.';obj.captureModel();obj.refreshConnections();applied=true;catch exception,obj.StatusLabel.Text=exception.message;end
         end
-        function accept(obj),if obj.apply(),delete(obj);end,end
+        function accept(obj),if obj.apply(),block=obj.BlockPath;delete(obj);nirp.flowsheet.autoRun(block);end,end
         function cancel(obj),delete(obj);end
     end
     methods (Static),function dialog=open(blockPath),dialog=nirp.flowsheet.HeaterDialog(blockPath);end,end

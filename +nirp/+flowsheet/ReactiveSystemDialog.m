@@ -21,6 +21,7 @@ classdef ReactiveSystemDialog < handle
         ReactionCountSpinner
         MaxIterationsField
         ShowResultsCheckBox
+        AutoRunCheckBox
         StoichTable
         ThermoComponentTable
         ThermoReactionTable
@@ -288,7 +289,8 @@ classdef ReactiveSystemDialog < handle
             load_system(modelFile) ; block=findFlowsheet(name) ;
             if ~isempty(block)
                 set_param(block,'MaxIterations',num2str(obj.MaxIterationsField.Value), ...
-                    'ShowResultsAfterRun',onOff(obj.ShowResultsCheckBox.Value)) ;
+                    'ShowResultsAfterRun',onOff(obj.ShowResultsCheckBox.Value), ...
+                    'AutoRun',onOff(obj.AutoRunCheckBox.Value)) ;
                 nirp.flowsheet.configure(name) ; save_system(name) ;
             end
         end
@@ -326,6 +328,8 @@ classdef ReactiveSystemDialog < handle
                 end
             end
             nirp.flowsheet.configure(char(string(model))) ;
+            block=findFlowsheet(model) ;
+            if ~isempty(block), set_param(block,'AutoRun',onOff(obj.AutoRunCheckBox.Value)) ; end
             if changed
                 obj.StatusLabel.Text = ['Package saved. The component count changed; ' ...
                     'NirpStream was regenerated. Run the model again.'] ;
@@ -376,14 +380,16 @@ classdef ReactiveSystemDialog < handle
             obj.ReactionTab = uitab(tabs,'Title','Kinetics') ;
             obj.FeedTab = uitab(tabs,'Title','Thermodynamics') ;
             obj.buildComponents() ; obj.buildReactions() ; obj.buildFeeds() ;
-            settings=uigridlayout(main,[1 8],'ColumnWidth',{135,90,170,110,'1x',110,110,10});
+            settings=uigridlayout(main,[1 6],'ColumnWidth',{135,90,170,250,110,'1x'});
             uilabel(settings,'Text','Maximum iterations');
             obj.MaxIterationsField=uieditfield(settings,'numeric','Limits',[1 Inf], ...
                 'RoundFractionalValues','on','Value',200);
             obj.ShowResultsCheckBox=uicheckbox(settings,'Text','Show results after run','Value',true);
+            obj.AutoRunCheckBox=uicheckbox(settings,'Text','Auto-run when a dialog is accepted','Value',true);
             if obj.Mode=="edit"
                 block=findFlowsheet(obj.Model);
                 if ~isempty(block),obj.MaxIterationsField.Value=str2double(get_param(block,'MaxIterations'));obj.ShowResultsCheckBox.Value=strcmp(get_param(block,'ShowResultsAfterRun'),'on');end
+                if ~isempty(block)&&any(strcmp(get_param(block,'MaskNames'),'AutoRun')),obj.AutoRunCheckBox.Value=strcmp(get_param(block,'AutoRun'),'on');end
                 uibutton(settings,'Text','Show results','ButtonPushedFcn',@(~,~) nirp.flowsheet.showResults(obj.Model));
             end
             controls = uigridlayout(main,[1 4]) ;
@@ -752,7 +758,10 @@ classdef ReactiveSystemDialog < handle
         end
 
         function acceptDialog(obj)
-            if obj.applyDialog(),delete(obj);end
+            if obj.applyDialog()
+                model=obj.Model;delete(obj);
+                if strlength(model)>0,nirp.flowsheet.autoRun(model);end
+            end
         end
 
         function createInteractive(obj)

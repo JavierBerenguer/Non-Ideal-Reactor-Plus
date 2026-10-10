@@ -29,6 +29,16 @@ function configure(modelName)
     flowsheets = find_system(model,'SearchDepth',1,'BlockType','SubSystem') ;
     maxIterations = 200 ;
     for i = 1:numel(flowsheets)
+        % T-145: Flowsheet blocks created before the Auto-run option get it.
+        if strcmp(get_param(flowsheets{i},'Mask'),'on') && ...
+                any(strcmp(get_param(flowsheets{i},'MaskNames'),'MaxIterations')) && ...
+                ~any(strcmp(get_param(flowsheets{i},'MaskNames'),'AutoRun'))
+            mask = Simulink.Mask.get(flowsheets{i}) ;
+            mask.addParameter('Type','checkbox','Name','AutoRun', ...
+                'Prompt','Run automatically when a block dialog is accepted','Value','on') ;
+        end
+    end
+    for i = 1:numel(flowsheets)
         if strcmp(get_param(flowsheets{i},'Mask'),'on') && ...
                 any(strcmp(get_param(flowsheets{i},'MaskNames'),'MaxIterations'))
             value = str2double(get_param(flowsheets{i},'MaxIterations')) ;

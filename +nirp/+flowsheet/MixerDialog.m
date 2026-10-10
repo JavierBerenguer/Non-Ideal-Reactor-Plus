@@ -15,7 +15,7 @@ classdef MixerDialog < handle
         function removeInput(obj),obj.setNumInputs(obj.DataModel.NumInputs.value-1);end
         function values=getValues(obj),values=obj.DataModel;end
         function applied=apply(obj),applied=false;try,set_param(obj.BlockPath,'NumInputs',num2str(obj.DataModel.NumInputs.value));set_param(bdroot(obj.BlockPath),'SimulationCommand','update');obj.StatusLabel.Text='Applied.';obj.refreshConnections();applied=true;catch exception,obj.StatusLabel.Text=exception.message;end,end
-        function accept(obj),if obj.apply(),delete(obj);end,end
+        function accept(obj),if obj.apply(),block=obj.BlockPath;delete(obj);nirp.flowsheet.autoRun(block);end,end
         function cancel(obj),delete(obj);end
     end
     methods (Static),function dialog=open(blockPath),dialog=nirp.flowsheet.MixerDialog(blockPath);end,end

@@ -53,7 +53,7 @@ classdef JacketDialog < handle
                 obj.StatusLabel.Text='Applied.';obj.captureModel();obj.refreshConnections();applied=true;
             catch exception,obj.StatusLabel.Text=exception.message;end
         end
-        function accept(obj),if obj.apply(),delete(obj);end,end
+        function accept(obj),if obj.apply(),block=obj.BlockPath;delete(obj);nirp.flowsheet.autoRun(block);end,end
         function cancel(obj),delete(obj);end
     end
     methods (Static)
@@ -86,8 +86,8 @@ classdef JacketDialog < handle
             obj.CondensesCheckBox.Value=ison(get_param(obj.BlockPath,'Condenses'));obj.updateVisibility();obj.captureModel();
         end
         function updateVisibility(obj)
-            inputA=strcmp(obj.ASourceDropDown.Value,'Input port');obj.AField.Visible=onoff(~inputA);obj.AField.Editable=onoff(~inputA);obj.APortLabel.Visible=onoff(inputA);
-            inputTin=strcmp(obj.UtilityTinSourceDropDown.Value,'Input port');obj.UtilityTinField.Visible=onoff(~inputTin);obj.UtilityTinField.Editable=onoff(~inputTin);obj.UtilityTinPortLabel.Visible=onoff(inputTin);
+            inputA=strcmp(obj.ASourceDropDown.Value,'Input port');obj.AField.Visible=onoff(~inputA);obj.AField.Editable=onoff(~inputA);obj.APortLabel.Visible=onoff(inputA);if inputA,obj.APortLabel.Text=nirp.flowsheet.receivedValue(obj.BlockPath,'A','Area',obj.AUnitDropDown.Value,1);end
+            inputTin=strcmp(obj.UtilityTinSourceDropDown.Value,'Input port');obj.UtilityTinField.Visible=onoff(~inputTin);obj.UtilityTinField.Editable=onoff(~inputTin);obj.UtilityTinPortLabel.Visible=onoff(inputTin);if inputTin,obj.UtilityTinPortLabel.Text=nirp.flowsheet.receivedValue(obj.BlockPath,'utilityTin','Temperature',obj.UtilityTinUnitDropDown.Value,1+inputA);end
             obj.LatentHeatField.Enable=onoff(obj.CondensesCheckBox.Value);
         end
         function refreshConnections(obj)

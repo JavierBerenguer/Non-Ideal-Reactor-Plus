@@ -6,8 +6,9 @@ classdef Stream < matlab.System
     % =========================================================================
 
     properties (Nontunable)
-        % Stream role in the flowsheet.
-        Role = 'Auto'
+        % Stream role in the flowsheet. 'Auto' is kept only so that models
+        % saved before T-145 still load; the dialog replaces it on opening.
+        Role = 'Intermediate'
         % Source of feed temperature (Feed role only).
         TSource = 'Dialog'
         % Source of feed volumetric flow (Feed role only).

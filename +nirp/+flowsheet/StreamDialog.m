@@ -56,6 +56,12 @@ classdef StreamDialog < handle
             parser = inputParser ;
             addParameter(parser,'Visible','on') ; parse(parser,varargin{:}) ;
             obj.BlockPath = getfullname(blockPath) ;
+            if strcmp(get_param(obj.BlockPath,'Role'),'Auto')
+                % T-145: models saved with the old Auto role take the deduced role.
+                role = nirp.flowsheet.streamRole(obj.BlockPath) ;
+                if role == "Unconnected", role = "Intermediate" ; end
+                set_param(obj.BlockPath,'Role',char(role)) ;
+            end
             obj.Role = nirp.flowsheet.streamRole(obj.BlockPath) ;
             obj.DictionaryPath = nirp.flowsheet.modelDictionary(bdroot(obj.BlockPath)) ;
             obj.Package = nirp.pkg.readDictionary(obj.DictionaryPath) ;
@@ -176,7 +182,9 @@ classdef StreamDialog < handle
         end
 
         function accept(obj)
-            if obj.apply(), delete(obj) ; end
+            if obj.apply()
+                block = obj.BlockPath ; delete(obj) ; nirp.flowsheet.autoRun(block) ;
+            end
         end
 
         function cancel(obj), delete(obj) ; end
@@ -291,6 +299,9 @@ classdef StreamDialog < handle
                 grid,9,'Density','Density') ;
             [obj.ViscosityField,obj.ViscosityUnitDropDown] = quantityRow( ...
                 grid,10,'Viscosity','Viscosity') ;
+            note = uilabel(grid,'Text','Density and viscosity are optional; leave them blank if not used.', ...
+                'FontAngle','italic','WordWrap','on','VerticalAlignment','top') ;
+            note.Layout.Row=11; note.Layout.Column=[4 5] ;
             obj.DensityField.AllowEmpty='on';obj.DensityField.Value=[];
             obj.ViscosityField.AllowEmpty='on';obj.ViscosityField.Value=[];
             obj.MolarFlowUnitDropDown = uidropdown(grid,'Items', ...
@@ -358,11 +369,9 @@ classdef StreamDialog < handle
 
         function updateRoleSelector(obj)
             declared = char(string(get_param(obj.BlockPath,'Role'))) ;
-            [~,~,autoRole] = nirp.flowsheet.streamRole(obj.BlockPath) ;
-            autoLabel = char(autoRole+" (auto)") ;
-            obj.RoleDropDown.Items = {autoLabel,'Feed','Intermediate','Product'} ;
-            obj.RoleDropDown.ItemsData = {'Auto','Feed','Intermediate','Product'} ;
-            obj.RoleDropDown.Value = declared ;
+            obj.RoleDropDown.Items = {'Feed','Intermediate','Product'} ;
+            obj.RoleDropDown.ItemsData = {'Feed','Intermediate','Product'} ;
+            if any(strcmp(declared,obj.RoleDropDown.Items)), obj.RoleDropDown.Value = declared ; end
         end
 
         function updateRolePresentation(obj)
@@ -573,9 +582,11 @@ classdef StreamDialog < handle
             if obj.Role~="Feed",return,end
             inputT=strcmp(obj.TSourceDropDown.Value,'Input port');
             obj.TemperatureField.Visible=onOff(~inputT);obj.TemperatureField.Editable=onOff(~inputT);obj.TPortLabel.Visible=onOff(inputT);
+            if inputT,obj.TPortLabel.Text=nirp.flowsheet.receivedValue(obj.BlockPath,'T','Temperature',obj.TemperatureUnitDropDown.Value,1);end
             inputQ=strcmp(obj.QSourceDropDown.Value,'Input port');
             editableQ=~inputQ&&obj.PhaseDropDown.Value=='L';
             obj.VolumetricFlowField.Visible=onOff(~inputQ);obj.VolumetricFlowField.Editable=onOff(editableQ);obj.QPortLabel.Visible=onOff(inputQ);
+            if inputQ,obj.QPortLabel.Text=nirp.flowsheet.receivedValue(obj.BlockPath,'Q','VolumetricFlow',obj.VolumetricFlowUnitDropDown.Value,1+inputT);end
         end
 
         function flag=feedComplete(obj)

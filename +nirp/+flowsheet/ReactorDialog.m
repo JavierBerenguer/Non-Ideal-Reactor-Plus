@@ -62,7 +62,7 @@ classdef ReactorDialog < handle
             if ~strcmp(newName,get_param(obj.BlockPath,'Name')),set_param(obj.BlockPath,'Name',newName);obj.BlockPath=getfullname([bdroot(obj.BlockPath) '/' newName]);end
             obj.StatusLabel.Text='Applied.';obj.captureModel();obj.refreshConnections();applied=true;catch exception,obj.StatusLabel.Text=exception.message;end
         end
-        function accept(obj),if obj.apply(),delete(obj);end,end
+        function accept(obj),if obj.apply(),block=obj.BlockPath;delete(obj);nirp.flowsheet.autoRun(block);end,end
         function cancel(obj),delete(obj);end
     end
     methods (Static)
@@ -96,7 +96,7 @@ classdef ReactorDialog < handle
             obj.CatalyticCheckBox=uicheckbox(catalystGrid,'Text','Mark if the reactor is catalytic','ValueChangedFcn',@(~,~) obj.updateVisibility());obj.CatalyticCheckBox.Layout.Row=1;obj.CatalyticCheckBox.Layout.Column=[1 3];
             obj.CatalystDensityField=numfield(catalystGrid,2,1,'Catalyst density (kg/m^3)');obj.CatalystPorosityField=numfield(catalystGrid,3,1,'Catalyst porosity');obj.CatalystRows={obj.CatalystDensityField,obj.CatalystPorosityField};
             cgrid=uigridlayout(connections,[2 1],'RowHeight',{30,'1x'});uilabel(cgrid,'Text','Connected streams and signals (read only)','FontWeight','bold');obj.ConnectionTable=uitable(cgrid,'ColumnName',{'Direction','Port','Connection'},'ColumnEditable',false);
-            agrid=uigridlayout(advanced,[4 3],'ColumnWidth',{220,150,120});obj.VSourceDropDown=drop(agrid,1,1,'Volume source',{'Dialog','Input port'});obj.VSourceDropDown.ValueChangedFcn=@(~,~) obj.updatePortSources();[obj.InitialTField,obj.InitialTUnitDropDown]=texttempqty(agrid,2,1,'Initial T estimate');obj.JacketPortCheckBox=uicheckbox(agrid,'Text','Show Jacket input port');obj.JacketPortCheckBox.Layout.Row=3;obj.JacketPortCheckBox.Layout.Column=[1 2];obj.HeatPortCheckBox=uicheckbox(agrid,'Text','Show heat port');obj.HeatPortCheckBox.Layout.Row=4;obj.HeatPortCheckBox.Layout.Column=[1 2];
+            agrid=uigridlayout(advanced,[4 4],'ColumnWidth',{150,110,80,'1x'});obj.VSourceDropDown=drop(agrid,1,1,'Volume source',{'Dialog','Input port'});obj.VSourceDropDown.ValueChangedFcn=@(~,~) obj.updatePortSources();[obj.InitialTField,obj.InitialTUnitDropDown]=texttempqty(agrid,2,1,'Initial T estimate');obj.JacketPortCheckBox=uicheckbox(agrid,'Text','Show Jacket input port');obj.JacketPortCheckBox.Layout.Row=3;obj.JacketPortCheckBox.Layout.Column=[1 2];obj.HeatPortCheckBox=uicheckbox(agrid,'Text','Show heat port');obj.HeatPortCheckBox.Layout.Row=4;obj.HeatPortCheckBox.Layout.Column=[1 2];
             obj.StatusLabel=uilabel(main,'Text','Ready.','FontAngle','italic');buttons=uigridlayout(main,[1 4],'ColumnWidth',{'1x',90,90,90});uilabel(buttons,'Text','');uibutton(buttons,'Text','OK','ButtonPushedFcn',@(~,~) obj.accept());uibutton(buttons,'Text','Cancel','ButtonPushedFcn',@(~,~) obj.cancel());uibutton(buttons,'Text','Apply','ButtonPushedFcn',@(~,~) obj.apply());
         end
         function load(obj)
@@ -122,7 +122,7 @@ classdef ReactorDialog < handle
             obj.updatePortSources();
         end
         function updatePortSources(obj)
-            inputV=strcmp(obj.VSourceDropDown.Value,'Input port');obj.VField.Visible=onoff(~inputV);obj.VField.Editable=onoff(~inputV);obj.VPortLabel.Visible=onoff(inputV);
+            inputV=strcmp(obj.VSourceDropDown.Value,'Input port');obj.VField.Visible=onoff(~inputV);obj.VField.Editable=onoff(~inputV);obj.VPortLabel.Visible=onoff(inputV);if inputV,obj.VPortLabel.Text=nirp.flowsheet.receivedValue(obj.BlockPath,'V','Volume',obj.VUnitDropDown.Value,2);end
         end
         function refreshConnections(obj)
             graph=nirp.flowsheet.topology(bdroot(obj.BlockPath));key=matlab.lang.makeValidName(get_param(obj.BlockPath,'Name'));data=cell(0,3);jacket='';if isfield(graph.Units,key),item=graph.Units.(key);ports=get_param(obj.BlockPath,'PortHandles');for i=1:numel(item.Inputs),label=joinNames(item.Inputs{i});if isempty(item.Inputs{i})&&i<=numel(ports.Inport),label=signalLabel(ports.Inport(i));end;if contains(label,'Jacket (signal):'),jacket=extractAfter(label,'Jacket (signal): ');end;data(end+1,:)={'Input',i,label};end;for i=1:numel(item.Outputs),data(end+1,:)={'Output',i,joinNames(item.Outputs{i})};end;end;obj.ConnectionTable.Data=data;if isempty(jacket),obj.HeatModeGroup.Visible='on';obj.JacketStatusLabel.Visible='off';else,obj.HeatModeGroup.Visible='off';obj.JacketStatusLabel.Visible='on';name=char(jacket);if ~startsWith(jacket,"Jacket"),name=['Jacket ' name];end;obj.JacketStatusLabel.Text=['Heat exchange: ' name];end

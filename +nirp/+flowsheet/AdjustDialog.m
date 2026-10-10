@@ -79,7 +79,7 @@ classdef AdjustDialog < handle
                 obj.StatusLabel.Text=exception.message;
             end
         end
-        function accept(obj),if obj.apply(),delete(obj);end,end
+        function accept(obj),if obj.apply(),block=obj.BlockPath;delete(obj);nirp.flowsheet.autoRun(block);end,end
         function cancel(obj),delete(obj);end
         function connect(obj)
             if isempty(obj.CandidateTargets),return,end
