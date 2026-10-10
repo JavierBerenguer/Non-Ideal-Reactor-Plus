@@ -1,8 +1,9 @@
-function modelFiles = build_examples(folder)
+function modelFiles = build_examples(folder,only)
 %BUILD_EXAMPLES Generate the milestone-1 NIRP example flowsheets.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 2, 2026. Last update: October 9, 2026
+% Created: October 2, 2026. Last update: October 10, 2026
+%   BUILD_EXAMPLES(FOLDER,ONLY) builds only the examples named in ONLY (T-143).
 % =========================================================================
 
     repoRoot=fileparts(fileparts(mfilename('fullpath'))); addpath(repoRoot);
@@ -57,7 +58,11 @@ function modelFiles = build_examples(folder)
         'ex44_problem22_no_oxidation',nirp.pkg.examples.problem22NOOxidation(),@buildEx44; ...
         'ex45_problem16_pfr_space_time',nirp.pkg.examples.problem16EmpiricalGas(),@buildEx45; ...
         'ex46_problem35_isothermal_cstr',nirp.pkg.examples.problem35NOReduction(),@buildEx46; ...
-        'ex47_problem35_adiabatic_feed_T',nirp.pkg.examples.problem35NOReduction(),@buildEx47};
+        'ex47_problem35_adiabatic_feed_T',nirp.pkg.examples.problem35NOReduction(),@buildEx47; ...
+        'ex48_recycle_pfr',referencePkg,@buildEx48; ...
+        'ex49_reactor_separator_recycle',referencePkg,@buildEx49; ...
+        'ex50_recycle_with_adjust',referencePkg,@buildEx50};
+    if nargin>=2&&~isempty(only),definitions=definitions(ismember(string(definitions(:,1)),string(only)),:);end
     modelFiles=strings(size(definitions,1),1);
     for i=1:size(definitions,1)
         name=definitions{i,1}; pkg=definitions{i,2}; builder=definitions{i,3};
@@ -144,6 +149,66 @@ function buildEx5(model)
     add_line(model,'Splitter/1','Product/1','autorouting','on');
     add_line(model,'Splitter/2','Recycle feed/1','autorouting','on');
     add_line(model,'Recycle feed/1','Recycle/1','autorouting','on');
+    add_line(model,'Recycle/1','Recycle outlet/1','autorouting','on');
+end
+
+function buildEx48(model)
+    % T-143: isothermal PFR with recycle ratio R = 1 (Levenspiel reference).
+    addSystem(model,'F1','nirp.blocks.Stream',[20 160 130 215],'Role','Feed');
+    addSystem(model,'Mixer','nirp.blocks.Mixer',[180 145 310 225],'NumInputs','2');
+    addSystem(model,'Mixer outlet','nirp.blocks.Stream',[350 160 470 215],'Role','Intermediate');
+    addSystem(model,'PFR','nirp.blocks.PFR',[510 150 640 220],'GeometryMode','Volume','V','0.1','VUnit','m^3', ...
+        'D','0.1','DUnit','m','HeatMode','Isothermal');
+    addSystem(model,'PFR outlet','nirp.blocks.Stream',[680 160 800 215],'Role','Intermediate');
+    addSystem(model,'Splitter','nirp.blocks.Splitter',[840 140 970 230],'Fractions','[0.5 0.5]');
+    addSystem(model,'Recycle feed','nirp.blocks.Stream',[790 300 920 355],'Role','Intermediate','Orientation','left');
+    addSystem(model,'Recycle','nirp.blocks.Recycle',[570 300 720 365],'Method','Wegstein','Orientation','left');
+    addSystem(model,'Recycle outlet','nirp.blocks.Stream',[350 300 490 355],'Role','Intermediate','Orientation','left');
+    addSystem(model,'Product','nirp.blocks.Stream',[1020 150 1150 220],'Role','Product','ReferenceFeed','F1','KeyComponent','A');
+    add_line(model,'F1/1','Mixer/1','autorouting','on');add_line(model,'Recycle outlet/1','Mixer/2','autorouting','on');
+    add_line(model,'Mixer/1','Mixer outlet/1','autorouting','on');add_line(model,'Mixer outlet/1','PFR/1','autorouting','on');
+    add_line(model,'PFR/1','PFR outlet/1','autorouting','on');add_line(model,'PFR outlet/1','Splitter/1','autorouting','on');
+    add_line(model,'Splitter/1','Product/1','autorouting','on');add_line(model,'Splitter/2','Recycle feed/1','autorouting','on');
+    add_line(model,'Recycle feed/1','Recycle/1','autorouting','on');add_line(model,'Recycle/1','Recycle outlet/1','autorouting','on');
+end
+
+function buildEx49(model)
+    % T-143: CSTR -> component separator -> recycle of unconverted A with a 10 % purge.
+    buildSeparatorLoop(model,{'V','0.1','VUnit','m^3','HeatMode','Isothermal'});
+end
+
+function buildEx50(model)
+    % T-143: the ex49 loop with an Adjust that moves the CSTR volume for a 0.95 overall conversion.
+    % The Simultaneous strategy oscillates here (neither block converges in 200 iterations);
+    % Nested converges the Recycle for every Adjust step (V = 0.160 m^3).
+    buildSeparatorLoop(model,{'VSource','Input port','VUnit','m^3','HeatMode','Isothermal'});
+    addSystem(model,'Adjust','nirp.blocks.Adjust',[400 430 570 500], ...
+        'TargetVariable','Conversion','KeyComponent','A','ReferenceFeed','F1', ...
+        'TargetValue','0.95','InitialValue','0.1','MinValue','0.001', ...
+        'MaxValue','10','ParameterUnit','m^3','Strategy','Nested','Orientation','left');
+    add_line(model,'Adjust/1','CSTR/2','autorouting','on');add_line(model,'Separator/2','Adjust/1','autorouting','on');
+end
+
+function buildSeparatorLoop(model,reactorArgs)
+    addSystem(model,'F1','nirp.blocks.Stream',[20 160 130 215],'Role','Feed');
+    addSystem(model,'Mixer','nirp.blocks.Mixer',[170 145 290 225],'NumInputs','2');
+    addSystem(model,'Mixer outlet','nirp.blocks.Stream',[320 160 430 215],'Role','Intermediate');
+    addSystem(model,'CSTR','nirp.blocks.CSTR',[470 150 590 220],reactorArgs{:});
+    addSystem(model,'CSTR outlet','nirp.blocks.Stream',[620 160 730 215],'Role','Intermediate');
+    addSystem(model,'Separator','nirp.blocks.Separator',[770 145 890 225],'Recovery','[0.95 0.02]');
+    addSystem(model,'Separator top','nirp.blocks.Stream',[930 60 1040 115],'Role','Intermediate');
+    addSystem(model,'Purge splitter','nirp.blocks.Splitter',[1080 50 1190 130],'Fractions','[0.1 0.9]');
+    addSystem(model,'Purge','nirp.blocks.Stream',[1230 30 1340 85],'Role','Product');
+    addSystem(model,'Recycle feed','nirp.blocks.Stream',[1100 300 1210 355],'Role','Intermediate','Orientation','left');
+    addSystem(model,'Recycle','nirp.blocks.Recycle',[700 300 850 365],'Method','Wegstein','Orientation','left');
+    addSystem(model,'Recycle outlet','nirp.blocks.Stream',[320 300 450 355],'Role','Intermediate','Orientation','left');
+    addSystem(model,'Product','nirp.blocks.Stream',[930 200 1050 255],'Role','Product','ReferenceFeed','F1','KeyComponent','A');
+    add_line(model,'F1/1','Mixer/1','autorouting','on');add_line(model,'Recycle outlet/1','Mixer/2','autorouting','on');
+    add_line(model,'Mixer/1','Mixer outlet/1','autorouting','on');add_line(model,'Mixer outlet/1','CSTR/1','autorouting','on');
+    add_line(model,'CSTR/1','CSTR outlet/1','autorouting','on');add_line(model,'CSTR outlet/1','Separator/1','autorouting','on');
+    add_line(model,'Separator/1','Separator top/1','autorouting','on');add_line(model,'Separator/2','Product/1','autorouting','on');
+    add_line(model,'Separator top/1','Purge splitter/1','autorouting','on');add_line(model,'Purge splitter/1','Purge/1','autorouting','on');
+    add_line(model,'Purge splitter/2','Recycle feed/1','autorouting','on');add_line(model,'Recycle feed/1','Recycle/1','autorouting','on');
     add_line(model,'Recycle/1','Recycle outlet/1','autorouting','on');
 end
 
