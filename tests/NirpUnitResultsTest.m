@@ -79,7 +79,7 @@ classdef (SharedTestFixtures={nirptest.ExamplesFixture}) ...
             testCase.verifyClass(tabGroup.Parent,'matlab.ui.container.GridLayout') ;
             unitTab = tabGroup.Children(1) ;
             resultTables = findall(unitTab,'Type','uitable') ;
-            testCase.verifyEqual(numel(resultTables),2) ;
+            testCase.verifyEqual(numel(resultTables),3) ; % Units, Adjust and Recycle (T-142)
             for i = 1:numel(resultTables)
                 testCase.verifyFalse(hasVisibleNaN(resultTables(i).Data)) ;
                 widths = resultTables(i).ColumnWidth ;

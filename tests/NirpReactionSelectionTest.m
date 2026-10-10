@@ -25,7 +25,7 @@ classdef NirpReactionSelectionTest < matlab.unittest.TestCase
             testCase.verifyError(@() nirp.pkg.selectReactions(pkg,[1 1]),'nirp:pkg:invalidReactionSelection');
         end
         function cstrUsesOnlySelectedReactionsAndDialogSavesThem(testCase)
-            pkg=nirp.pkg.examples.problem36AirCooled();name='reaction_subset';
+            pkg=parallelPackage();name='reaction_subset';
             nirp.pkg.writeDictionary(pkg,fullfile(testCase.Folder,[name '.sldd']));new_system(name);
             save_system(name,fullfile(testCase.Folder,[name '.slx']));set_param(name,'DataDictionary',[name '.sldd']);
             feedName=char(pkg.feeds(1).name);
@@ -45,6 +45,14 @@ classdef NirpReactionSelectionTest < matlab.unittest.TestCase
             testCase.verifyGreaterThan(max(abs(actual.F-all.F)),1e-9);
         end
     end
+end
+function pkg=parallelPackage()
+    % A -> B and A -> C, both first order, so each reaction changes the outlet.
+    pkg=nirp.pkg.examples.firstOrderLiquid();pkg.meta.name="Parallel A";
+    pkg.components(3)=pkg.components(2);pkg.components(3).name="C";
+    pkg.reactions.stoich=[-1 1 0;-1 0 1];pkg.reactions.DH.value=[-50 -50];
+    kinetic=pkg.reactions.kinetics;kinetic.orders=[1 0 0];second=kinetic;second.k0=0.3;
+    pkg.reactions.kinetics=[kinetic second];pkg.feeds.values=[60 0 0];nirp.pkg.validate(pkg);
 end
 function addSystem(model,name,className,position,varargin),add_block('simulink/User-Defined Functions/MATLAB System',[model '/' name],'System',className,'Position',position,varargin{:});if ~strcmp(className,'nirp.blocks.Stream'),nirp.flowsheet.setupUnitBlock([model '/' name]);end,end
 function cleanup(testCase),bdclose('all');Simulink.data.dictionary.closeAll('-discard');evalin('base','clear nirpResults');if contains([path pathsep],[testCase.Folder pathsep]),rmpath(testCase.Folder);end,end
