@@ -2,7 +2,7 @@ classdef NirpSimulinkGuideTest < matlab.unittest.TestCase
 %NIRPSIMULINKGUIDETEST Verify the flowsheet help entry points and assets.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 12, 2026. Last update: October 12, 2026
+% Created: October 12, 2026. Last update: October 13, 2026
 % =========================================================================
 
     methods (Test)
@@ -26,11 +26,21 @@ classdef NirpSimulinkGuideTest < matlab.unittest.TestCase
                 testCase.verifySubstring(string(html),heading) ;
             end
 
-            [names,descriptions] = nirp.flowsheet.exampleNames() ;
-            for index = 1:numel(names)
-                testCase.verifySubstring(string(html),names(index)) ;
+            [~,descriptions] = nirp.flowsheet.exampleNames() ;
+            for index = 1:numel(descriptions)
                 testCase.verifySubstring(string(html),descriptions(index)) ;
             end
+
+            forbidden = ["nirp.","NirpLibrary","exampleNames", ...
+                "openLibrary","openExample","run_validation","()", ...
+                "low-level HYSYS-style"] ;
+            for token = forbidden
+                testCase.verifyFalse(contains(string(html),token), ...
+                    sprintf('Guide contains forbidden code identifier: %s',token)) ;
+            end
+            testCase.verifyEmpty(regexp(html,'<code(?:\s|>)','once')) ;
+            testCase.verifySubstring(string(html), ...
+                "basic chemical-process flowsheet") ;
 
             tokens = regexp(html,'(?:href|src)="([^"]+)"','tokens') ;
             for index = 1:numel(tokens)
@@ -43,13 +53,26 @@ classdef NirpSimulinkGuideTest < matlab.unittest.TestCase
                     'Missing local guide resource: %s',target)) ;
             end
 
-            images = dir(fullfile(root,'docs','assets','simulink','*.png')) ;
-            testCase.verifyGreaterThanOrEqual(numel(images),4) ;
-            testCase.verifyLessThanOrEqual(numel(images),6) ;
-            testCase.verifyLessThan([images.bytes],200*1024) ;
+            imageTokens = regexp(html,'<img[^>]+src="([^"]+)"','tokens') ;
+            testCase.verifyNumElements(imageTokens,21) ;
+            imageBytes = zeros(1,numel(imageTokens)) ;
+            for index = 1:numel(imageTokens)
+                relative = string(imageTokens{index}{1}) ;
+                target = fullfile(fileparts(guide), ...
+                    strrep(char(relative),'/',filesep)) ;
+                testCase.verifyTrue(isfile(target),sprintf( ...
+                    'Missing linked guide image: %s',target)) ;
+                info = dir(target) ;
+                imageBytes(index) = info.bytes ;
+            end
+            testCase.verifyLessThan(imageBytes,200*1024) ;
             indexHtml = fileread(fullfile(root,'docs','UserGuide.html')) ;
             testCase.verifySubstring(string(indexHtml), ...
                 "guides/simulink-flowsheet.html") ;
+            testCase.verifySubstring(string(indexHtml), ...
+                "basic chemical-process flowsheet") ;
+            testCase.verifyFalse(contains(string(indexHtml), ...
+                "low-level HYSYS-style")) ;
         end
     end
 end

@@ -14,175 +14,238 @@
     </div>
 
     <section class="hero" id="overview">
-      <span class="kicker">Overview · Steady-state process simulation</span>
-      <h1>Build a low-level HYSYS-style flowsheet in Simulink</h1>
-      <p>The NIRP library turns a Simulink diagram into a stationary chemical-process flowsheet. Material streams carry flow, composition, temperature, pressure, phase, and status; unit blocks solve the corresponding balances. The library contains Stream, CSTR, PFR, Heater/Cooler, Jacket, Mixer, Splitter, Separator, Recycle, and Adjust blocks.</p>
-      <div class="callout info"><strong>Five-step workflow:</strong> (1) define the Reactive System, (2) create or open a model, (3) place and connect unit blocks with a Stream block between material-processing units, (4) configure each dialog and run the model, and (5) inspect <strong>Show results</strong>, status colors, and messages.</div>
+      <span class="kicker">Overview &middot; Steady-state process simulation</span>
+      <h1>Build a basic chemical-process flowsheet in Simulink</h1>
+      <p>Connect material streams, reactors, heat-transfer units, recycles, and design specifications in a Simulink diagram. Each named Stream carries flow, composition, temperature, pressure, phase, and solution status between the process blocks.</p>
+      <div class="callout info"><strong>Five-step workflow:</strong> define the Reactive System, create or open a flowsheet, place and connect blocks with a Stream between process units, configure each dialog, then run the model and inspect <strong>Show results</strong>.</div>
     </section>
 
     <section class="section" id="creating">
       <h2>Creating a flowsheet</h2>
       <ol>
-        <li>In the app, choose <strong>Tools &gt; Flowsheet (Simulink) &gt; New flowsheet...</strong>. This opens a new <strong>Reactive System</strong> editor.</li>
-        <li>Define the chemistry and feeds, then press <strong>Create flowsheet...</strong>. Choose a writable <code>.slx</code> name; the matching data dictionary is created beside it.</li>
-        <li>To start from a solved case, choose <strong>Open example...</strong>. The selector is populated by <code>nirp.flowsheet.exampleNames</code>; the selected model and dictionary are copied to a writable <code>NIRP_examples</code> folder.</li>
-        <li>Choose <strong>Open block library</strong> to call <code>nirp.flowsheet.openLibrary</code> and open <code>NirpLibrary</code>. Drag blocks into the model and use each block's custom dialog.</li>
+        <li>In the app, choose <strong>Tools &gt; Flowsheet (Simulink) &gt; New flowsheet...</strong>.</li>
+        <li>Complete the <strong>Reactive System</strong> window and press <strong>Create flowsheet...</strong>. Choose a writable name and location for the new model.</li>
+        <li>For a solved case, choose <strong>Tools &gt; Flowsheet (Simulink) &gt; Open example...</strong>, select the description you need, and press <strong>OK</strong>.</li>
+        <li>Choose <strong>Tools &gt; Flowsheet (Simulink) &gt; Open block library</strong>. Drag blocks from the library into the model and double-click a block to edit it.</li>
       </ol>
-      <p>From the command line, the equivalent entry points are <code>nirp.flowsheet.openLibrary()</code> and <code>nirp.flowsheet.openExample('ex1_cstr_isothermal')</code>.</p>
+      <figure class="figure-card">
+        <img src="../assets/simulink/block-library.png" alt="Open Simulink block library with process blocks and example links">
+        <figcaption>The block library contains every process block and direct links to the solved examples.</figcaption>
+      </figure>
     </section>
 
     <section class="section" id="reactive-system">
       <h2>Reactive System</h2>
       <h3>General</h3>
-      <p>Set <strong>Number of components</strong> and <strong>Number of reactions</strong>. Enter component names and molecular weights, the stoichiometric coefficients for every reaction, and the named feeds used by Feed blocks. Component order is shared by every stream and reaction, so keep it consistent.</p>
-      <h3>Kinetics</h3>
-      <p>Select each reaction and choose <strong>powerlaw</strong>, <strong>reversible</strong>, or <strong>expression</strong>. For power-law kinetics, enter <strong>k0</strong>, <strong>Ea</strong>, and one order per component. Reversible kinetics adds reverse k0, Ea, and orders. Expression kinetics accepts a rate expression using component symbols and <code>T</code> in K. The concentration and time unit selectors determine the displayed k0 unit, and the live <strong>Rate equation</strong> updates as orders or units change.</p>
-      <p>The <strong>Ea check</strong> compares E<sub>a,f</sub> − E<sub>a,r</sub> with ΔH. Treat a warning as a sign or data-consistency check, not as a replacement for engineering judgment.</p>
+      <p>Set <strong>Number of components</strong> and <strong>Number of reactions</strong>. Enter component names and molecular weights, then fill the stoichiometric coefficients. Component order is shared by every stream and reaction, so keep it consistent.</p>
       <figure class="figure-card">
-        <img src="../assets/simulink/reactive-system-kinetics.png" alt="Reactive System editor showing reversible kinetics and the live rate equation">
-        <figcaption>The Kinetics tab exposes only the fields required by the selected kinetic type and shows the current rate equation.</figcaption>
+        <img src="../assets/simulink/reactive-system-general.png" alt="Reactive System General tab with components and stoichiometry">
+        <figcaption>General defines the component list and stoichiometric matrix.</figcaption>
       </figure>
+
+      <h3>Kinetics</h3>
+      <p>Select a reaction and choose <strong>powerlaw</strong>, <strong>reversible</strong>, or <strong>expression</strong>. For power-law kinetics, enter <strong>k0</strong>, <strong>Ea</strong>, and one order per component. Reversible kinetics adds the reverse values and orders. Expression kinetics provides an editable rate-expression field. The concentration and time selectors determine the displayed units, while <strong>Rate equation</strong> previews the current selection.</p>
+      <figure class="figure-card">
+        <img src="../assets/simulink/reactive-system-powerlaw.png" alt="Reactive System Kinetics tab with power-law fields">
+        <figcaption>Power-law kinetics shows the forward constant, activation energy, and component orders.</figcaption>
+      </figure>
+      <figure class="figure-card">
+        <img src="../assets/simulink/reactive-system-reversible.png" alt="Reactive System Kinetics tab with reversible forward and reverse fields">
+        <figcaption>Reversible kinetics places the forward and reverse parameters side by side.</figcaption>
+      </figure>
+      <p>The <strong>Ea check</strong> compares the forward and reverse activation-energy difference with the reaction enthalpy. Treat a warning as a sign or data-consistency check, not as a replacement for engineering judgment.</p>
+
       <h3>Thermodynamics</h3>
-      <p>Enter constant or polynomial heat capacities, reaction enthalpies, and the reference temperature. Select <strong>Without thermodynamics</strong> only for a deliberately isothermal material-balance model. In that mode, adiabatic reactors, heat-exchange reactors, Heater, and Jacket stop with an error because their energy balances need Cp and ΔH.</p>
-      <h3>Run settings</h3>
-      <p><strong>Maximum iterations</strong> limits stationary iterations, including Recycle and Adjust convergence. <strong>Show results after run</strong> opens the results window after a run. <strong>Auto-run when a dialog is accepted</strong> reruns a complete model when a block dialog is accepted; incomplete diagrams are left for manual correction. In edit mode, <strong>Show results</strong> opens the latest results without rerunning.</p>
+      <p>Enter constant or polynomial heat capacities, reaction enthalpies, and the reference temperature. Select <strong>Without thermodynamics</strong> only for a deliberately isothermal material-balance model. Adiabatic reactors, heat-exchange reactors, Heater/Cooler, and Jacket require thermodynamic data.</p>
+      <figure class="figure-card">
+        <img src="../assets/simulink/reactive-system-thermodynamics.png" alt="Reactive System Thermodynamics tab with heat capacities and reaction enthalpy">
+        <figcaption>Thermodynamics collects heat capacities, reaction enthalpies, and the reference temperature.</figcaption>
+      </figure>
+
+      <h3>Run settings and help</h3>
+      <p>The bottom row is available from every tab. <strong>Maximum iterations</strong> limits stationary iterations, including Recycle and Adjust convergence. <strong>Show results after run</strong> opens the results window after a successful run. <strong>Auto-run when a dialog is accepted</strong> reruns a complete model after a block dialog is accepted. <strong>Help</strong> opens this guide. When editing an existing model, <strong>Show results</strong> opens the latest results without rerunning.</p>
     </section>
 
     <section class="section" id="blocks">
       <h2>Blocks</h2>
-      <p>Material-processing blocks should be separated by named Stream blocks. Scalar and Jacket signals connect directly to their dedicated ports. Values entered in dialogs may use the displayed units; block-to-block signals and the calculation core use SI.</p>
+      <p>Place a named Stream between material-processing blocks. Scalar signals and the Jacket signal connect directly to their dedicated ports. Values entered in dialogs may use the displayed units.</p>
 
       <h3>Stream</h3>
-      <p><strong>Ports:</strong> a Feed has no material input and one output; Intermediate has one input and one output; Product has one input and no output. <strong>Auto</strong> is retained for older models, while current dialogs infer Feed, Intermediate, Product, or Unconnected from topology. A Feed can receive T and Q through optional scalar ports. Feed name, phase, composition, T, P, and Q come from the Reactive System. Product streams may select <strong>Reference feed</strong> and <strong>Key component</strong> to report conversion. The four result-unit fields affect presentation only.</p>
-
-      <h3>CSTR</h3>
-      <p><strong>Ports:</strong> Feed → Product, plus an optional volume input and a Jacket input in Heat exchange mode; an optional Heat (W) output reports duty. Specify reactor <strong>Volume</strong> (or drive it from Adjust), thermal mode, optional initial T estimate, catalyst density/porosity, and the active reactions. The material and energy balances determine the outlet, so do not specify a second independent outlet condition.</p>
-
-      <h3>PFR</h3>
-      <p><strong>Ports:</strong> the same material, volume, Jacket, and heat ports as CSTR. Geometry may be defined by <strong>Volume</strong> or <strong>Length</strong>; one of V, L, D, and number of tubes can be calculated from the other three. For non-constant pressure select Pipe or Ergun and supply the requested density, viscosity, and (for Ergun) particle diameter. Catalyst data, initial T estimate, and reaction selection behave as in CSTR.</p>
-
-      <h3>Reactor thermal modes and Reactions</h3>
-      <p><strong>Isothermal</strong> uses the inlet temperature as the operating temperature; put a Heater before the reactor when a different temperature is required. <strong>Adiabatic</strong> sets heat exchange to zero. <strong>Heat exchange</strong> opens the Jacket signal port and requires a connected Jacket block. The <strong>Reactions</strong> tab enables a subset of the Reactive System reactions; all are used by default.</p>
+      <p>A <strong>Feed</strong> has no material input and one output. Enter its phase, component flow or concentration, pressure, temperature, and volumetric flow. An intermediate Stream has one input and one output. A <strong>Product</strong> has one input and no output; after a successful run it displays calculated conditions and can report conversion using <strong>Reference feed</strong> and <strong>Key component</strong>.</p>
       <figure class="figure-card">
-        <img src="../assets/simulink/reactor-dialog.png" alt="PFR dialog with geometry, thermal mode, and pressure-drop settings">
-        <figcaption>The reactor dialog groups geometry and thermal degrees of freedom; Connections is read-only and Reactions selects the chemistry used by this block.</figcaption>
+        <img src="../assets/simulink/stream-feed-dialog.png" alt="Stream dialog configured as a Feed">
+        <figcaption>A Feed Stream contains the inlet composition and operating conditions.</figcaption>
+      </figure>
+      <figure class="figure-card">
+        <img src="../assets/simulink/stream-product-dialog.png" alt="Solved Stream dialog configured as a Product">
+        <figcaption>A solved Product Stream shows calculated values and conversion.</figcaption>
       </figure>
 
-      <h3>Jacket (heat exchange)</h3>
-      <p>The Jacket has a signal output to a CSTR or PFR and three mutually exclusive modes. <strong>Utility (U*A)</strong> requires U, A, and utility inlet T; utility outlet T, Cp, condensing flag, and latent heat are optional as applicable. A and utility inlet T can instead arrive through scalar input ports. <strong>Specified reactor T</strong> fixes reactor temperature. <strong>Specified Q</strong> fixes heat duty, with Q &gt; 0 heating the reactor. Selecting a mode fixes the corresponding thermal degree of freedom; do not add another Jacket specification for the same reactor.</p>
+      <h3>CSTR</h3>
+      <p>Connect <strong>Feed</strong> to <strong>Product</strong>. Specify <strong>Volume</strong>, choose the thermal mode, and enter catalyst data only when the reactor is catalytic. <strong>Isothermal</strong> uses the inlet temperature, <strong>Adiabatic</strong> sets heat exchange to zero, and <strong>Heat exchange</strong> requires a connected Jacket. The optional heat output reports duty.</p>
       <figure class="figure-card">
-        <img src="../assets/simulink/jacket-dialog.png" alt="Jacket dialog in Utility mode">
-        <figcaption>Utility mode supplies U, A, and utility-temperature data; the other modes expose only reactor T or Q.</figcaption>
+        <img src="../assets/simulink/cstr-reactor-dialog.png" alt="CSTR Reactor tab with volume and thermal modes">
+        <figcaption>The CSTR Reactor tab groups volume, thermal mode, and catalyst settings.</figcaption>
+      </figure>
+      <figure class="figure-card">
+        <img src="../assets/simulink/cstr-reactions-dialog.png" alt="CSTR Reactions tab with the active reaction selected">
+        <figcaption>Reactions enables the chemistry used by this CSTR.</figcaption>
+      </figure>
+
+      <h3>PFR</h3>
+      <p>Connect <strong>Feed</strong> to <strong>Product</strong>. Define geometry by <strong>Volume</strong> or <strong>Length</strong>; one of volume, length, diameter, and number of tubes is calculated from the other three. Choose constant pressure or provide the extra fluid and particle data requested for pressure drop. Thermal modes, catalyst settings, reaction selection, Jacket connection, and heat output work as in the CSTR.</p>
+      <figure class="figure-card">
+        <img src="../assets/simulink/pfr-reactor-dialog.png" alt="PFR Reactor tab with geometry pressure and thermal controls">
+        <figcaption>The PFR Reactor tab closes one geometry value automatically.</figcaption>
+      </figure>
+      <figure class="figure-card">
+        <img src="../assets/simulink/pfr-reactions-dialog.png" alt="PFR Reactions tab with the active reaction selected">
+        <figcaption>Reactions selects the chemistry used along the PFR.</figcaption>
+      </figure>
+
+      <h3>Jacket</h3>
+      <p>Connect the Jacket output to a reactor in <strong>Heat exchange</strong> mode. <strong>Utility (U*A)</strong> uses the heat-transfer coefficient, area, and utility inlet temperature; utility outlet temperature, heat capacity, condensation, and latent heat are available when needed. The other modes are <strong>Specified reactor T</strong> and <strong>Specified Q</strong>. Area and utility inlet temperature may also come from scalar input ports.</p>
+      <figure class="figure-card">
+        <img src="../assets/simulink/jacket-dialog.png" alt="Jacket dialog in Utility mode with heat-transfer and utility data">
+        <figcaption>Utility mode exposes heat-transfer and utility-stream data; the other two modes expose reactor temperature or duty.</figcaption>
       </figure>
 
       <h3>Heater / Cooler</h3>
-      <p><strong>Ports:</strong> Feed → Product, with an optional Heat (W) output. Select <strong>Outlet T</strong> or <strong>Duty</strong>; the energy balance calculates the other variable. Enter pressure drop as a loss. Positive duty heats the stream. Thermodynamic data are required.</p>
+      <p>Connect <strong>Feed</strong> to <strong>Product</strong>. Select <strong>Outlet T</strong> or <strong>Duty</strong>; the energy balance calculates the other value. Enter pressure drop as a loss. Positive duty heats the stream, and thermodynamic data are required.</p>
+      <figure class="figure-card">
+        <img src="../assets/simulink/heater-dialog.png" alt="Heater Cooler dialog in Outlet T mode">
+        <figcaption>Heater/Cooler accepts either an outlet temperature or a duty.</figcaption>
+      </figure>
 
       <h3>Mixer</h3>
-      <p><strong>Ports:</strong> two or more Feed inputs → one Product. <strong>Add inlet</strong> and <strong>Remove</strong> set the number of material inputs. The outlet follows the combined material and energy balance; there is no additional operating specification.</p>
+      <p>Connect two or more inlet Streams and one outlet Stream. <strong>Add inlet</strong> and <strong>Remove</strong> change the number of material inputs. The outlet follows the combined material and energy balance.</p>
+      <figure class="figure-card">
+        <img src="../assets/simulink/mixer-dialog.png" alt="Mixer dialog listing two inlet streams and one outlet">
+        <figcaption>The Mixer dialog lists each connected inlet and the product Stream.</figcaption>
+      </figure>
 
       <h3>Splitter</h3>
-      <p><strong>Ports:</strong> one Feed → two or more Products. Enter outlet split fractions; one missing fraction is calculated automatically so the fractions sum to one. The outlets retain the inlet state and composition.</p>
+      <p>Connect one inlet Stream and two or more outlet Streams. Enter outlet fractions; one missing fraction is calculated automatically so the fractions sum to one. Every outlet retains the inlet state and composition.</p>
+      <figure class="figure-card">
+        <img src="../assets/simulink/splitter-dialog.png" alt="Splitter dialog with two outlet fractions">
+        <figcaption>Split fractions are assigned to the named outlet Streams.</figcaption>
+      </figure>
 
       <h3>Separator</h3>
-      <p><strong>Ports:</strong> one Feed → <strong>Top</strong> and <strong>Bottom</strong>. Specify each component's <strong>Recovery to Top</strong>; the bottom receives the remainder. This is a component splitter, not an equilibrium flash.</p>
+      <p>Connect one <strong>Feed</strong>, a <strong>Top</strong> Stream, and a <strong>Bottom</strong> Stream. Enter each component's <strong>Recovery to Top</strong>; the Bottom receives the remainder. This block is a component splitter, not an equilibrium flash.</p>
+      <figure class="figure-card">
+        <img src="../assets/simulink/separator-dialog.png" alt="Separator dialog with component recoveries to the Top stream">
+        <figcaption>Separator sends a specified fraction of each component to Top.</figcaption>
+      </figure>
 
       <h3>Recycle</h3>
-      <p><strong>Ports:</strong> <strong>Calculated</strong> tear-stream input → <strong>Estimate</strong> output. Choose Direct or Wegstein, convergence tolerance, and initial estimate (<strong>Empty stream</strong> with T/P or a named <strong>Feed</strong>). Wegstein additionally uses QMin, QMax, and <strong>Acceleration every</strong>. The block supplies one iterative degree of freedom: the torn stream estimate.</p>
+      <p>Connect the calculated tear Stream to <strong>Calculated</strong> and the return Stream to <strong>Estimate</strong>. Choose <strong>Direct</strong> or <strong>Wegstein</strong>, enter the relative tolerance, and choose an initial estimate. Wegstein also uses <strong>QMin</strong>, <strong>QMax</strong>, and <strong>Accelerate every N iterations</strong>.</p>
+      <figure class="figure-card">
+        <img src="../assets/simulink/recycle-dialog.png" alt="Recycle dialog using Wegstein acceleration">
+        <figcaption>Recycle identifies both tear Streams and exposes convergence controls.</figcaption>
+      </figure>
 
       <h3>Adjust</h3>
-      <p><strong>Ports:</strong> a measured material stream enters and a scalar <strong>Parameter (SI)</strong> leaves. Connect that scalar to a supported parameter port such as reactor volume, feed T/Q, or Jacket area/T. Choose target variable (conversion, component molar flow, temperature, or component concentration), target value/unit, initial/min/max parameter values and unit, damping, tolerance, and strategy. The dialog's <strong>Connect</strong> action identifies the downstream parameter and limits units accordingly.</p>
+      <p>Connect the measured Stream to the Adjust input and its <strong>Parameter (SI)</strong> output to a supported scalar port, such as reactor volume, feed temperature or flow, or Jacket area. Choose the target variable and value, parameter bounds, damping, tolerance, and strategy. <strong>Connect</strong> identifies an available downstream parameter port.</p>
+      <figure class="figure-card">
+        <img src="../assets/simulink/adjust-dialog.png" alt="Adjust dialog targeting conversion through CSTR volume">
+        <figcaption>Adjust varies the connected parameter until the selected target is met.</figcaption>
+      </figure>
     </section>
 
     <section class="section" id="recycles-adjust">
       <h2>Recycles and Adjust</h2>
-      <p>A material recycle creates an algebraic loop. Insert one <strong>Recycle</strong> block as the tear stream: its Estimate starts the iteration and its Calculated input closes the loop. <strong>Direct</strong> substitutes the calculated stream on every iteration. <strong>Wegstein</strong> accelerates that fixed-point update with q bounded by QMin ≤ QMax ≤ 0. Convergence requires the relative stream error to remain below <strong>Tolerance</strong> for consecutive iterations.</p>
-      <p>When Adjust and Recycle share a model, <strong>Simultaneous</strong> updates both during the same iteration. <strong>Nested</strong> waits for every Recycle to converge before taking the next Adjust step. The latter is intentionally used by <code>ex50_recycle_with_adjust</code>, where the recycle must settle for each trial CSTR volume.</p>
-      <p>If a recycle does not converge, inspect <strong>Recycle</strong> and <strong>Messages</strong> in Show results, increase <strong>Maximum iterations</strong> only after checking topology and specifications, try Wegstein with conservative bounds, and improve the initial estimate. <code>ex48_recycle_pfr</code> is a useful reference for a high-recirculation loop. A tighter tolerance is not a remedy for an unstable or wrongly connected flowsheet.</p>
+      <p>A material recycle creates an algebraic loop. Insert one Recycle block at the tear Stream. <strong>Direct</strong> substitutes the calculated Stream on every iteration; <strong>Wegstein</strong> accelerates the update within its displayed bounds. Convergence requires the relative Stream error to remain below <strong>Tolerance</strong>.</p>
+      <p>When Adjust and Recycle share a model, <strong>Simultaneous</strong> updates both during the same iteration. <strong>Nested</strong> waits for every Recycle to converge before the next Adjust step. The solved example <strong>Separator recycle loop with adjusted CSTR volume</strong> demonstrates Nested operation.</p>
+      <p>If a loop does not converge, inspect <strong>Recycle</strong> and <strong>Messages</strong> in Show results. Check topology and specifications before increasing <strong>Maximum iterations</strong>; then improve the initial estimate or try Wegstein with conservative bounds.</p>
     </section>
 
     <section class="section" id="results">
       <h2>Results</h2>
-      <p>Use the model's <strong>Show results</strong> button or the same button in Reactive System edit mode. The <strong>Units</strong> tab reports unit volumes, heat duties, Jacket data, and other calculated unit values; it also contains the <strong>Adjust</strong> and <strong>Recycle</strong> convergence tables. <strong>Messages</strong> collects errors, warnings, and topology diagnostics. Each named Stream gets a table with component flow and concentration plus T, P, phase, status, and conversion when configured. <strong>PFR profiles</strong> appears when axial profiles are available.</p>
-      <p>After a run, block backgrounds are light green for solved, light yellow for warning, light red for error, and white when no result is available. Dialogs show values received through scalar ports beside fields whose source is <strong>Input port</strong>; these read-only values are converted to the dialog unit.</p>
+      <p>Use the model's <strong>Show results</strong> button or the same button in the Reactive System window. <strong>Units</strong> reports unit volumes, duties, Jacket data, and calculated values. The same tab contains the <strong>Adjust</strong> and <strong>Recycle</strong> convergence tables. Each named Stream has its own tab, and <strong>PFR profiles</strong> appears when axial profiles are available.</p>
       <figure class="figure-card">
-        <img src="../assets/simulink/results-window.png" alt="Flowsheet results window with unit, recycle, and message tables">
-        <figcaption>Show results combines process values and convergence diagnostics without requiring inspection of the MATLAB workspace.</figcaption>
+        <img src="../assets/simulink/results-units-adjust-recycle.png" alt="Results Units tab with Adjust and Recycle convergence tables">
+        <figcaption>Units combines process values with Adjust and Recycle convergence details.</figcaption>
+      </figure>
+      <p><strong>Messages</strong> collects errors, warnings, and topology diagnostics. After a run, block backgrounds are light green for solved, light yellow for warning, light red for error, and white when no result is available.</p>
+      <figure class="figure-card">
+        <img src="../assets/simulink/results-messages.png" alt="Results Messages tab showing no warnings or errors">
+        <figcaption>Messages gives one place to inspect warnings, errors, and successful completion.</figcaption>
       </figure>
     </section>
 
     <section class="section" id="examples">
       <h2>Examples</h2>
-      <p>The following catalog is generated from the same names and descriptions returned by <code>nirp.flowsheet.exampleNames</code>.</p>
+      <p>Choose <strong>Tools &gt; Flowsheet (Simulink) &gt; Open example...</strong>. The selector lists these descriptions:</p>
       <table>
-        <tr><th>Model name</th><th>Description</th></tr>
-        <tr><td><code>ex1_cstr_isothermal</code></td><td>Isothermal CSTR</td></tr>
-        <tr><td><code>ex2_cstr_adiabatic_cooler</code></td><td>Adiabatic CSTR and cooler</td></tr>
-        <tr><td><code>ex3_pfr_adiabatic</code></td><td>Adiabatic PFR</td></tr>
-        <tr><td><code>ex4_problem40b_parallel</code></td><td>Parallel CSTRs (Problem 40b)</td></tr>
-        <tr><td><code>ex5_recycle_cstr</code></td><td>CSTR with recycle</td></tr>
-        <tr><td><code>ex6_adjust_volume</code></td><td>Adjusted CSTR volume</td></tr>
-        <tr><td><code>ex7_problem44c</code></td><td>Adiabatic CSTR comparison (Problem 44c)</td></tr>
-        <tr><td><code>ex8_problem37a_series</code></td><td>Problem 37a - Two CSTRs in series with two feeds</td></tr>
-        <tr><td><code>ex9_problem40a_series</code></td><td>Problem 40a - Two CSTRs in series</td></tr>
-        <tr><td><code>ex10_problem42_cstr_pfr</code></td><td>Problem 42 - CSTR then PFR</td></tr>
-        <tr><td><code>ex11_problem42_pfr_cstr</code></td><td>Problem 42 - PFR then CSTR</td></tr>
-        <tr><td><code>ex12_problem19_adiabatic_pfr</code></td><td>Problem 19 - Adiabatic gas PFR</td></tr>
-        <tr><td><code>ex13_problem21a_isothermal_pfr</code></td><td>Problem 21a - Isothermal PFR, adjusted feed T</td></tr>
-        <tr><td><code>ex14_problem21b_adiabatic_pfr</code></td><td>Problem 21b - Adiabatic PFR, adjusted feed T</td></tr>
-        <tr><td><code>ex15_problem27_jacketed_cstr</code></td><td>Problem 27 - Jacketed CSTR, adjusted feed T</td></tr>
-        <tr><td><code>ex16_problem30_adiabatic_cstr</code></td><td>Problem 30 - Mixer and adiabatic CSTR</td></tr>
-        <tr><td><code>ex17_problem31_cooled_cstr</code></td><td>Problem 31 - Mixer and cooled CSTR</td></tr>
-        <tr><td><code>ex18_problem44a_volumes</code></td><td>Problem 44a - Adjusted PFR and CSTR volumes</td></tr>
-        <tr><td><code>ex19_problem45a_three_cstrs</code></td><td>Problem 45a - Three equal adjusted CSTRs</td></tr>
-        <tr><td><code>ex20_problem45b_feed_temperature</code></td><td>Problem 45b - Adiabatic CSTR, adjusted feed T</td></tr>
-        <tr><td><code>ex21_problem17_adiabatic_pfr_volume</code></td><td>Problem 17 - Adiabatic PFR, adjusted volume</td></tr>
-        <tr><td><code>ex22_problem18_acetone_cracking</code></td><td>Problem 18 - Acetone cracking, adjusted PFR volume</td></tr>
-        <tr><td><code>ex23_problem23_butane_isomerization</code></td><td>Problem 23 - Butane isomerization, adjusted PFR volume</td></tr>
-        <tr><td><code>ex24_problem26_scale_up_cstr</code></td><td>Problem 26 - Gas CSTR scale-up, adjusted volume</td></tr>
-        <tr><td><code>ex25_problem38_parallel_pfrs</code></td><td>Problem 38 - Two parallel PFRs with one adjusted volume</td></tr>
-        <tr><td><code>ex26_problem40c_pfr_volume</code></td><td>Problem 40c - Isothermal PFR, adjusted volume</td></tr>
-        <tr><td><code>ex27_problem49a_two_adiabatic_cstrs</code></td><td>Problem 49a - Two equal adiabatic CSTRs</td></tr>
-        <tr><td><code>ex28_problem49b_one_adiabatic_cstr</code></td><td>Problem 49b - One adiabatic CSTR, adjusted volume</td></tr>
-        <tr><td><code>ex29_problem34d_jacketed_cstr</code></td><td>Problem 34d - Jacketed Monsanto-reaction CSTR</td></tr>
-        <tr><td><code>ex30_problem33b_cooled_gas_cstr</code></td><td>Problem 33b - Cooled reversible gas CSTR</td></tr>
-        <tr><td><code>ex31_problem41_three_cstrs</code></td><td>Problem 41 - Three CSTRs, adjusted feed flow</td></tr>
-        <tr><td><code>ex32_problem43_pfr_then_cstr</code></td><td>Problem 43 - PFR then CSTR, adjusted feed flow</td></tr>
-        <tr><td><code>ex33_problem43_cstr_then_pfr</code></td><td>Problem 43 - CSTR then PFR, adjusted feed flow</td></tr>
-        <tr><td><code>ex34_problem45c_cooled_tanks</code></td><td>Problem 45c - Cooled tanks, adjusted areas</td></tr>
-        <tr><td><code>ex35_problem28_steam_jacket</code></td><td>Problem 28 - Steam-jacketed CSTR</td></tr>
-        <tr><td><code>ex36_problem36_air_cooled_cstr</code></td><td>Problem 36 - Air-cooled CSTR, adjusted area</td></tr>
-        <tr><td><code>ex37_problem20b_adiabatic_reversible_pfr</code></td><td>Problem 20b - Adiabatic reversible PFR, adjusted volume</td></tr>
-        <tr><td><code>ex38_problem29_cstr_volume</code></td><td>Problem 29a - Isothermal CSTR, adjusted volume</td></tr>
-        <tr><td><code>ex39_problem29_cooling_area</code></td><td>Problem 29b - Cooled CSTR, adjusted area</td></tr>
-        <tr><td><code>ex40_problem32_three_steady_states</code></td><td>Problem 32a - Three CSTR steady states (middle branch unstable)</td></tr>
-        <tr><td><code>ex41_problem48_cstr_then_adiabatic_pfr</code></td><td>Problem 48 - CSTR then adiabatic PFR, adjusted volumes</td></tr>
-        <tr><td><code>ex42_problem33d_area_for_max_generation</code></td><td>Problem 33d - CSTR area at maximum heat generation</td></tr>
-        <tr><td><code>ex43_problem15_number_of_tubes</code></td><td>Problem 15 - Isothermal gas PFR, number of tubes</td></tr>
-        <tr><td><code>ex44_problem22_no_oxidation</code></td><td>Problem 22 - Adiabatic NO oxidation PFR volume</td></tr>
-        <tr><td><code>ex45_problem16_pfr_space_time</code></td><td>Problem 16 - Isothermal PFR space time and product flow</td></tr>
-        <tr><td><code>ex46_problem35_isothermal_cstr</code></td><td>Problem 35 - Isothermal NO-reduction CSTR</td></tr>
-        <tr><td><code>ex47_problem35_adiabatic_feed_T</code></td><td>Problem 35 - Adiabatic CSTR with adjusted feed temperature</td></tr>
-        <tr><td><code>ex48_recycle_pfr</code></td><td>PFR with recycle (R = 1, Levenspiel)</td></tr>
-        <tr><td><code>ex49_reactor_separator_recycle</code></td><td>CSTR, separator and recycle with purge</td></tr>
-        <tr><td><code>ex50_recycle_with_adjust</code></td><td>Separator recycle loop with adjusted CSTR volume</td></tr>
+        <tr><th>No.</th><th>Description shown in the selector</th></tr>
+        <tr><td>1</td><td>Isothermal CSTR</td></tr>
+        <tr><td>2</td><td>Adiabatic CSTR and cooler</td></tr>
+        <tr><td>3</td><td>Adiabatic PFR</td></tr>
+        <tr><td>4</td><td>Parallel CSTRs (Problem 40b)</td></tr>
+        <tr><td>5</td><td>CSTR with recycle</td></tr>
+        <tr><td>6</td><td>Adjusted CSTR volume</td></tr>
+        <tr><td>7</td><td>Adiabatic CSTR comparison (Problem 44c)</td></tr>
+        <tr><td>8</td><td>Problem 37a - Two CSTRs in series with two feeds</td></tr>
+        <tr><td>9</td><td>Problem 40a - Two CSTRs in series</td></tr>
+        <tr><td>10</td><td>Problem 42 - CSTR then PFR</td></tr>
+        <tr><td>11</td><td>Problem 42 - PFR then CSTR</td></tr>
+        <tr><td>12</td><td>Problem 19 - Adiabatic gas PFR</td></tr>
+        <tr><td>13</td><td>Problem 21a - Isothermal PFR, adjusted feed T</td></tr>
+        <tr><td>14</td><td>Problem 21b - Adiabatic PFR, adjusted feed T</td></tr>
+        <tr><td>15</td><td>Problem 27 - Jacketed CSTR, adjusted feed T</td></tr>
+        <tr><td>16</td><td>Problem 30 - Mixer and adiabatic CSTR</td></tr>
+        <tr><td>17</td><td>Problem 31 - Mixer and cooled CSTR</td></tr>
+        <tr><td>18</td><td>Problem 44a - Adjusted PFR and CSTR volumes</td></tr>
+        <tr><td>19</td><td>Problem 45a - Three equal adjusted CSTRs</td></tr>
+        <tr><td>20</td><td>Problem 45b - Adiabatic CSTR, adjusted feed T</td></tr>
+        <tr><td>21</td><td>Problem 17 - Adiabatic PFR, adjusted volume</td></tr>
+        <tr><td>22</td><td>Problem 18 - Acetone cracking, adjusted PFR volume</td></tr>
+        <tr><td>23</td><td>Problem 23 - Butane isomerization, adjusted PFR volume</td></tr>
+        <tr><td>24</td><td>Problem 26 - Gas CSTR scale-up, adjusted volume</td></tr>
+        <tr><td>25</td><td>Problem 38 - Two parallel PFRs with one adjusted volume</td></tr>
+        <tr><td>26</td><td>Problem 40c - Isothermal PFR, adjusted volume</td></tr>
+        <tr><td>27</td><td>Problem 49a - Two equal adiabatic CSTRs</td></tr>
+        <tr><td>28</td><td>Problem 49b - One adiabatic CSTR, adjusted volume</td></tr>
+        <tr><td>29</td><td>Problem 34d - Jacketed Monsanto-reaction CSTR</td></tr>
+        <tr><td>30</td><td>Problem 33b - Cooled reversible gas CSTR</td></tr>
+        <tr><td>31</td><td>Problem 41 - Three CSTRs, adjusted feed flow</td></tr>
+        <tr><td>32</td><td>Problem 43 - PFR then CSTR, adjusted feed flow</td></tr>
+        <tr><td>33</td><td>Problem 43 - CSTR then PFR, adjusted feed flow</td></tr>
+        <tr><td>34</td><td>Problem 45c - Cooled tanks, adjusted areas</td></tr>
+        <tr><td>35</td><td>Problem 28 - Steam-jacketed CSTR</td></tr>
+        <tr><td>36</td><td>Problem 36 - Air-cooled CSTR, adjusted area</td></tr>
+        <tr><td>37</td><td>Problem 20b - Adiabatic reversible PFR, adjusted volume</td></tr>
+        <tr><td>38</td><td>Problem 29a - Isothermal CSTR, adjusted volume</td></tr>
+        <tr><td>39</td><td>Problem 29b - Cooled CSTR, adjusted area</td></tr>
+        <tr><td>40</td><td>Problem 32a - Three CSTR steady states (middle branch unstable)</td></tr>
+        <tr><td>41</td><td>Problem 48 - CSTR then adiabatic PFR, adjusted volumes</td></tr>
+        <tr><td>42</td><td>Problem 33d - CSTR area at maximum heat generation</td></tr>
+        <tr><td>43</td><td>Problem 15 - Isothermal gas PFR, number of tubes</td></tr>
+        <tr><td>44</td><td>Problem 22 - Adiabatic NO oxidation PFR volume</td></tr>
+        <tr><td>45</td><td>Problem 16 - Isothermal PFR space time and product flow</td></tr>
+        <tr><td>46</td><td>Problem 35 - Isothermal NO-reduction CSTR</td></tr>
+        <tr><td>47</td><td>Problem 35 - Adiabatic CSTR with adjusted feed temperature</td></tr>
+        <tr><td>48</td><td>PFR with recycle (R = 1, Levenspiel)</td></tr>
+        <tr><td>49</td><td>CSTR, separator and recycle with purge</td></tr>
+        <tr><td>50</td><td>Separator recycle loop with adjusted CSTR volume</td></tr>
       </table>
       <figure class="figure-card">
-        <img src="../assets/simulink/ex49-flowsheet.png" alt="Example 49 reactor separator recycle flowsheet">
-        <figcaption><code>ex49_reactor_separator_recycle</code> demonstrates a CSTR, component separator, purge, and torn recycle loop.</figcaption>
+        <img src="../assets/simulink/ex49-flowsheet.png" alt="Example 49 CSTR separator purge and recycle flowsheet">
+        <figcaption>CSTR, separator and recycle with purge demonstrates a component split and a torn recycle loop.</figcaption>
       </figure>
-      <p>Developers validate the packaged catalog with <code>simulink/run_validation.m</code>, which simulates the reference cases and compares their reported quantities with the expected values. Users normally open the examples from the app and do not need to run that script.</p>
+      <p>The examples are checked against textbook or analytical results. Open them from the selector, run them, and compare the reported quantities in <strong>Show results</strong>.</p>
     </section>
 
     <section class="section" id="troubleshooting">
       <h2>Troubleshooting</h2>
       <table>
         <tr><th>Message or symptom</th><th>What to check</th></tr>
-        <tr><td><strong>Stream is unconnected.</strong></td><td>Connect the Stream to at least one process unit. A feed has a consumer, a product has a producer, and an intermediate stream has both.</td></tr>
-        <tr><td><strong>Blocks ... are directly connected; insert a Stream block.</strong></td><td>Break every direct material connection between functional blocks with a named Stream block. Direct scalar and Jacket signal connections are valid.</td></tr>
-        <tr><td>Unknown or missing feed</td><td>The name of a Feed-role Stream must match a feed defined under Reactive System. Reopen Reactive System and add or rename the feed.</td></tr>
-        <tr><td><strong>Maximum iterations reached</strong> or <strong>did not converge</strong></td><td>Read the Recycle/Adjust rows and Messages, check specifications and tear placement, improve the initial guess, then consider Wegstein or Nested and a larger iteration limit.</td></tr>
-        <tr><td>Thermodynamics-required error</td><td>Adiabatic, Heat exchange, Heater, and Jacket calculations cannot run with <strong>Without thermodynamics</strong>. Supply Cp and ΔH or change the flowsheet to a physically valid isothermal configuration.</td></tr>
+        <tr><td><strong>Stream is unconnected.</strong></td><td>Connect the Stream to at least one process block. A Feed has a consumer, a Product has a producer, and an intermediate Stream has both.</td></tr>
+        <tr><td>Blocks are directly connected</td><td>Insert a named Stream between material-processing blocks. Direct scalar and Jacket signal connections are valid.</td></tr>
+        <tr><td>Unknown or missing feed</td><td>The Feed Stream name must match a feed defined in Reactive System. Reopen Reactive System and add or rename the feed.</td></tr>
+        <tr><td><strong>Maximum iterations reached</strong> or <strong>did not converge</strong></td><td>Read the Recycle and Adjust rows plus Messages, check specifications and tear placement, improve the initial estimate, then consider Wegstein or Nested and a larger iteration limit.</td></tr>
+        <tr><td>Thermodynamics-required error</td><td>Adiabatic, Heat exchange, Heater/Cooler, and Jacket calculations cannot run with <strong>Without thermodynamics</strong>. Supply heat capacities and reaction enthalpies or use a physically valid isothermal configuration.</td></tr>
       </table>
     </section>
   </div>
