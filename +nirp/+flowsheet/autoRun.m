@@ -6,11 +6,15 @@ function ran = autoRun(block)
 %   flowsheet is left without results and no error is shown; Run reports it.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 10, 2026. Last update: October 10, 2026
+% Created: October 10, 2026. Last update: October 12, 2026
 % =========================================================================
 
     ran = false ;
-    if ~usejava('desktop'), return, end
+    % UI interaction tests run with -batch. A process-local appdata flag lets
+    % them exercise the real OK callbacks without changing normal behavior.
+    forceForTest = isappdata(groot,'NirpForceAutoRunForTests') && ...
+        isequal(getappdata(groot,'NirpForceAutoRunForTests'),true) ;
+    if ~usejava('desktop') && ~forceForTest, return, end
     try
         model = bdroot(char(string(block))) ;
     catch

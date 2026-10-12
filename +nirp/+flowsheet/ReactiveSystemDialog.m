@@ -4,7 +4,7 @@ classdef ReactiveSystemDialog < handle
 %   that can also be driven by scripts through its public tables.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 2, 2026. Last update: October 10, 2026
+% Created: October 2, 2026. Last update: October 12, 2026
 % =========================================================================
 
     properties (SetAccess = private)
@@ -48,6 +48,12 @@ classdef ReactiveSystemDialog < handle
         ExpressionField
         OKButton
         CancelButton
+    end
+
+    properties (Hidden)
+        % Native file selector. It is injectable so UI interaction tests do
+        % not have to open an operating-system modal dialog.
+        FileChooser = @uiputfile
     end
 
     properties (Access = private)
@@ -463,7 +469,7 @@ classdef ReactiveSystemDialog < handle
             uilabel(top,'Text','Kinetics');
             obj.KineticTypeDropDown=uidropdown(top,'Items',{'powerlaw','reversible','expression'}, ...
                 'ValueChangedFcn',@(~,~) obj.kineticTypeChanged());
-            edited=@(~,~) obj.kineticDetailEdited();
+            edited=@(source,event) obj.kineticDetailEdited(source,event);
             [obj.ForwardPanel,obj.K0Field,obj.K0UnitLabel,obj.EaField,obj.EaUnitDropDown, ...
                 obj.OrdersField]=termPanel(obj.KineticDetailGrid,1,'Forward',edited);
             [obj.ReversePanel,obj.ReverseK0Field,obj.ReverseK0UnitLabel,obj.ReverseEaField, ...
@@ -594,13 +600,20 @@ classdef ReactiveSystemDialog < handle
                 'constant','100','J/(mol*K)'} ;
             obj.ComponentTable.Data = data ;
             old = obj.ReactionTable.Data ; obj.rebuildReactionColumns() ;
-            if ~isempty(old), obj.ReactionTable.Data = [old(:,1:end-12) num2cell(zeros(size(old,1),1)) old(:,end-11:end)] ; end
+            if ~isempty(old)
+                reactions=[old(:,1:end-12) num2cell(zeros(size(old,1),1)) old(:,end-11:end)];
+                reactions=obj.resizeKineticOrders(reactions,size(data,1));
+                obj.ReactionTable.Data=reactions;
+            end
             obj.refreshDerivedTables() ;
         end
 
         function addReaction(obj)
             nComp = size(obj.ComponentTable.Data,1) ;
-            row = [num2cell(zeros(1,nComp)),{0,'J/mol','powerlaw',1,0, ...
+            dhUnit='J/mol';
+            existing=obj.ReactionTable.Data;
+            if ~isempty(existing),dhUnit=char(string(existing{1,nComp+2}));end
+            row = [num2cell(zeros(1,nComp)),{0,dhUnit,'powerlaw',1,0, ...
                 'J/mol',obj.vectorText(zeros(1,nComp)),[],[], ...
                 'J/mol','', ''}] ;
             data = obj.ReactionTable.Data ; data(end+1,:) = row ; obj.ReactionTable.Data=data ;
@@ -622,7 +635,8 @@ classdef ReactiveSystemDialog < handle
                     data(end,:)=[] ; obj.ComponentTable.Data=data ;
                     reactions=obj.ReactionTable.Data ;
                     reactions(:,size(data,1)+1)=[] ; obj.rebuildReactionColumns() ;
-                    obj.ReactionTable.Data=reactions ;
+                    obj.ReactionTable.Data=obj.resizeKineticOrders( ...
+                        reactions,size(data,1)) ;
                 case 'reaction'
                     data=obj.ReactionTable.Data ; if size(data,1)<=1, return, end
                     data(end,:)=[] ; obj.ReactionTable.Data=data ;
@@ -631,6 +645,18 @@ classdef ReactiveSystemDialog < handle
                     data(end,:)=[] ; obj.FeedTable.Data=data ;
             end
             obj.refreshDerivedTables() ;
+        end
+
+        function data=resizeKineticOrders(obj,data,nComp)
+            for row=1:size(data,1)
+                data{row,nComp+7}=obj.vectorText(resizeVector( ...
+                    obj.parseVector(data{row,nComp+7}),nComp));
+                reverse=obj.parseVector(data{row,nComp+11});
+                if ~isempty(reverse)
+                    data{row,nComp+11}=obj.vectorText( ...
+                        resizeVector(reverse,nComp));
+                end
+            end
         end
 
         function refreshDerivedTables(obj)
@@ -700,14 +726,24 @@ classdef ReactiveSystemDialog < handle
             obj.setKineticType(obj.KineticTypeDropDown.Value);
         end
 
-        function kineticDetailEdited(obj)
+        function kineticDetailEdited(obj,source,event)
             if obj.UpdatingKinetics,return,end
+            if nargin >= 3 && (isequal(source,obj.OrdersField) || ...
+                    isequal(source,obj.ReverseOrdersField)) && ...
+                    ~isempty(event) && ispropOrField(event,'Indices') && ...
+                    ispropOrField(event,'NewData')
+                % Consume the committed value explicitly instead of relying
+                % on the renderer-specific order of table data updates.
+                tableData=source.Data;
+                tableData{event.Indices(1),event.Indices(2)}=event.NewData;
+                source.Data=tableData;
+            end
             data=obj.ReactionTable.Data;nComp=size(obj.ComponentTable.Data,1);row=obj.SelectedReaction;
             data(row,nComp+(4:12))={textScalar(obj.K0Field.Value),textScalar(obj.EaField.Value), ...
                 obj.EaUnitDropDown.Value,tableOrders(obj.OrdersField.Data), ...
                 textScalar(obj.ReverseK0Field.Value),textScalar(obj.ReverseEaField.Value), ...
                 obj.ReverseEaUnitDropDown.Value,tableOrders(obj.ReverseOrdersField.Data), ...
-                strjoin(string(obj.ExpressionField.Value),newline)};
+                char(strjoin(string(obj.ExpressionField.Value),newline))};
             obj.ReactionTable.Data=data;
             obj.updateKineticPreview();
         end
@@ -752,9 +788,25 @@ classdef ReactiveSystemDialog < handle
 
         function applied=applyDialog(obj)
             applied=false;
-            obj.kineticDetailEdited();
-            [valid,~]=obj.validate();if ~valid,return,end
-            try,if obj.Mode=="edit",obj.saveToModel();end;applied=true;catch exception,obj.StatusLabel.Text=exception.message;end
+            try
+                obj.kineticDetailEdited([],[]);
+                [valid,message]=obj.validate();
+                if ~valid
+                    obj.showError(char(message));
+                    return
+                end
+                if obj.Mode=="edit",obj.saveToModel();end
+                applied=true;
+            catch exception
+                obj.showError(exception.message);
+            end
+        end
+
+        function showError(obj,message)
+            obj.StatusLabel.Text=message;
+            if isvalid(obj.Figure)&&strcmp(obj.Figure.Visible,'on')
+                uialert(obj.Figure,message,'Reactive System','Icon','error');
+            end
         end
 
         function acceptDialog(obj)
@@ -765,11 +817,13 @@ classdef ReactiveSystemDialog < handle
         end
 
         function createInteractive(obj)
-            answer=inputdlg('Model name:','New NIRP flowsheet',1,{'nirp_flowsheet'}) ;
-            if isempty(answer), return, end
-            folder=uigetdir(pwd,'Select a folder for the flowsheet') ;
-            if isequal(folder,0), return, end
-            try,obj.createFlowsheet(strtrim(answer{1}),folder) ;delete(obj);catch exception,obj.StatusLabel.Text=exception.message;end
+            chooser=obj.FileChooser;
+            [file,folder]=nirp.flowsheet.internal.modalSafe(obj.Figure,@() chooser( ...
+                {'*.slx','Simulink model'},'Create NIRP flowsheet', ...
+                'nirp_flowsheet.slx'));
+            if isequal(file,0) || isequal(folder,0),return,end
+            [~,name]=fileparts(char(string(file)));
+            try,obj.createFlowsheet(strtrim(name),folder);delete(obj);catch exception,obj.StatusLabel.Text=exception.message;end
         end
 
         function path = dictionaryPath(obj,model)
@@ -851,6 +905,11 @@ end
 
 function value=onOff(flag)
     if flag,value='on';else,value='off';end
+end
+
+function present=ispropOrField(value,name)
+    present=(isobject(value)&&isprop(value,name))|| ...
+        (isstruct(value)&&isfield(value,name));
 end
 
 function [panel,k0,k0Unit,ea,eaUnit,orders]=termPanel(grid,column,title,callback)

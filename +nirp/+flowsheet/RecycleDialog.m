@@ -2,7 +2,7 @@ classdef RecycleDialog < handle
 %RECYCLEDIALOG Structured editor for Recycle (tear stream) blocks (T-142).
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 10, 2026. Last update: October 10, 2026
+% Created: October 10, 2026. Last update: October 12, 2026
 % =========================================================================
     properties (SetAccess=private)
         BlockPath; Figure; NameField; TearInLabel; TearOutLabel
@@ -61,9 +61,9 @@ classdef RecycleDialog < handle
     methods (Access=private)
         function build(obj,visible)
             obj.Figure=uifigure('Name','Recycle','Tag','NirpRecycleDialog','Visible',visible, ...
-                'Position',[140 110 760 470],'WindowStyle','alwaysontop');
+                'Position',[140 110 840 470],'WindowStyle','alwaysontop');
             main=uigridlayout(obj.Figure,[3 1],'RowHeight',{'1x',26,38},'Padding',[12 10 12 10]);
-            grid=uigridlayout(main,[11 4],'ColumnWidth',{190,140,110,'1x'},'RowHeight',repmat({26},1,11));
+            grid=uigridlayout(main,[11 4],'ColumnWidth',{190,140,170,'1x'},'RowHeight',repmat({26},1,11));
             label(grid,1,'Name');obj.NameField=uieditfield(grid,'text','Editable','off');place(obj.NameField,1,[2 3]);
             heading(grid,2,'Tear stream');
             label(grid,3,'Calculated stream (input)');obj.TearInLabel=uilabel(grid,'Text','<missing>');place(obj.TearInLabel,3,[2 4]);
