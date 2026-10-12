@@ -398,10 +398,12 @@ classdef ReactiveSystemDialog < handle
                 if ~isempty(block)&&any(strcmp(get_param(block,'MaskNames'),'AutoRun')),obj.AutoRunCheckBox.Value=strcmp(get_param(block,'AutoRun'),'on');end
                 uibutton(settings,'Text','Show results','ButtonPushedFcn',@(~,~) nirp.flowsheet.showResults(obj.Model));
             end
-            controls = uigridlayout(main,[1 4]) ;
+            controls = uigridlayout(main,[1 5]) ;
             controls.Padding = [10 4 10 4] ;
-            controls.ColumnWidth = {'1x',130,90,10} ;
+            controls.ColumnWidth = {'1x',80,130,90,10} ;
             uilabel(controls,'Text','') ;
+            uibutton(controls,'Text','Help','ButtonPushedFcn', ...
+                @(~,~) obj.openHelp()) ;
             if obj.Mode == "edit"
                 obj.OKButton=uibutton(controls,'Text','OK','ButtonPushedFcn', ...
                     @(~,~) obj.acceptDialog()) ;
@@ -412,6 +414,18 @@ classdef ReactiveSystemDialog < handle
             obj.CancelButton=uibutton(controls,'Text','Cancel','ButtonPushedFcn', ...
                 @(~,~) delete(obj)) ;
             obj.StatusLabel = uilabel(main,'Text','Ready.','FontAngle','italic') ;
+        end
+
+        function openHelp(~)
+            classFolder = fileparts(mfilename('fullpath')) ;
+            repositoryRoot = fileparts(fileparts(classFolder)) ;
+            guidePath = fullfile(repositoryRoot,'docs','guides', ...
+                'simulink-flowsheet.html') ;
+            if ~isfile(guidePath)
+                error('nirp:flowsheet:missingHelp', ...
+                    'The Simulink flowsheet guide was not found at "%s".',guidePath) ;
+            end
+            web(guidePath,'-browser') ;
         end
 
         function buildComponents(obj)
