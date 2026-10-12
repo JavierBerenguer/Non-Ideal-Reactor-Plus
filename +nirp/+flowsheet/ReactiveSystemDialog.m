@@ -447,7 +447,7 @@ classdef ReactiveSystemDialog < handle
         function buildReactions(obj)
             layout = uigridlayout(obj.ReactionTab,[2 1]) ;
             layout.RowHeight = {38,'1x'} ;
-            header = uigridlayout(layout,[1 4],'ColumnWidth',{130,'1x',80,'1x'}) ;
+            header = uigridlayout(layout,[1 5],'ColumnWidth',{130,140,80,140,'1x'}) ;
             header.Padding = [0 0 0 0] ;
             uilabel(header,'Text','Concentration unit') ;
             obj.ConcentrationUnitDropDown = uidropdown(header,'Items', ...
@@ -712,7 +712,8 @@ classdef ReactiveSystemDialog < handle
             obj.OrdersField.Data=ordersData(names,data{row,nComp+7});
             obj.ReverseK0Field.Value=scalarText(data{row,nComp+8});
             obj.ReverseEaField.Value=scalarText(data{row,nComp+9});
-            setDropdownValue(obj.ReverseEaUnitDropDown,data{row,nComp+10});
+            reverseUnit=data{row,nComp+10};if isempty(reverseUnit),reverseUnit=data{row,nComp+6};end
+            setDropdownValue(obj.ReverseEaUnitDropDown,reverseUnit);
             obj.ReverseOrdersField.Data=ordersData(names,data{row,nComp+11});
             obj.ExpressionField.Value=cellstr(string(data{row,nComp+12}));
             obj.updateKineticVisibility();
@@ -1000,7 +1001,8 @@ function text=sideText(coefficients,names)
 end
 
 function text=scalarText(value)
-    if isempty(value),text='';elseif isnumeric(value),text=num2str(value,17);else,text=char(string(value));end
+    % Shortest text that reads back to the same double (0.6, not 0.59999999999999998).
+    if isempty(value),text='';elseif isnumeric(value),text=sprintf('%.15g',value);if str2double(text)~=value,text=sprintf('%.17g',value);end,else,text=char(string(value));end
 end
 
 function value=textScalar(text)
