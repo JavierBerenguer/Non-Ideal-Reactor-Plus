@@ -57,6 +57,7 @@ classdef NirpUiInteractionTest < matlab.unittest.TestCase
 
         function createFlowsheetChooserIsModalSafe(testCase)
             dialog=nirp.flowsheet.ReactiveSystemDialog('Visible','off') ;
+            dialog.setPackage(nirp.pkg.examples.firstOrderLiquid()) ;
             figureHandle=dialog.Figure ;
             dialog.FileChooser=@(~,~,~) chooserResult(figureHandle, ...
                 'interactive_model.slx',testCase.Folder) ;
@@ -101,6 +102,7 @@ classdef NirpUiInteractionTest < matlab.unittest.TestCase
         function componentButtonsResizeEveryReactionOrderVector(testCase)
             dialog=nirp.flowsheet.ReactiveSystemDialog('Visible','off') ;
             testCase.addTeardown(@() deleteValid(dialog)) ;
+            dialog.setPackage(nirp.pkg.examples.firstOrderLiquid()) ;
             dialog.ReactionCountSpinner.Value=2 ;
             feval(dialog.ReactionCountSpinner.ValueChangedFcn, ...
                 dialog.ReactionCountSpinner,[]) ;
@@ -145,8 +147,6 @@ classdef NirpUiInteractionTest < matlab.unittest.TestCase
                 dialog=nirp.flowsheet.ReactiveSystemDialog('Mode','edit', ...
                     'Model',model,'Visible','off') ;
                 figureHandle=dialog.Figure ;
-                dialog.AutoRunCheckBox.Value=false ;
-
                 oldK0=str2double(dialog.K0Field.Value) ;
                 dialog.K0Field.Value=num2str(oldK0*1.01,17) ;
                 feval(dialog.K0Field.ValueChangedFcn,dialog.K0Field,[]) ;
@@ -180,40 +180,29 @@ classdef NirpUiInteractionTest < matlab.unittest.TestCase
             end
         end
 
-        function okCallbackHonorsAutoRunAndIncompleteModels(testCase)
+        function okAndApplyNeverRunTheModel(testCase)
             editor=nirp.flowsheet.ReactiveSystemDialog('Visible','off') ;
-            editor.createFlowsheet('ui_autorun',testCase.Folder, ...
+            editor.setPackage(nirp.pkg.examples.firstOrderLiquid()) ;
+            editor.createFlowsheet('ui_no_autorun',testCase.Folder, ...
                 'OpenModel',false) ;
             delete(editor) ;
-            load_system(fullfile(testCase.Folder,'ui_autorun.slx')) ;
+            load_system(fullfile(testCase.Folder,'ui_no_autorun.slx')) ;
             add_block('simulink/User-Defined Functions/MATLAB System', ...
-                'ui_autorun/CSTR','System','nirp.blocks.CSTR', ...
+                'ui_no_autorun/CSTR','System','nirp.blocks.CSTR', ...
                 'Position',[210 140 310 200],'V','100','VUnit','L', ...
                 'HeatMode','Isothermal') ;
             add_block('simulink/User-Defined Functions/MATLAB System', ...
-                'ui_autorun/Product','System','nirp.blocks.Stream', ...
+                'ui_no_autorun/Product','System','nirp.blocks.Stream', ...
                 'Position',[380 140 520 200],'Role','Product', ...
                 'ReferenceFeed','F1','KeyComponent','A') ;
-            nirp.flowsheet.setupUnitBlock('ui_autorun/CSTR') ;
-            nirp.flowsheet.setupStreamBlock('ui_autorun/Product') ;
-            add_line('ui_autorun','F1/1','CSTR/1') ;
-            productLine=add_line('ui_autorun','CSTR/1','Product/1') ;
-            nirp.flowsheet.configure('ui_autorun') ;
-            setappdata(groot,'NirpForceAutoRunForTests',true) ;
-
-            acceptReactorDialog('ui_autorun/CSTR') ;
-            testCase.verifyEqual(evalin('base', ...
-                'exist(''nirpResults'',''var'')'),1) ;
-
-            evalin('base','clear nirpResults') ;
-            set_param(flowsheetBlock('ui_autorun'),'AutoRun','off') ;
-            acceptReactorDialog('ui_autorun/CSTR') ;
-            testCase.verifyEqual(evalin('base', ...
-                'exist(''nirpResults'',''var'')'),0) ;
-
-            set_param(flowsheetBlock('ui_autorun'),'AutoRun','on') ;
-            delete_line(productLine) ;
-            acceptReactorDialog('ui_autorun/CSTR') ;
+            nirp.flowsheet.setupUnitBlock('ui_no_autorun/CSTR') ;
+            nirp.flowsheet.setupStreamBlock('ui_no_autorun/Product') ;
+            add_line('ui_no_autorun','F1/1','CSTR/1') ;
+            add_line('ui_no_autorun','CSTR/1','Product/1') ;
+            nirp.flowsheet.configure('ui_no_autorun') ;
+            flow=flowsheetBlock('ui_no_autorun');
+            testCase.verifyFalse(any(strcmp(get_param(flow,'MaskNames'),'AutoRun')));
+            acceptReactorDialog('ui_no_autorun/CSTR') ;
             testCase.verifyEqual(evalin('base', ...
                 'exist(''nirpResults'',''var'')'),0) ;
         end
@@ -240,7 +229,7 @@ function block=flowsheetBlock(model)
     block='';
     for index=1:numel(blocks)
         if strcmp(get_param(blocks{index},'Mask'),'on') && ...
-                any(strcmp(get_param(blocks{index},'MaskNames'),'AutoRun'))
+                any(strcmp(get_param(blocks{index},'MaskNames'),'MaxIterations'))
             block=blocks{index};
             return
         end
@@ -255,9 +244,6 @@ function cleanup(testCase)
     if ~isempty(figures),delete(figures);end
     if isappdata(groot,'NirpStyleDuringChooser')
         rmappdata(groot,'NirpStyleDuringChooser') ;
-    end
-    if isappdata(groot,'NirpForceAutoRunForTests')
-        rmappdata(groot,'NirpForceAutoRunForTests') ;
     end
     evalin('base','clear nirpResults') ;
     if contains([path pathsep],[testCase.Folder pathsep]),rmpath(testCase.Folder);end

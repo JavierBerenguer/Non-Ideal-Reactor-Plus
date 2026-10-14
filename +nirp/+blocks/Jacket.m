@@ -44,7 +44,7 @@ classdef Jacket < matlab.System
         LatentHeat = NaN
     end
     properties (Constant,Hidden)
-        ModeSet = matlab.system.StringSet({'Utility','Specified T','Specified Q'})
+        ModeSet = matlab.system.StringSet({'Select...','Utility','Specified T','Specified Q'})
         SpecifiedTUnitSet = matlab.system.StringSet({'K',[char(176) 'C']})
         SpecifiedQUnitSet = matlab.system.StringSet(UnitConverterHelper.getUnits('Power'))
         UUnitSet = matlab.system.StringSet(UnitConverterHelper.getUnits('HeatTransferCoefficient'))
@@ -64,6 +64,8 @@ classdef Jacket < matlab.System
         function setupImpl(obj)
             [obj.Model,pkg,~] = nirp.blocks.internal.modelPackage() ;
             obj.Block = get_param(gcb,'Name') ;
+            missing=strings(0,1);if strcmp(obj.Mode,'Select...'),missing(end+1)="Mode";elseif strcmp(obj.Mode,'Specified T')&&~isfinite(obj.SpecifiedT),missing(end+1)="SpecifiedT";elseif strcmp(obj.Mode,'Specified Q')&&~isfinite(obj.SpecifiedQ),missing(end+1)="SpecifiedQ";elseif strcmp(obj.Mode,'Utility'),if ~isfinite(obj.U),missing(end+1)="U";end;if strcmp(obj.ASource,'Dialog')&&~isfinite(obj.A),missing(end+1)="A";end;if strcmp(obj.UtilityTinSource,'Dialog')&&~isfinite(obj.UtilityTin),missing(end+1)="UtilityTin";end;end
+            nirp.blocks.internal.requireSpecifications('Jacket',obj.Block,missing);
             nirp.blocks.internal.requireThermodynamics(pkg,sprintf('Jacket "%s"',obj.Block)) ;
             obj.CalculationCount = 0 ;
             if strcmp(obj.Mode,'Specified T')

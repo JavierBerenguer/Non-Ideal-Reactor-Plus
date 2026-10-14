@@ -26,4 +26,17 @@ function setupUnitBlock(block)
             return
     end
     set_param(block,'OpenFcn',callback);
+    % Specifications must remain a serialized block parameter for saved
+    % models, but it is edited only through the structured dialog.
+    try
+        mask=Simulink.Mask.get(block);parameter=mask.getParameter('Specifications');
+        if ~isempty(parameter)
+            parameter.Visible='off';
+            % MATLAB System masks are regenerated when a saved model is
+            % loaded. Reapply the structured-editor setup so the serialized
+            % implementation detail stays hidden after that regeneration.
+            set_param(block,'LoadFcn','nirp.flowsheet.setupUnitBlock(gcb);');
+        end
+    catch
+    end
 end

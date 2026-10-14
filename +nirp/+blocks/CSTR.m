@@ -62,7 +62,7 @@ classdef CSTR < matlab.System
         ASourceSet = matlab.system.StringSet({'Dialog','Input port'})
         UtilityTinSourceSet = matlab.system.StringSet({'Dialog','Input port'})
         % Heat exchange remains accepted only to diagnose saved old models.
-        HeatModeSet = matlab.system.StringSet({'Isothermal','Adiabatic', ...
+        HeatModeSet = matlab.system.StringSet({'Select...','Isothermal','Adiabatic', ...
             'Heat exchange'})
         SpecifiedTUnitSet = matlab.system.StringSet({'K',[char(176) 'C']})
         SpecifiedQUnitSet = matlab.system.StringSet(UnitConverterHelper.getUnits('Power'))
@@ -93,10 +93,15 @@ classdef CSTR < matlab.System
                 obj.RS = nirp.pkg.toReactionSys(nirp.pkg.selectReactions(pkg,obj.Reactions)) ;
             end
             obj.Block = get_param(gcb,'Name') ;
+            missing=strings(0,1);if strcmp(obj.HeatMode,'Select...'),missing(end+1)="HeatMode";end
+            if strcmp(obj.VSource,'Dialog')&&~isfinite(obj.V),missing(end+1)="V";end
+            nirp.blocks.internal.requireSpecifications('CSTR',obj.Block,missing);
             if ~strcmp(obj.HeatMode,'Isothermal') || obj.ShowJacketPort
                 nirp.blocks.internal.requireThermodynamics(pkg,sprintf('CSTR "%s"',obj.Block)) ;
             end
             obj.Params = nirp.blocks.internal.thermalParameters(obj) ;
+            if isnan(obj.Params.catalystDensity),obj.Params.catalystDensity=1;end
+            if isnan(obj.Params.catalystPorosity),obj.Params.catalystPorosity=0;end
             obj.Params.V = UnitConverterHelper.convertToSI('Volume',obj.V,char(obj.VUnit)) ;
             obj.HasCache = false ;
             obj.CalculationCount = 0 ;

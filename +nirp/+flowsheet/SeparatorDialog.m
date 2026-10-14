@@ -27,7 +27,7 @@ classdef SeparatorDialog < handle
             try,set_param(obj.BlockPath,'Recovery',mat2str(r,17));obj.StatusLabel.Text='Applied.';obj.refreshConnections();applied=true;
             catch exception,obj.StatusLabel.Text=exception.message;end
         end
-        function accept(obj),if obj.apply(),block=obj.BlockPath;delete(obj);nirp.flowsheet.autoRun(block);end,end
+        function accept(obj),if obj.apply(),delete(obj);else,nirp.flowsheet.internal.showDialogError(obj.Figure,obj.StatusLabel.Text,'Separator');end,end
         function cancel(obj),delete(obj);end
     end
     methods (Static),function dialog=open(blockPath),dialog=nirp.flowsheet.SeparatorDialog(blockPath);end,end
@@ -52,7 +52,8 @@ classdef SeparatorDialog < handle
             pkg=nirp.pkg.readDictionary(nirp.flowsheet.modelDictionary(bdroot(obj.BlockPath)));names=cellstr(string({pkg.components.name}));
             r=str2num(get_param(obj.BlockPath,'Recovery')); %#ok<ST2NM>
             if isscalar(r),r=repmat(r,1,numel(names));end;if numel(r)~=numel(names),r=NaN(1,numel(names));end
-            obj.RecoveryTable.Data=[names(:) num2cell(r(:))];obj.captureModel();obj.refreshConnections();
+            values=cell(numel(r),1);for i=1:numel(r),if isfinite(r(i)),values{i}=r(i);else,values{i}=[];end,end
+            obj.RecoveryTable.Data=[names(:) values];obj.captureModel();obj.refreshConnections();
         end
         function captureModel(obj)
             d=obj.RecoveryTable.Data;r=NaN(1,size(d,1));for i=1:size(d,1),v=d{i,2};if isnumeric(v)&&isscalar(v),r(i)=v;end,end

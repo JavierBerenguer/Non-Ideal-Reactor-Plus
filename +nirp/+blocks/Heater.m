@@ -26,7 +26,7 @@ classdef Heater < matlab.System
         ShowHeatPort (1,1) logical = false
     end
     properties (Constant, Hidden)
-        ModeSet = matlab.system.StringSet({'Outlet T','Duty'})
+        ModeSet = matlab.system.StringSet({'Select...','Outlet T','Duty'})
         ToutUnitSet = matlab.system.StringSet({'K',[char(176) 'C']})
         DutyUnitSet = matlab.system.StringSet(UnitConverterHelper.getUnits('Power'))
         PressureDropUnitSet = matlab.system.StringSet(UnitConverterHelper.getUnits('Pressure'))
@@ -46,6 +46,9 @@ classdef Heater < matlab.System
         function setupImpl(obj)
             [obj.Model,pkg,obj.RS] = nirp.blocks.internal.modelPackage() ;
             obj.Block = get_param(gcb,'Name') ;
+            missing=strings(0,1);if strcmp(obj.Mode,'Select...'),missing(end+1)="Mode";elseif strcmp(obj.Mode,'Outlet T')&&~isfinite(obj.Tout),missing(end+1)="Tout";elseif strcmp(obj.Mode,'Duty')&&~isfinite(obj.Duty),missing(end+1)="Duty";end
+            if ~isfinite(obj.PressureDrop),missing(end+1)="PressureDrop";end
+            nirp.blocks.internal.requireSpecifications('Heater',obj.Block,missing);
             nirp.blocks.internal.requireThermodynamics(pkg,sprintf('Heater "%s"',obj.Block)) ;
             obj.Params.mode = char(obj.Mode) ;
             obj.Params.Tout = UnitConverterHelper.convertToSI('Temperature',obj.Tout,char(obj.ToutUnit)) ;

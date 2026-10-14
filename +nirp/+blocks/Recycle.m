@@ -18,8 +18,8 @@ classdef Recycle < matlab.System
         InitialFeedName = 'F1'
     end
     properties (Constant,Hidden)
-        MethodSet = matlab.system.StringSet({'Direct','Wegstein'})
-        InitialGuessSet = matlab.system.StringSet({'Empty stream','Feed'})
+        MethodSet = matlab.system.StringSet({'Select...','Direct','Wegstein'})
+        InitialGuessSet = matlab.system.StringSet({'Select...','Empty stream','Feed'})
         InitialTUnitSet = matlab.system.StringSet({'K',[char(176) 'C']})
         InitialPUnitSet = matlab.system.StringSet(UnitConverterHelper.getUnits('Pressure'))
     end
@@ -39,6 +39,8 @@ classdef Recycle < matlab.System
         function setupImpl(obj)
             [obj.Model,pkg,rs] = nirp.blocks.internal.modelPackage() ;
             obj.Key = gcb ;
+            missing=strings(0,1);if strcmp(obj.Method,'Select...'),missing(end+1)="Method";end;if ~isfinite(obj.Tolerance),missing(end+1)="Tolerance";end;if ~isfinite(obj.QMin),missing(end+1)="QMin";end;if ~isfinite(obj.QMax),missing(end+1)="QMax";end;if ~isfinite(obj.AccelerationEvery),missing(end+1)="AccelerationEvery";end;if strcmp(obj.InitialGuess,'Select...'),missing(end+1)="InitialGuess";end
+            nirp.blocks.internal.requireSpecifications('Recycle',get_param(gcb,'Name'),missing);
             if ~isscalar(obj.Tolerance) || ~isfinite(obj.Tolerance) || obj.Tolerance <= 0
                 error('nirp:blocks:invalidTolerance','Tolerance must be positive.') ;
             end

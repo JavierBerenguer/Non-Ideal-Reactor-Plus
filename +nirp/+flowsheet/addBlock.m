@@ -1,5 +1,5 @@
 function block = addBlock(model,path,position,maxIterations)
-%ADDBLOCK Add the masked Flowsheet auto-stop subsystem to a model.
+%ADDBLOCK Add the masked Flowsheet convergence subsystem to a model.
 % =========================================================================
 % Javier Berenguer Sabater
 % Created: October 2, 2026. Last update: October 2, 2026
@@ -29,8 +29,6 @@ function block = addBlock(model,path,position,maxIterations)
         'Prompt','Maximum iterations','Value',num2str(maxIterations)) ;
     mask.addParameter('Type','checkbox','Name','ShowResultsAfterRun', ...
         'Prompt','Show results after simulation','Value','on') ;
-    mask.addParameter('Type','checkbox','Name','AutoRun', ...
-        'Prompt','Run automatically when a block dialog is accepted','Value','on') ;
     button = mask.addDialogControl('Type','pushbutton','Name','ShowResults') ;
     button.Prompt = 'Show results' ;
     button.Tooltip = 'Display the latest Stream block results.' ;

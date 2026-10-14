@@ -17,6 +17,7 @@ classdef Separator < matlab.System
         function setupImpl(obj)
             [obj.Model,~,obj.RS]=nirp.blocks.internal.modelPackage(); obj.Block=get_param(gcb,'Name');
             r=obj.Recovery;
+            if any(isnan(r(:))),nirp.blocks.internal.requireSpecifications('Separator',obj.Block,'Recovery');end
             if ~isnumeric(r)||~isreal(r)||~(isscalar(r)||numel(r)==obj.RS.nComponents)||any(~isfinite(r(:)))||any(r(:)<0)||any(r(:)>1)
                 error('nirp:blocks:invalidRecovery', ...
                     'Separator "%s": Recovery needs one value in [0,1] per component (%d).',obj.Block,obj.RS.nComponents);

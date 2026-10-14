@@ -43,6 +43,10 @@ classdef JacketDialog < handle
             applied=false;
             try
                 name=strtrim(obj.NameField.Value);if isempty(name),error('nirp:flowsheet:invalidName','Name cannot be empty.');end
+                if strcmp(obj.ModeDropDown.Value,'Select...'),error('nirp:flowsheet:missingSpecification','Jacket mode must be selected.');end
+                if strcmp(obj.ModeDropDown.Value,'Specified T')&&isempty(obj.SpecifiedTField.Value),error('nirp:flowsheet:missingSpecification','Reactor temperature is required.');end
+                if strcmp(obj.ModeDropDown.Value,'Specified Q')&&isempty(obj.SpecifiedQField.Value),error('nirp:flowsheet:missingSpecification','Heat duty is required.');end
+                if strcmp(obj.ModeDropDown.Value,'Utility')&&(isempty(obj.UField.Value)||(strcmp(obj.ASourceDropDown.Value,'Dialog')&&isempty(obj.AField.Value))||(strcmp(obj.UtilityTinSourceDropDown.Value,'Dialog')&&isempty(obj.UtilityTinField.Value))),error('nirp:flowsheet:missingSpecification','U, area, and utility inlet temperature are required.');end
                 set_param(obj.BlockPath,'Mode',obj.ModeDropDown.Value, ...
                     'SpecifiedT',n(obj.SpecifiedTField.Value),'SpecifiedTUnit',obj.SpecifiedTUnitDropDown.Value, ...
                     'SpecifiedQ',n(obj.SpecifiedQField.Value),'SpecifiedQUnit',obj.SpecifiedQUnitDropDown.Value);
@@ -57,7 +61,7 @@ classdef JacketDialog < handle
                 obj.StatusLabel.Text='Applied.';obj.captureModel();obj.refreshConnections();applied=true;
             catch exception,obj.StatusLabel.Text=exception.message;end
         end
-        function accept(obj),if obj.apply(),block=obj.BlockPath;delete(obj);nirp.flowsheet.autoRun(block);end,end
+        function accept(obj),if obj.apply(),delete(obj);else,nirp.flowsheet.internal.showDialogError(obj.Figure,obj.StatusLabel.Text,'Jacket');end,end
         function cancel(obj),delete(obj);end
     end
     methods (Static)
@@ -69,7 +73,7 @@ classdef JacketDialog < handle
                 'Position',[120 120 900 480],'WindowStyle','alwaysontop');
             main=uigridlayout(obj.Figure,[4 1],'RowHeight',{42,'1x',26,38},'Padding',[12 10 12 10]);
             head=uigridlayout(main,[1 5],'ColumnWidth',{55,'1x',50,190,160});uilabel(head,'Text','Name','HorizontalAlignment','right');obj.NameField=uieditfield(head,'text');
-            uilabel(head,'Text','Mode','HorizontalAlignment','right');obj.ModeDropDown=uidropdown(head,'Items',{'Utility (U*A)','Specified reactor T','Specified Q'},'ItemsData',{'Utility','Specified T','Specified Q'},'ValueChangedFcn',@(~,~) obj.updateVisibility());uibutton(head,'Text','Unit conversion helper','ButtonPushedFcn',@(~,~) UnitConverterHelper.launch());
+            uilabel(head,'Text','Mode','HorizontalAlignment','right');obj.ModeDropDown=uidropdown(head,'Items',{'Select...','Utility (U*A)','Specified reactor T','Specified Q'},'ItemsData',{'Select...','Utility','Specified T','Specified Q'},'ValueChangedFcn',@(~,~) obj.updateVisibility());uibutton(head,'Text','Unit conversion helper','ButtonPushedFcn',@(~,~) UnitConverterHelper.launch());
             tabs=uitabgroup(main);general=uitab(tabs,'Title','Jacket');connections=uitab(tabs,'Title','Connections');
             grid=uigridlayout(general,[7 6],'ColumnWidth',{175,135,110,175,110,'1x'},'RowHeight',repmat({30},1,7));
             [obj.UField,obj.UUnitDropDown]=qty(grid,1,'U','HeatTransferCoefficient');
@@ -87,10 +91,10 @@ classdef JacketDialog < handle
         end
         function load(obj)
             obj.NameField.Value=get_param(obj.BlockPath,'Name');
-            numeric={'U',obj.UField;'A',obj.AField;'UtilityTin',obj.UtilityTinField};for i=1:size(numeric,1),numeric{i,2}.Value=str2double(get_param(obj.BlockPath,numeric{i,1}));end
+            numeric={'U',obj.UField;'A',obj.AField;'UtilityTin',obj.UtilityTinField};for i=1:size(numeric,1),value=str2double(get_param(obj.BlockPath,numeric{i,1}));if isfinite(value),numeric{i,2}.Value=value;else,numeric{i,2}.Value=[];end,end
             text={'UtilityTout',obj.UtilityToutField;'UtilityCp',obj.UtilityCpField;'LatentHeat',obj.LatentHeatField};for i=1:size(text,1),text{i,2}.Value=get_param(obj.BlockPath,text{i,1});end
             values={'UUnit',obj.UUnitDropDown;'AUnit',obj.AUnitDropDown;'ASource',obj.ASourceDropDown;'UtilityTinUnit',obj.UtilityTinUnitDropDown;'UtilityTinSource',obj.UtilityTinSourceDropDown;'UtilityToutUnit',obj.UtilityToutUnitDropDown};for i=1:size(values,1),values{i,2}.Value=get_param(obj.BlockPath,values{i,1});end
-            obj.ModeDropDown.Value=get_param(obj.BlockPath,'Mode');obj.SpecifiedTField.Value=str2double(get_param(obj.BlockPath,'SpecifiedT'));obj.SpecifiedQField.Value=str2double(get_param(obj.BlockPath,'SpecifiedQ'));
+            obj.ModeDropDown.Value=get_param(obj.BlockPath,'Mode');value=str2double(get_param(obj.BlockPath,'SpecifiedT'));if isfinite(value),obj.SpecifiedTField.Value=value;else,obj.SpecifiedTField.Value=[];end;value=str2double(get_param(obj.BlockPath,'SpecifiedQ'));if isfinite(value),obj.SpecifiedQField.Value=value;else,obj.SpecifiedQField.Value=[];end
             obj.SpecifiedTUnitDropDown.Value=get_param(obj.BlockPath,'SpecifiedTUnit');obj.SpecifiedQUnitDropDown.Value=get_param(obj.BlockPath,'SpecifiedQUnit');
             obj.CondensesCheckBox.Value=ison(get_param(obj.BlockPath,'Condenses'));obj.updateVisibility();obj.captureModel();
         end
@@ -127,13 +131,13 @@ classdef JacketDialog < handle
         end
     end
 end
-function [field,units]=qty(grid,row,label,category),text=uilabel(grid,'Text',label,'HorizontalAlignment','right');text.Layout.Row=row;text.Layout.Column=1;field=uieditfield(grid,'numeric');field.Layout.Row=row;field.Layout.Column=2;units=uidropdown(grid,'Items',UnitConverterHelper.getUnits(category));units.Layout.Row=row;units.Layout.Column=3;end
+function [field,units]=qty(grid,row,label,category),text=uilabel(grid,'Text',label,'HorizontalAlignment','right');text.Layout.Row=row;text.Layout.Column=1;field=uieditfield(grid,'numeric','AllowEmpty','on','Value',[]);field.Layout.Row=row;field.Layout.Column=2;units=uidropdown(grid,'Items',UnitConverterHelper.getUnits(category));units.Layout.Row=row;units.Layout.Column=3;end
 function [field,units]=textqty(grid,row,label,category),text=uilabel(grid,'Text',label,'HorizontalAlignment','right');text.Layout.Row=row;text.Layout.Column=1;field=uieditfield(grid,'text');field.Layout.Row=row;field.Layout.Column=2;units=uidropdown(grid,'Items',UnitConverterHelper.getUnits(category));units.Layout.Row=row;units.Layout.Column=3;end
 function field=textfield(grid,row,label),text=uilabel(grid,'Text',label,'HorizontalAlignment','right');text.Layout.Row=row;text.Layout.Column=1;field=uieditfield(grid,'text');field.Layout.Row=row;field.Layout.Column=[2 3];end
 function field=drop(grid,row,label,items),text=uilabel(grid,'Text',label,'HorizontalAlignment','right');text.Layout.Row=row;text.Layout.Column=4;field=uidropdown(grid,'Items',items);field.Layout.Row=row;field.Layout.Column=[5 6];end
 function label=portLabel(grid,row),label=uilabel(grid,'Text','From input port','FontAngle','italic','Visible','off');label.Layout.Row=row;label.Layout.Column=2;end
 function value=onoff(flag),if flag,value='on';else,value='off';end,end
 function flag=ison(value),if islogical(value)||isnumeric(value),flag=logical(value);else,flag=strcmp(value,'on')||strcmp(value,'1');end,end
-function value=n(x),value=num2str(x,17);end
+function value=n(x),if isempty(x),value='NaN';else,value=num2str(x,17);end,end
 function value=signalName(port),value='<missing>';line=get_param(port,'Line');if line==-1,return,end;source=get_param(line,'SrcBlockHandle');if source~=-1,value=get_param(source,'Name');end,end
 function value=signalDestinations(port),value='<missing>';line=get_param(port,'Line');if line==-1,return,end;dest=get_param(line,'DstBlockHandle');dest=dest(dest~=-1);if ~isempty(dest),value=char(strjoin(string(arrayfun(@(h)get_param(h,'Name'),dest,'UniformOutput',false)),', '));end,end

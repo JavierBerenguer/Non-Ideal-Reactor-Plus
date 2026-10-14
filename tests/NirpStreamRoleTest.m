@@ -107,7 +107,7 @@ classdef NirpStreamRoleTest < matlab.unittest.TestCase
             testCase.verifyEqual(dialog.getValue('Role'),"Feed") ;
             % T-145: opening the dialog replaces the old Auto role by the deduced one.
             testCase.verifyEqual(string(get_param('missing_auto_feed/Fresh','Role')),"Feed") ;
-            testCase.verifyEqual(dialog.RoleDropDown.Items,{'Feed','Intermediate','Product'}) ;
+            testCase.verifyEqual(dialog.RoleDropDown.Items,{'Select...','Feed','Intermediate','Product'}) ;
             testCase.verifySubstring(dialog.getValue('Status'), ...
                 "Feed data are not defined") ;
             dialog.RoleDropDown.Value = 'Product' ;
@@ -124,7 +124,7 @@ classdef NirpStreamRoleTest < matlab.unittest.TestCase
                 'BlockType','MATLABSystem','System','nirp.blocks.Stream') ;
             testCase.verifyNumElements(streams,1) ;
             testCase.verifyEqual(string(get_param(streams{1},'Name')),"Stream") ;
-            testCase.verifyEqual(string(get_param(streams{1},'Role')),"Intermediate") ;
+            testCase.verifyEqual(string(get_param(streams{1},'Role')),"Select...") ;
         end
     end
 end

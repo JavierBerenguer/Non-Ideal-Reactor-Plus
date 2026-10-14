@@ -21,7 +21,6 @@ classdef ReactiveSystemDialog < handle
         ReactionCountSpinner
         MaxIterationsField
         ShowResultsCheckBox
-        AutoRunCheckBox
         StoichTable
         ThermoComponentTable
         ThermoReactionTable
@@ -47,6 +46,7 @@ classdef ReactiveSystemDialog < handle
         ReverseOrdersField
         ExpressionField
         OKButton
+        ApplyButton
         CancelButton
     end
 
@@ -86,6 +86,7 @@ classdef ReactiveSystemDialog < handle
                 obj.setPackage(nirp.pkg.readDictionary(obj.dictionaryPath())) ;
             else
                 obj.setPackage(nirp.pkg.examples.firstOrderLiquid()) ;
+                obj.clearNewPackage() ;
             end
         end
 
@@ -295,8 +296,7 @@ classdef ReactiveSystemDialog < handle
             load_system(modelFile) ; block=findFlowsheet(name) ;
             if ~isempty(block)
                 set_param(block,'MaxIterations',num2str(obj.MaxIterationsField.Value), ...
-                    'ShowResultsAfterRun',onOff(obj.ShowResultsCheckBox.Value), ...
-                    'AutoRun',onOff(obj.AutoRunCheckBox.Value)) ;
+                    'ShowResultsAfterRun',onOff(obj.ShowResultsCheckBox.Value)) ;
                 nirp.flowsheet.configure(name) ; save_system(name) ;
             end
         end
@@ -334,8 +334,6 @@ classdef ReactiveSystemDialog < handle
                 end
             end
             nirp.flowsheet.configure(char(string(model))) ;
-            block=findFlowsheet(model) ;
-            if ~isempty(block), set_param(block,'AutoRun',onOff(obj.AutoRunCheckBox.Value)) ; end
             if changed
                 obj.StatusLabel.Text = ['Package saved. The component count changed; ' ...
                     'NirpStream was regenerated. Run the model again.'] ;
@@ -358,7 +356,7 @@ classdef ReactiveSystemDialog < handle
 
         function setKineticType(obj,type)
             type=lower(char(string(type)));
-            if ~any(strcmp(type,{'powerlaw','reversible','expression'}))
+            if ~any(strcmp(type,{'select...','powerlaw','reversible','expression'}))
                 error('nirp:flowsheet:invalidKinetics','Unknown kinetics type.') ;
             end
             obj.KineticTypeDropDown.Value=type;
@@ -386,33 +384,34 @@ classdef ReactiveSystemDialog < handle
             obj.ReactionTab = uitab(tabs,'Title','Kinetics') ;
             obj.FeedTab = uitab(tabs,'Title','Thermodynamics') ;
             obj.buildComponents() ; obj.buildReactions() ; obj.buildFeeds() ;
-            settings=uigridlayout(main,[1 6],'ColumnWidth',{135,90,170,250,110,'1x'});
+            settings=uigridlayout(main,[1 5],'ColumnWidth',{135,90,170,110,'1x'});
             uilabel(settings,'Text','Maximum iterations');
             obj.MaxIterationsField=uieditfield(settings,'numeric','Limits',[1 Inf], ...
                 'RoundFractionalValues','on','Value',200);
             obj.ShowResultsCheckBox=uicheckbox(settings,'Text','Show results after run','Value',true);
-            obj.AutoRunCheckBox=uicheckbox(settings,'Text','Auto-run when a dialog is accepted','Value',true);
             if obj.Mode=="edit"
                 block=findFlowsheet(obj.Model);
                 if ~isempty(block),obj.MaxIterationsField.Value=str2double(get_param(block,'MaxIterations'));obj.ShowResultsCheckBox.Value=strcmp(get_param(block,'ShowResultsAfterRun'),'on');end
-                if ~isempty(block)&&any(strcmp(get_param(block,'MaskNames'),'AutoRun')),obj.AutoRunCheckBox.Value=strcmp(get_param(block,'AutoRun'),'on');end
                 uibutton(settings,'Text','Show results','ButtonPushedFcn',@(~,~) nirp.flowsheet.showResults(obj.Model));
             end
-            controls = uigridlayout(main,[1 5]) ;
+            controls = uigridlayout(main,[1 6]) ;
             controls.Padding = [10 4 10 4] ;
-            controls.ColumnWidth = {'1x',80,130,90,10} ;
+            controls.ColumnWidth = {'1x',80,130,90,90,10} ;
             uilabel(controls,'Text','') ;
             uibutton(controls,'Text','Help','ButtonPushedFcn', ...
                 @(~,~) obj.openHelp()) ;
             if obj.Mode == "edit"
                 obj.OKButton=uibutton(controls,'Text','OK','ButtonPushedFcn', ...
                     @(~,~) obj.acceptDialog()) ;
+                obj.ApplyButton=uibutton(controls,'Text','Apply','ButtonPushedFcn', ...
+                    @(~,~) obj.applyDialog()) ;
             else
                 uibutton(controls,'Text','Create flowsheet...','ButtonPushedFcn', ...
                     @(~,~) obj.createInteractive()) ;
             end
             obj.CancelButton=uibutton(controls,'Text','Cancel','ButtonPushedFcn', ...
                 @(~,~) delete(obj)) ;
+            if obj.Mode=="edit",obj.CancelButton.Layout.Column=4;obj.ApplyButton.Layout.Column=5;end
             obj.StatusLabel = uilabel(main,'Text','Ready.','FontAngle','italic') ;
         end
 
@@ -425,7 +424,10 @@ classdef ReactiveSystemDialog < handle
                 error('nirp:flowsheet:missingHelp', ...
                     'The Simulink flowsheet guide was not found at "%s".',guidePath) ;
             end
-            web(guidePath,'-browser') ;
+            helpFigure=uifigure('Name','NIRP flowsheet help', ...
+                'Tag','NirpFlowsheetHelp','Position',[140 100 980 700]);
+            view=uihtml(helpFigure,'HTMLSource',guidePath);
+            view.Position=[1 1 helpFigure.Position(3) helpFigure.Position(4)];
         end
 
         function buildComponents(obj)
@@ -481,7 +483,7 @@ classdef ReactiveSystemDialog < handle
             top=uigridlayout(obj.KineticDetailGrid,[1 3],'ColumnWidth',{60,160,'1x'},'Padding',[0 0 0 0]);
             top.Layout.Row=1;top.Layout.Column=[1 2];
             uilabel(top,'Text','Kinetics');
-            obj.KineticTypeDropDown=uidropdown(top,'Items',{'powerlaw','reversible','expression'}, ...
+            obj.KineticTypeDropDown=uidropdown(top,'Items',{'Select...','powerlaw','reversible','expression'}, ...
                 'ValueChangedFcn',@(~,~) obj.kineticTypeChanged());
             edited=@(source,event) obj.kineticDetailEdited(source,event);
             [obj.ForwardPanel,obj.K0Field,obj.K0UnitLabel,obj.EaField,obj.EaUnitDropDown, ...
@@ -826,9 +828,20 @@ classdef ReactiveSystemDialog < handle
 
         function acceptDialog(obj)
             if obj.applyDialog()
-                model=obj.Model;delete(obj);
-                if strlength(model)>0,nirp.flowsheet.autoRun(model);end
+                delete(obj);
             end
+        end
+
+        function clearNewPackage(obj)
+            obj.PackageName="NIRP package";
+            obj.ComponentTable.Data={'',[],'constant','','J/(mol*K)'};
+            obj.rebuildReactionColumns();
+            obj.ReactionTable.Data={[],[],'J/mol','Select...',[],[],'J/mol','',[],[], ...
+                'J/mol','',''};
+            obj.FeedTable.Data={'','Select...',[],'K',[],'Pa','Select...','', ...
+                'mol/s',[],'m^3/s'};
+            obj.ComponentCountSpinner.Value=1;obj.ReactionCountSpinner.Value=1;
+            obj.refreshDerivedTables();obj.StatusLabel.Text='Specifications missing.';
         end
 
         function createInteractive(obj)

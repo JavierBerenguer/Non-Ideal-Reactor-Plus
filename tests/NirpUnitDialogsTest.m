@@ -20,27 +20,27 @@ classdef NirpUnitDialogsTest < matlab.unittest.TestCase
         function jacketDialogAppliesParametersAndVisibility(testCase)
             addUnit('dialog_model','Jacket','nirp.blocks.Jacket',[240 120 350 190]);
             d=nirp.flowsheet.JacketDialog('dialog_model/Jacket','Visible','off');testCase.addTeardown(@() deleteValid(d));
-            d.setValues('U',2,'A',3,'UtilityTin',320,'ASource','Input port');d.UUnitDropDown.Value='W/(m^2*K)';d.AUnitDropDown.Value='m^2';d.UtilityTinUnitDropDown.Value='K';
+            d.ModeDropDown.Value='Utility';d.setValues('U',2,'A',3,'UtilityTin',320,'ASource','Input port');d.UUnitDropDown.Value='W/(m^2*K)';d.AUnitDropDown.Value='m^2';d.UtilityTinUnitDropDown.Value='K';
             testCase.verifyEqual(string(d.AField.Visible),"off");d.setValues('ASource','Dialog');d.apply();
             testCase.verifyEqual(str2double(get_param('dialog_model/Jacket','U')),2);testCase.verifyEqual(str2double(get_param('dialog_model/Jacket','A')),3);
             values=d.getValues();testCase.verifyEqual(values.U.origin,"specified");
         end
         function pfrGeometryAndErgun(testCase)
             addUnit('dialog_model','PFR','nirp.blocks.PFR',[240 120 350 190]);d=nirp.flowsheet.ReactorDialog('dialog_model/PFR','Visible','off');testCase.addTeardown(@() deleteValid(d));
-            d.GeometryModeDropDown.Value='Length';d.setValues('L',1,'D',0.1,'NTubes',2,'ParticleDiameter',100,'Density',1000,'Viscosity',1,'CatalystDensity',1000,'CatalystPorosity',0.4);d.CatalyticCheckBox.Value=true;d.LUnitDropDown.Value='m';d.DUnitDropDown.Value='m';d.ParticleDiameterUnitDropDown.Value='mm';d.ViscosityUnitDropDown.Value='mPa*s';select(d.PressureModeGroup,'Non constant');select(d.PressureEquationGroup,'Ergun');d.apply();
+            d.GeometryModeDropDown.Value='Length';d.setHeatMode('Isothermal');d.setValues('L',1,'D',0.1,'NTubes',2,'ParticleDiameter',100,'Density',1000,'Viscosity',1,'CatalystDensity',1000,'CatalystPorosity',0.4);d.CatalyticCheckBox.Value=true;d.LUnitDropDown.Value='m';d.DUnitDropDown.Value='m';d.ParticleDiameterUnitDropDown.Value='mm';d.ViscosityUnitDropDown.Value='mPa*s';select(d.PressureModeGroup,'Non constant');select(d.PressureEquationGroup,'Ergun');d.apply();
             testCase.verifyEqual(get_param('dialog_model/PFR','GeometryMode'),'Length');testCase.verifyEqual(get_param('dialog_model/PFR','PressureDropEqn'),'Ergun');testCase.verifyEqual(str2double(get_param('dialog_model/PFR','NTubes')),2);
             addStream('dialog_model','Product','Product',[430 130 540 180]);set_param('dialog_model/Product','ReferenceFeed','F1','KeyComponent','A');add_line('dialog_model','F1/1','PFR/1');add_line('dialog_model','PFR/1','Product/1');sim('dialog_model');testCase.verifyEqual(evalin('base','nirpResults.Streams.Product.streamSI.status'),1);
         end
         function heaterDutyUnitsAndOrigin(testCase)
-            addUnit('dialog_model','Heater','nirp.blocks.Heater',[240 120 350 190]);d=nirp.flowsheet.HeaterDialog('dialog_model/Heater','Visible','off');testCase.addTeardown(@() deleteValid(d));d.setMode('Duty');d.setValues('Duty',0.1);d.DutyUnitDropDown.Value='kW';d.apply();testCase.verifyEqual(get_param('dialog_model/Heater','Mode'),'Duty');testCase.verifyEqual(get_param('dialog_model/Heater','DutyUnit'),'kW');testCase.verifyEqual(d.getValues().Duty.origin,"specified");testCase.verifyTrue(strcmp(d.ToutField.Visible,'off'));
+            addUnit('dialog_model','Heater','nirp.blocks.Heater',[240 120 350 190]);d=nirp.flowsheet.HeaterDialog('dialog_model/Heater','Visible','off');testCase.addTeardown(@() deleteValid(d));d.setMode('Duty');d.setValues('Duty',0.1,'PressureDrop',0);d.DutyUnitDropDown.Value='kW';d.apply();testCase.verifyEqual(get_param('dialog_model/Heater','Mode'),'Duty');testCase.verifyEqual(get_param('dialog_model/Heater','DutyUnit'),'kW');testCase.verifyEqual(d.getValues().Duty.origin,"specified");testCase.verifyTrue(strcmp(d.ToutField.Visible,'off'));
             addStream('dialog_model','Product','Product',[430 130 540 180]);add_line('dialog_model','F1/1','Heater/1');add_line('dialog_model','Heater/1','Product/1');sim('dialog_model');testCase.verifyEqual(evalin('base','nirpResults.Streams.Product.streamSI.status'),1);
         end
         function modularPortsAndFractions(testCase)
             addUnit('dialog_model','Splitter','nirp.blocks.Splitter',[240 120 350 210]);addUnit('dialog_model','Mixer','nirp.blocks.Mixer',[600 120 710 210]);
             s=nirp.flowsheet.SplitterDialog('dialog_model/Splitter','Visible','off');m=nirp.flowsheet.MixerDialog('dialog_model/Mixer','Visible','off');testCase.addTeardown(@() deleteValid(s));testCase.addTeardown(@() deleteValid(m));
-            s.setFractions([0.2 0.3 0.5]);s.apply();m.setNumInputs(4);m.apply();testCase.verifyEqual(str2num(get_param('dialog_model/Splitter','Fractions')),[0.2 0.3 0.5],'AbsTol',1e-15);testCase.verifyEqual(str2double(get_param('dialog_model/Mixer','NumInputs')),4);testCase.verifyEqual(s.getValues().Fractions.origin,repmat("specified",1,3));
+            s.setFractions([0.2 0.3 NaN]);s.apply();m.setNumInputs(4);m.apply();testCase.verifyEqual(str2num(get_param('dialog_model/Splitter','Fractions')),[0.2 0.3 0.5],'AbsTol',1e-15);testCase.verifyEqual(str2double(get_param('dialog_model/Mixer','NumInputs')),4);testCase.verifyEqual(s.getValues().Fractions.origin,["specified" "specified" "calculated"]);
             m.setNumInputs(3);m.apply();for i=1:3,addStream('dialog_model',sprintf('Branch%d',i),'Intermediate',[400 30+100*i 500 75+100*i]);add_line('dialog_model',sprintf('Splitter/%d',i),sprintf('Branch%d/1',i));add_line('dialog_model',sprintf('Branch%d/1',i),sprintf('Mixer/%d',i));end;addStream('dialog_model','Product','Product',[780 140 890 190]);add_line('dialog_model','F1/1','Splitter/1');add_line('dialog_model','Mixer/1','Product/1');sim('dialog_model');feed=nirp.pkg.feedStream(nirp.pkg.examples.firstOrderLiquid(),"F1");out=evalin('base','nirpResults.Streams.Product.streamSI');testCase.verifyEqual(out.F,feed.F,'AbsTol',1e-12);
-            s.setFractions(ones(1,8)/8);s.apply();testCase.verifyEqual(numel(str2num(get_param('dialog_model/Splitter','Fractions'))),8);
+            fractions=ones(1,8)/8;fractions(end)=NaN;s.setFractions(fractions);s.apply();testCase.verifyEqual(numel(str2num(get_param('dialog_model/Splitter','Fractions'))),8);
         end
         function connectionsUseStreamNames(testCase)
             addUnit('dialog_model','CSTR','nirp.blocks.CSTR',[260 120 370 190]);addStream('dialog_model','Middle','Intermediate',[430 130 540 180]);add_line('dialog_model','F1/1','CSTR/1');add_line('dialog_model','CSTR/1','Middle/1');
@@ -73,7 +73,7 @@ classdef NirpUnitDialogsTest < matlab.unittest.TestCase
         end
         function reactiveSystemAddsReactionAndCreatesModel(testCase)
             d=nirp.flowsheet.ReactiveSystemDialog('Mode','edit','Model','dialog_model','Visible','off');testCase.addTeardown(@() deleteValid(d));d.setCounts(2,2);data=d.ReactionTable.Data;data(2,:)=data(1,:);d.ReactionTable.Data=data;d.saveToModel('dialog_model');pkg=nirp.pkg.readDictionary(fullfile(testCase.Folder,'dialog_model.sldd'));nirp.pkg.validate(pkg);rs=nirp.pkg.toReactionSys(pkg);testCase.verifySize(rs.stochiometricMatrix,[2 2]);
-            fresh=nirp.flowsheet.ReactiveSystemDialog('Visible','off');testCase.addTeardown(@() deleteValid(fresh));fresh.createFlowsheet('created_by_dialog',testCase.Folder,'OpenModel',false);load_system(fullfile(testCase.Folder,'created_by_dialog.slx'));testCase.verifyNotEmpty(find_system('created_by_dialog','SearchDepth',1,'System','nirp.blocks.Stream'));
+            fresh=nirp.flowsheet.ReactiveSystemDialog('Visible','off');testCase.addTeardown(@() deleteValid(fresh));testCase.verifyEqual(fresh.ComponentTable.Data{1,1},'');fresh.setPackage(nirp.pkg.examples.firstOrderLiquid());fresh.createFlowsheet('created_by_dialog',testCase.Folder,'OpenModel',false);load_system(fullfile(testCase.Folder,'created_by_dialog.slx'));testCase.verifyNotEmpty(find_system('created_by_dialog','SearchDepth',1,'System','nirp.blocks.Stream'));
         end
     end
 end

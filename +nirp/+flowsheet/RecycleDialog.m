@@ -39,6 +39,7 @@ classdef RecycleDialog < handle
         function applied=apply(obj)
             applied=false;
             try
+                if strcmp(obj.MethodDropDown.Value,'Select...')||strcmp(obj.InitialGuessDropDown.Value,'Select...'),error('nirp:flowsheet:missingSpecification','Method and initial estimate must be selected.');end
                 if ~(obj.ToleranceField.Value>0),error('nirp:flowsheet:invalidParameter','Tolerance must be positive.');end
                 if obj.QMinField.Value>obj.QMaxField.Value||obj.QMaxField.Value>0,error('nirp:flowsheet:invalidParameter','Wegstein bounds need QMin <= QMax <= 0.');end
                 args={'Method',obj.MethodDropDown.Value,'Tolerance',n(obj.ToleranceField.Value), ...
@@ -52,7 +53,7 @@ classdef RecycleDialog < handle
                 obj.StatusLabel.Text='Applied.';obj.captureModel();applied=true;
             catch exception,obj.StatusLabel.Text=exception.message;end
         end
-        function accept(obj),if obj.apply(),block=obj.BlockPath;delete(obj);nirp.flowsheet.autoRun(block);end,end
+        function accept(obj),if obj.apply(),delete(obj);else,nirp.flowsheet.internal.showDialogError(obj.Figure,obj.StatusLabel.Text,'Recycle');end,end
         function cancel(obj),delete(obj);end
     end
     methods (Static)
@@ -69,20 +70,20 @@ classdef RecycleDialog < handle
             label(grid,3,'Calculated stream (input)');obj.TearInLabel=uilabel(grid,'Text','<missing>');place(obj.TearInLabel,3,[2 4]);
             label(grid,4,'Estimate sent to (output)');obj.TearOutLabel=uilabel(grid,'Text','<missing>');place(obj.TearOutLabel,4,[2 4]);
             heading(grid,5,'Method and convergence');
-            label(grid,6,'Method');obj.MethodDropDown=uidropdown(grid,'Items',{'Direct','Wegstein'},'ValueChangedFcn',@(~,~) obj.updateVisibility());place(obj.MethodDropDown,6,2);
-            label(grid,7,'Tolerance (relative)');obj.ToleranceField=uieditfield(grid,'numeric');place(obj.ToleranceField,7,2);
+            label(grid,6,'Method');obj.MethodDropDown=uidropdown(grid,'Items',{'Select...','Direct','Wegstein'},'ValueChangedFcn',@(~,~) obj.updateVisibility());place(obj.MethodDropDown,6,2);
+            label(grid,7,'Tolerance (relative)');obj.ToleranceField=uieditfield(grid,'numeric','AllowEmpty','on','Value',[]);place(obj.ToleranceField,7,2);
             obj.MaxIterationsLabel=uilabel(grid,'Text','Maximum iterations: -');place(obj.MaxIterationsLabel,7,3);
             settings=uibutton(grid,'Text','Flowsheet settings...','ButtonPushedFcn',@(~,~) nirp.flowsheet.ReactiveSystemDialog.openForModel(bdroot(obj.BlockPath)));place(settings,7,4);
-            label(grid,8,'QMin / QMax');obj.QMinField=uieditfield(grid,'numeric');place(obj.QMinField,8,2);obj.QMaxField=uieditfield(grid,'numeric');place(obj.QMaxField,8,3);
-            obj.AccelerationField=uieditfield(grid,'numeric','Limits',[1 Inf],'RoundFractionalValues','on');label(grid,9,'Accelerate every N iterations');place(obj.AccelerationField,9,2);
+            label(grid,8,'QMin / QMax');obj.QMinField=uieditfield(grid,'numeric','AllowEmpty','on','Value',[]);place(obj.QMinField,8,2);obj.QMaxField=uieditfield(grid,'numeric','AllowEmpty','on','Value',[]);place(obj.QMaxField,8,3);
+            obj.AccelerationField=uieditfield(grid,'numeric','Limits',[1 Inf],'RoundFractionalValues','on','AllowEmpty','on','Value',[]);label(grid,9,'Accelerate every N iterations');place(obj.AccelerationField,9,2);
             obj.WegsteinHelp=uilabel(grid,'Text','Wegstein accelerates convergence; q is bounded in [QMin, QMax].','FontAngle','italic');place(obj.WegsteinHelp,9,[3 4]);
-            label(grid,10,'Initial estimate');obj.InitialGuessDropDown=uidropdown(grid,'Items',{'Empty stream','Feed'},'ValueChangedFcn',@(~,~) obj.updateVisibility());place(obj.InitialGuessDropDown,10,2);
+            label(grid,10,'Initial estimate');obj.InitialGuessDropDown=uidropdown(grid,'Items',{'Select...','Empty stream','Feed'},'ValueChangedFcn',@(~,~) obj.updateVisibility());place(obj.InitialGuessDropDown,10,2);
             obj.FeedDropDown=uidropdown(grid,'Items',{});place(obj.FeedDropDown,10,3);
             label(grid,11,'Initial T / P');
             tGrid=uigridlayout(grid,[1 2],'ColumnWidth',{'1x',50},'Padding',[0 0 0 0]);place(tGrid,11,2);
-            obj.InitialTField=uieditfield(tGrid,'numeric');obj.InitialTUnitDropDown=uidropdown(tGrid,'Items',{'K',[char(176) 'C']});
+            obj.InitialTField=uieditfield(tGrid,'numeric','AllowEmpty','on','Value',[]);obj.InitialTUnitDropDown=uidropdown(tGrid,'Items',{'K',[char(176) 'C']});
             pGrid=uigridlayout(grid,[1 2],'ColumnWidth',{'1x',60},'Padding',[0 0 0 0]);place(pGrid,11,[3 4]);
-            obj.InitialPField=uieditfield(pGrid,'numeric');obj.InitialPUnitDropDown=uidropdown(pGrid,'Items',UnitConverterHelper.getUnits('Pressure'));
+            obj.InitialPField=uieditfield(pGrid,'numeric','AllowEmpty','on','Value',[]);obj.InitialPUnitDropDown=uidropdown(pGrid,'Items',UnitConverterHelper.getUnits('Pressure'));
             obj.StatusLabel=uilabel(main,'Text','Ready.','FontAngle','italic');
             b=uigridlayout(main,[1 4],'ColumnWidth',{'1x',90,90,90});uilabel(b,'Text','');
             uibutton(b,'Text','OK','ButtonPushedFcn',@(~,~) obj.accept());uibutton(b,'Text','Cancel','ButtonPushedFcn',@(~,~) obj.cancel());uibutton(b,'Text','Apply','ButtonPushedFcn',@(~,~) obj.apply());
@@ -134,4 +135,4 @@ function label(grid,row,text),l=uilabel(grid,'Text',text,'HorizontalAlignment','
 function heading(grid,row,text),l=uilabel(grid,'Text',text,'FontWeight','bold');place(l,row,[1 4]);end
 function place(item,row,column),item.Layout.Row=row;item.Layout.Column=column;end
 function value=onoff(flag),if flag,value='on';else,value='off';end,end
-function value=n(x),value=num2str(x,17);end
+function value=n(x),if isempty(x),value='NaN';else,value=num2str(x,17);end,end

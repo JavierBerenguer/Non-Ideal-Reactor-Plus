@@ -29,7 +29,7 @@ classdef Stream < matlab.System
     end
 
     properties (Constant, Hidden)
-        RoleSet = matlab.system.StringSet({'Auto','Feed','Intermediate','Product'})
+        RoleSet = matlab.system.StringSet({'Select...','Auto','Feed','Intermediate','Product'})
         TSourceSet = matlab.system.StringSet({'Dialog','Input port'})
         QSourceSet = matlab.system.StringSet({'Dialog','Input port'})
         TUnitSet = matlab.system.StringSet({'K',[char(176) 'C']})
@@ -51,6 +51,9 @@ classdef Stream < matlab.System
 
     methods (Access = protected)
         function setupImpl(obj)
+            if strcmp(obj.Role,'Select...')
+                nirp.blocks.internal.requireSpecifications('Stream',get_param(gcb,'Name'),'Role');
+            end
             [~,obj.Package,obj.ReactionSystem] = nirp.blocks.internal.modelPackage() ;
             obj.BlockName = get_param(gcb,'Name') ;
             obj.RunRole = obj.runtimeRole() ;
@@ -237,6 +240,7 @@ classdef Stream < matlab.System
     methods (Access = private)
         function role = runtimeRole(obj)
             role = string(obj.Role) ;
+            if role == "Select...",role="Intermediate";return,end
             if role ~= "Auto", return, end
             role = "Intermediate" ;
             try

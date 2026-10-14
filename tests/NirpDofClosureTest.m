@@ -69,7 +69,7 @@ classdef NirpDofClosureTest < matlab.unittest.TestCase
             data=dialog.FractionTable.Data;
             data{3,2}=0.25;
             dialog.FractionTable.Data=data;
-            event=struct('Indices',[3 2]);
+            event=struct('Indices',[3 2],'NewData',0.25);
             feval(dialog.FractionTable.CellEditCallback, ...
                 dialog.FractionTable,event);
             testCase.verifyEqual(dialog.getValues().Fractions.origin, ...
@@ -79,7 +79,9 @@ classdef NirpDofClosureTest < matlab.unittest.TestCase
             testCase.verifyFalse(isvalid(dialog));
             testCase.verifyEqual( ...
                 str2num(get_param('dialog_dof/Splitter','Fractions')), ... %#ok<ST2NM>
-                [0.5 0.25 NaN]);
+                [0.5 0.25 0.25]);
+            specs=nirp.dof.readSpecs(get_param('dialog_dof/Splitter','Specifications'));
+            testCase.verifyEqual(sort(string(fieldnames(specs))),["f1";"f2"]);
 
             dialog=nirp.flowsheet.SplitterDialog( ...
                 'dialog_dof/Splitter','Visible','off');
@@ -87,10 +89,10 @@ classdef NirpDofClosureTest < matlab.unittest.TestCase
             dialog.setFractions([0.5 NaN NaN]);
             dialog.accept();
             testCase.verifyTrue(isvalid(dialog));
-            testCase.verifyEqual(dialog.StatusLabel.Text,'');
+            testCase.verifySubstring(dialog.StatusLabel.Text,'1 specification missing');
             testCase.verifyEqual( ...
                 str2num(get_param('dialog_dof/Splitter','Fractions')), ... %#ok<ST2NM>
-                [0.5 0.25 NaN]);
+                [0.5 0.25 0.25]);
         end
 
         function splitterBlockClosesNaNAndConservesFlow(testCase)
@@ -180,6 +182,7 @@ classdef NirpDofClosureTest < matlab.unittest.TestCase
             dialog=nirp.flowsheet.ReactorDialog('pfr_dof/PFR','Visible','off');
             testCase.addTeardown(@() deleteValid(dialog));
             dialog.VUnitDropDown.Value='m^3';dialog.LUnitDropDown.Value='m';dialog.DUnitDropDown.Value='m';
+            dialog.GeometryModeDropDown.Value='Volume';dialog.setHeatMode('Isothermal');selectRadioForTest(dialog.PressureModeGroup,'Constant');selectRadioForTest(dialog.PressureEquationGroup,'Pipe');
             dialog.setValues('V',0.1,'L',NaN,'D',0.1,'NTubes',1);
             expectedL=0.1/(pi*0.05^2);
             testCase.verifyEqual(dialog.LField.Value,expectedL,'RelTol',1e-12);
@@ -218,12 +221,12 @@ classdef NirpDofClosureTest < matlab.unittest.TestCase
             for i=1:numel(dialogs),testCase.addTeardown(@() deleteValid(dialogs{i}));verifyActions(testCase,dialogs{i}.Figure,["OK" "Cancel" "Apply"]);end
 
             addSystem('buttons_dof','Product','nirp.blocks.Stream',[600 70 720 130],'Role','Product');
-            readOnly=nirp.flowsheet.StreamDialog('buttons_dof/Product','Visible','off');testCase.addTeardown(@() deleteValid(readOnly));verifyActions(testCase,readOnly.Figure,"Close");
-            editor=nirp.flowsheet.ReactiveSystemDialog('Mode','edit','Model','buttons_dof','Visible','off');testCase.addTeardown(@() deleteValid(editor));verifyActions(testCase,editor.Figure,["OK" "Cancel"]); % T-144: no Apply
+            readOnly=nirp.flowsheet.StreamDialog('buttons_dof/Product','Visible','off');testCase.addTeardown(@() deleteValid(readOnly));verifyActions(testCase,readOnly.Figure,["OK" "Cancel" "Apply"]);
+            editor=nirp.flowsheet.ReactiveSystemDialog('Mode','edit','Model','buttons_dof','Visible','off');testCase.addTeardown(@() deleteValid(editor));verifyActions(testCase,editor.Figure,["OK" "Cancel" "Apply"]);
             fresh=nirp.flowsheet.ReactiveSystemDialog('Visible','off');testCase.addTeardown(@() deleteValid(fresh));verifyActions(testCase,fresh.Figure,["Create flowsheet..." "Cancel"]);
 
             invalid=dialogs{4};invalid.setFractions([0.5 NaN NaN]);invalid.accept();
-            testCase.verifyTrue(isvalid(invalid));testCase.verifyEqual(invalid.StatusLabel.Text,'');
+            testCase.verifyTrue(isvalid(invalid));testCase.verifySubstring(invalid.StatusLabel.Text,'1 specification missing');
         end
     end
 end
@@ -277,4 +280,8 @@ function deleteValid(value)
         end
     catch
     end
+end
+
+function selectRadioForTest(group,value)
+    buttons=group.Children;index=find(strcmp({buttons.Text},value),1);group.SelectedObject=buttons(index);
 end

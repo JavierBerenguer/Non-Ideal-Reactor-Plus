@@ -56,6 +56,8 @@ classdef AdjustDialog < handle
             try
                 name=strtrim(obj.NameField.Value);
                 if isempty(name),error('nirp:flowsheet:invalidName','Name cannot be empty.');end
+                if strcmp(obj.TargetVariableDropDown.Value,'Select...')||strcmp(obj.TargetUnitDropDown.Value,'Select...')||strcmp(obj.StrategyDropDown.Value,'Select...'),error('nirp:flowsheet:missingSpecification','Target variable, target unit, and strategy must be selected.');end
+                numeric=[obj.TargetValueField.Value obj.InitialValueField.Value obj.MinValueField.Value obj.MaxValueField.Value obj.ToleranceField.Value obj.DampingField.Value];if numel(numeric)~=6||any(~isfinite(numeric)),error('nirp:flowsheet:missingSpecification','Target and solver numeric values are required.');end
                 set_param(obj.BlockPath, ...
                     'TargetVariable',obj.TargetVariableDropDown.Value, ...
                     'KeyComponent',obj.KeyComponentField.Value, ...
@@ -79,7 +81,7 @@ classdef AdjustDialog < handle
                 obj.StatusLabel.Text=exception.message;
             end
         end
-        function accept(obj),if obj.apply(),block=obj.BlockPath;delete(obj);nirp.flowsheet.autoRun(block);end,end
+        function accept(obj),if obj.apply(),delete(obj);else,nirp.flowsheet.internal.showDialogError(obj.Figure,obj.StatusLabel.Text,'Adjust');end,end
         function cancel(obj),delete(obj);end
         function connect(obj)
             if isempty(obj.CandidateTargets),return,end
@@ -132,7 +134,7 @@ classdef AdjustDialog < handle
             grid=uigridlayout(target,[5 3], ...
                 'ColumnWidth',{190,'1x',130},'RowHeight',repmat({32},1,5));
             obj.TargetVariableDropDown=dropRow(grid,1,'Target variable', ...
-                {'Conversion','Component molar flow','Temperature','Component concentration'});
+                {'Select...','Conversion','Component molar flow','Temperature','Component concentration'});
             obj.KeyComponentField=textRow(grid,2,'Key component');
             obj.ReferenceFeedField=textRow(grid,3,'Reference feed');
             obj.TargetValueField=numericRow(grid,4,'Target value');
@@ -156,7 +158,7 @@ classdef AdjustDialog < handle
             obj.DampingField=numericPair(grid,3,3,'Damping');
             label=uilabel(grid,'Text','Strategy','HorizontalAlignment','right');
             label.Layout.Row=4;label.Layout.Column=1;
-            obj.StrategyDropDown=uidropdown(grid,'Items',{'Simultaneous','Nested'});
+            obj.StrategyDropDown=uidropdown(grid,'Items',{'Select...','Simultaneous','Nested'});
             obj.StrategyDropDown.Layout.Row=4;obj.StrategyDropDown.Layout.Column=[2 3];
 
             obj.StatusLabel=uilabel(main,'Text','Ready.','FontAngle','italic');
@@ -171,13 +173,13 @@ classdef AdjustDialog < handle
             obj.TargetVariableDropDown.Value=get_param(obj.BlockPath,'TargetVariable');
             obj.KeyComponentField.Value=get_param(obj.BlockPath,'KeyComponent');
             obj.ReferenceFeedField.Value=get_param(obj.BlockPath,'ReferenceFeed');
-            obj.TargetValueField.Value=str2double(get_param(obj.BlockPath,'TargetValue'));
+            setNumeric(obj.TargetValueField,get_param(obj.BlockPath,'TargetValue'));
             obj.TargetUnitDropDown.Value=get_param(obj.BlockPath,'TargetUnit');
-            obj.InitialValueField.Value=str2double(get_param(obj.BlockPath,'InitialValue'));
-            obj.MinValueField.Value=str2double(get_param(obj.BlockPath,'MinValue'));
-            obj.MaxValueField.Value=str2double(get_param(obj.BlockPath,'MaxValue'));
-            obj.ToleranceField.Value=str2double(get_param(obj.BlockPath,'Tolerance'));
-            obj.DampingField.Value=str2double(get_param(obj.BlockPath,'Damping'));
+            setNumeric(obj.InitialValueField,get_param(obj.BlockPath,'InitialValue'));
+            setNumeric(obj.MinValueField,get_param(obj.BlockPath,'MinValue'));
+            setNumeric(obj.MaxValueField,get_param(obj.BlockPath,'MaxValue'));
+            setNumeric(obj.ToleranceField,get_param(obj.BlockPath,'Tolerance'));
+            setNumeric(obj.DampingField,get_param(obj.BlockPath,'Damping'));
             obj.StrategyDropDown.Value=get_param(obj.BlockPath,'Strategy');
             obj.ParameterUnitDropDown.Value=get_param(obj.BlockPath,'ParameterUnit');
             obj.captureModel();
@@ -233,15 +235,15 @@ end
 function value=numericRow(grid,row,label)
     text=uilabel(grid,'Text',label,'HorizontalAlignment','right');
     text.Layout.Row=row;text.Layout.Column=1;
-    value=uieditfield(grid,'numeric');value.Layout.Row=row;value.Layout.Column=2;
+    value=uieditfield(grid,'numeric','AllowEmpty','on','Value',[]);value.Layout.Row=row;value.Layout.Column=2;
 end
 function value=numericPair(grid,row,column,label)
     text=uilabel(grid,'Text',label,'HorizontalAlignment','right');
     text.Layout.Row=row;text.Layout.Column=column;
-    value=uieditfield(grid,'numeric');value.Layout.Row=row;value.Layout.Column=column+1;
+    value=uieditfield(grid,'numeric','AllowEmpty','on','Value',[]);value.Layout.Row=row;value.Layout.Column=column+1;
 end
 function units=targetUnits()
-    units=[{'as entered'},UnitConverterHelper.getUnits('MolarFlow'), ...
+    units=[{'Select...','as entered'},UnitConverterHelper.getUnits('MolarFlow'), ...
         UnitConverterHelper.getUnits('Temperature'), ...
         UnitConverterHelper.getUnits('Concentration')];
     units=unique(units,'stable');
@@ -253,7 +255,8 @@ function units=parameterUnits()
         UnitConverterHelper.getUnits('Area')];
     units=unique(units,'stable');
 end
-function text=numberText(value),text=num2str(value,17);end
+function text=numberText(value),if isempty(value),text='NaN';else,text=num2str(value,17);end,end
+function setNumeric(field,text),value=str2double(text);if isfinite(value),field.Value=value;else,field.Value=[];end,end
 
 function targets=freeParameterPorts(model)
     targets=struct('Block',{},'Port',{},'Variable',{},'Category',{},'Label',{});

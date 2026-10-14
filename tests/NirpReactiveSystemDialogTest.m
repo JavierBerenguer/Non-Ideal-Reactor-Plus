@@ -120,6 +120,7 @@ classdef NirpReactiveSystemDialogTest < matlab.unittest.TestCase
         function createsAndSimulatesFlowsheet(testCase)
             ed=nirp.flowsheet.ReactiveSystemDialog('Visible','off') ;
             testCase.addTeardown(@() deleteValid(ed)) ;
+            ed.setPackage(nirp.pkg.examples.firstOrderLiquid()) ;
             ed.createFlowsheet('editor_model',testCase.Folder,'OpenModel',false) ;
             load_system(fullfile(testCase.Folder,'editor_model.slx')) ;
             add_block('simulink/User-Defined Functions/MATLAB System','editor_model/CSTR', ...
@@ -137,6 +138,7 @@ classdef NirpReactiveSystemDialogTest < matlab.unittest.TestCase
         function savesModelAndRegeneratesBus(testCase)
             ed=nirp.flowsheet.ReactiveSystemDialog('Visible','off') ;
             testCase.addTeardown(@() deleteValid(ed)) ;
+            ed.setPackage(nirp.pkg.examples.firstOrderLiquid()) ;
             ed.createFlowsheet('edit_model',testCase.Folder,'OpenModel',false) ;
             load_system(fullfile(testCase.Folder,'edit_model.slx')) ;
             pkg=nirp.pkg.examples.problem40Gas() ; ed.setPackage(pkg) ;
@@ -157,6 +159,20 @@ classdef NirpReactiveSystemDialogTest < matlab.unittest.TestCase
             feval(menu.MenuSelectedFcn,menu,[]) ;
             editor=findall(groot,'Type','Figure','Tag','NirpReactiveSystemDialog') ;
             testCase.verifyNumElements(editor,1) ; delete(editor) ;
+        end
+
+        function newEditorIsEmptyAndHelpStaysInMatlab(testCase)
+            ed=nirp.flowsheet.ReactiveSystemDialog('Visible','off');
+            testCase.addTeardown(@() deleteValid(ed));
+            testCase.verifySize(ed.ComponentTable.Data,[1 5]);
+            testCase.verifyEqual(ed.ComponentTable.Data{1,1},'');
+            testCase.verifySize(ed.ReactionTable.Data,[1 13]);
+            testCase.verifyEqual(ed.ReactionTable.Data{1,1},[]);
+            button=findall(ed.Figure,'Type','uibutton','Text','Help');
+            feval(button.ButtonPushedFcn,button,[]);
+            helpFigure=findall(groot,'Type','Figure','Tag','NirpFlowsheetHelp');
+            testCase.verifyNumElements(helpFigure,1);
+            testCase.verifyNumElements(findall(helpFigure,'Type','uihtml'),1);
         end
     end
 end

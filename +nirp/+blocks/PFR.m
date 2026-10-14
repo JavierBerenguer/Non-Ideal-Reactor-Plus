@@ -79,7 +79,7 @@ classdef PFR < matlab.System
         UtilityToutUnit = 'K'
     end
     properties (Constant, Hidden)
-        GeometryModeSet=matlab.system.StringSet({'Volume','Length'})
+        GeometryModeSet=matlab.system.StringSet({'Select...','Volume','Length'})
         VUnitSet=matlab.system.StringSet(UnitConverterHelper.getUnits('Volume'))
         VSourceSet=matlab.system.StringSet({'Dialog','Input port'})
         ASourceSet=matlab.system.StringSet({'Dialog','Input port'})
@@ -87,7 +87,7 @@ classdef PFR < matlab.System
         LUnitSet=matlab.system.StringSet(UnitConverterHelper.getUnits('Length'))
         DUnitSet=matlab.system.StringSet(UnitConverterHelper.getUnits('Length'))
         % Heat exchange remains accepted only to diagnose saved old models.
-        HeatModeSet=matlab.system.StringSet({'Isothermal','Adiabatic','Heat exchange'})
+        HeatModeSet=matlab.system.StringSet({'Select...','Isothermal','Adiabatic','Heat exchange'})
         SpecifiedTUnitSet=matlab.system.StringSet({'K',[char(176) 'C']})
         SpecifiedQUnitSet=matlab.system.StringSet(UnitConverterHelper.getUnits('Power'))
         UUnitSet=matlab.system.StringSet(UnitConverterHelper.getUnits('HeatTransferCoefficient'))
@@ -95,8 +95,8 @@ classdef PFR < matlab.System
         UtilityTinUnitSet=matlab.system.StringSet({'K',[char(176) 'C']})
         UtilityToutUnitSet=matlab.system.StringSet({'K',[char(176) 'C']})
         InitialTGuessUnitSet=matlab.system.StringSet({'K',[char(176) 'C']})
-        PressureModeSet=matlab.system.StringSet({'Constant','Non constant'})
-        PressureDropEqnSet=matlab.system.StringSet({'Pipe','Ergun'})
+        PressureModeSet=matlab.system.StringSet({'Select...','Constant','Non constant'})
+        PressureDropEqnSet=matlab.system.StringSet({'Select...','Pipe','Ergun'})
         ParticleDiameterUnitSet=matlab.system.StringSet(UnitConverterHelper.getUnits('Length'))
         DensityUnitSet=matlab.system.StringSet(UnitConverterHelper.getUnits('Density'))
         ViscosityUnitSet=matlab.system.StringSet(UnitConverterHelper.getUnits('Viscosity'))
@@ -108,6 +108,11 @@ classdef PFR < matlab.System
     methods (Access=protected)
         function setupImpl(obj)
             [obj.Model,pkg,obj.RS]=nirp.blocks.internal.modelPackage(); obj.Block=get_param(gcb,'Name');
+            missing=strings(0,1);if strcmp(obj.GeometryMode,'Select...'),missing(end+1)="GeometryMode";end
+            if strcmp(obj.HeatMode,'Select...'),missing(end+1)="HeatMode";end
+            if strcmp(obj.PressureMode,'Select...'),missing(end+1)="PressureMode";end
+            if strcmp(obj.PressureMode,'Non constant')&&strcmp(obj.PressureDropEqn,'Select...'),missing(end+1)="PressureDropEqn";end
+            nirp.blocks.internal.requireSpecifications('PFR',obj.Block,missing);
             if ~isempty(obj.Reactions) && any(strlength(strtrim(string(obj.Reactions))) > 0)
                 % T-147: the reactor only uses the selected reactions.
                 obj.RS = nirp.pkg.toReactionSys(nirp.pkg.selectReactions(pkg,obj.Reactions)) ;
@@ -116,6 +121,8 @@ classdef PFR < matlab.System
                 nirp.blocks.internal.requireThermodynamics(pkg,sprintf('PFR "%s"',obj.Block));
             end
             obj.Params=nirp.blocks.internal.thermalParameters(obj);
+            if isnan(obj.Params.catalystDensity),obj.Params.catalystDensity=1;end
+            if isnan(obj.Params.catalystPorosity),obj.Params.catalystPorosity=0;end
             geometry=[UnitConverterHelper.convertToSI('Volume',obj.V,char(obj.VUnit)) ...
                 UnitConverterHelper.convertToSI('Length',obj.L,char(obj.LUnit)) ...
                 UnitConverterHelper.convertToSI('Length',obj.D,char(obj.DUnit)) obj.NTubes];

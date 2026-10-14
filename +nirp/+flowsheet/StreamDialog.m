@@ -49,6 +49,8 @@ classdef StreamDialog < handle
         ComponentNames
         Origins
         Updating = false
+        OriginalRole = ''
+        Committed = false
     end
 
     methods
@@ -56,6 +58,7 @@ classdef StreamDialog < handle
             parser = inputParser ;
             addParameter(parser,'Visible','on') ; parse(parser,varargin{:}) ;
             obj.BlockPath = getfullname(blockPath) ;
+            obj.OriginalRole = get_param(obj.BlockPath,'Role') ;
             if strcmp(get_param(obj.BlockPath,'Role'),'Auto')
                 % T-145: models saved with the old Auto role take the deduced role.
                 role = nirp.flowsheet.streamRole(obj.BlockPath) ;
@@ -73,6 +76,9 @@ classdef StreamDialog < handle
         end
 
         function delete(obj)
+            if ~obj.Committed && strlength(string(obj.BlockPath))>0
+                try,set_param(obj.BlockPath,'Role',obj.OriginalRole);catch,end
+            end
             if ~isempty(obj.Figure) && isvalid(obj.Figure), delete(obj.Figure) ; end
         end
 
@@ -172,19 +178,24 @@ classdef StreamDialog < handle
 
         function applied = apply(obj)
             applied=false ;
-            if obj.Role ~= "Feed", return, end
             try
+                if obj.Role ~= "Feed"
+                    if obj.Role=="Product"
+                        set_param(obj.BlockPath,'ReferenceFeed',obj.ReferenceFeedDropDown.Value, ...
+                            'KeyComponent',obj.KeyComponentDropDown.Value);
+                    end
+                    obj.Committed=true;obj.StatusLabel.Text='Applied.';applied=true;return
+                end
                 if ~obj.closeFeed(true), return, end
-                obj.saveFeed() ; applied=true ;
+                obj.saveFeed() ; obj.Committed=true;applied=true ;
             catch exception
                 obj.StatusLabel.Text=exception.message ;
             end
         end
 
         function accept(obj)
-            if obj.apply()
-                block = obj.BlockPath ; delete(obj) ; nirp.flowsheet.autoRun(block) ;
-            end
+            if obj.apply(),delete(obj) ;
+            else,nirp.flowsheet.internal.showDialogError(obj.Figure,obj.StatusLabel.Text,'Stream');end
         end
 
         function cancel(obj), delete(obj) ; end
@@ -369,8 +380,8 @@ classdef StreamDialog < handle
 
         function updateRoleSelector(obj)
             declared = char(string(get_param(obj.BlockPath,'Role'))) ;
-            obj.RoleDropDown.Items = {'Feed','Intermediate','Product'} ;
-            obj.RoleDropDown.ItemsData = {'Feed','Intermediate','Product'} ;
+            obj.RoleDropDown.Items = {'Select...','Feed','Intermediate','Product'} ;
+            obj.RoleDropDown.ItemsData = {'Select...','Feed','Intermediate','Product'} ;
             if any(strcmp(declared,obj.RoleDropDown.Items)), obj.RoleDropDown.Value = declared ; end
         end
 
@@ -387,16 +398,8 @@ classdef StreamDialog < handle
             obj.ConversionLabel.Visible=onOff(isProduct) ;
             obj.ReferenceFeedDropDown.Visible=onOff(isProduct) ;
             obj.KeyComponentDropDown.Visible=onOff(isProduct) ;
-            obj.OKButton.Visible=editable;obj.ApplyButton.Visible=editable;
-            if isFeed
-                obj.CancelButton.Text='Cancel' ;
-                obj.CancelButton.Layout.Column=3 ;
-                obj.SaveButton=obj.ApplyButton ;
-            else
-                obj.CancelButton.Text='Close' ;
-                obj.CancelButton.Layout.Column=4 ;
-                obj.SaveButton=obj.CancelButton ;
-            end
+            obj.OKButton.Visible='on';obj.ApplyButton.Visible='on';
+            obj.CancelButton.Text='Cancel' ;obj.CancelButton.Layout.Column=3 ;obj.SaveButton=obj.ApplyButton ;
             obj.updatePortSources() ;
         end
 
