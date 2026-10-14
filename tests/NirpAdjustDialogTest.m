@@ -101,7 +101,12 @@ classdef (SharedTestFixtures={nirptest.ExamplesFixture}) ...
             testCase.verifyFalse(any(items=="CSTR 1 / V"));
             testCase.verifyTrue(any(items=="CSTR 2 / V"));
 
-            dialog.setValues('TargetValue',0.75,'InitialValue',0.2, ...
+            dialog.setValues('Tolerance',0);testCase.verifySubstring(dialog.StatusLabel.Text,'Tolerance must be positive');testCase.verifyFalse(dialog.apply());
+            dialog.setValues('Tolerance',1e-7,'MinValue',2,'MaxValue',1);testCase.verifySubstring(dialog.StatusLabel.Text,'Minimum must be less');
+            dialog.setValues('MinValue',0.05,'MaxValue',2,'InitialValue',3);testCase.verifySubstring(dialog.StatusLabel.Text,'Initial value must be inside');
+            dialog.setValues('InitialValue',0.2,'TargetVariable','Select...');testCase.verifySubstring(dialog.StatusLabel.Text,'specifications missing');
+
+            dialog.setValues('TargetVariable','Conversion','TargetValue',0.75,'InitialValue',0.2, ...
                 'MinValue',0.05,'MaxValue',2,'Tolerance',1e-7, ...
                 'Damping',0.5,'Strategy','Nested');
             testCase.verifyTrue(dialog.apply());

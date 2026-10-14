@@ -22,9 +22,7 @@ classdef AdjustDialog < handle
                 error('nirp:flowsheet:invalidBlock', ...
                     'AdjustDialog requires an Adjust block.');
             end
-            obj.build(char(string(p.Results.Visible)));obj.load();obj.refreshTargets();
-            [~,~,label]=nirp.flowsheet.blockStatus(obj.BlockPath);
-            obj.StatusLabel.Text=char(label);
+            obj.build(char(string(p.Results.Visible)));obj.load();obj.refreshTargets();obj.validateLive();
         end
         function delete(obj)
             if ~isempty(obj.Figure)&&isvalid(obj.Figure),delete(obj.Figure);end
@@ -49,15 +47,13 @@ classdef AdjustDialog < handle
                     otherwise,error('nirp:flowsheet:unknownParameter','Unknown Adjust parameter.');
                 end
             end
-            obj.captureModel();
+            obj.captureModel();obj.validateLive();
         end
         function applied=apply(obj)
-            applied=false;
+            applied=false;if ~obj.validateLive(),return,end
             try
                 name=strtrim(obj.NameField.Value);
                 if isempty(name),error('nirp:flowsheet:invalidName','Name cannot be empty.');end
-                if strcmp(obj.TargetVariableDropDown.Value,'Select...')||strcmp(obj.TargetUnitDropDown.Value,'Select...')||strcmp(obj.StrategyDropDown.Value,'Select...'),error('nirp:flowsheet:missingSpecification','Target variable, target unit, and strategy must be selected.');end
-                numeric=[obj.TargetValueField.Value obj.InitialValueField.Value obj.MinValueField.Value obj.MaxValueField.Value obj.ToleranceField.Value obj.DampingField.Value];if numel(numeric)~=6||any(~isfinite(numeric)),error('nirp:flowsheet:missingSpecification','Target and solver numeric values are required.');end
                 set_param(obj.BlockPath, ...
                     'TargetVariable',obj.TargetVariableDropDown.Value, ...
                     'KeyComponent',obj.KeyComponentField.Value, ...
@@ -76,7 +72,7 @@ classdef AdjustDialog < handle
                     obj.BlockPath=[model '/' name];
                 end
                 obj.StatusLabel.Text='Applied.';obj.captureModel();
-                obj.refreshTargets();applied=true;
+                obj.refreshTargets();obj.validateLive();applied=true;
             catch exception
                 obj.StatusLabel.Text=exception.message;
             end
@@ -97,7 +93,7 @@ classdef AdjustDialog < handle
                     destinationPorts.Inport(candidate.Port),'autorouting','smart');
                 obj.limitParameterUnits(candidate.Category);
                 obj.StatusLabel.Text=['Connected to ' char(candidate.Label) '.'];
-                obj.refreshTargets();obj.captureModel();
+                obj.refreshTargets();obj.captureModel();obj.validateLive();
             catch exception
                 obj.StatusLabel.Text=exception.message;
             end
@@ -167,6 +163,10 @@ classdef AdjustDialog < handle
             uibutton(buttons,'Text','OK','ButtonPushedFcn',@(~,~) obj.accept());
             uibutton(buttons,'Text','Cancel','ButtonPushedFcn',@(~,~) obj.cancel());
             uibutton(buttons,'Text','Apply','ButtonPushedFcn',@(~,~) obj.apply());
+            controls={obj.TargetVariableDropDown,obj.TargetValueField,obj.TargetUnitDropDown, ...
+                obj.InitialValueField,obj.MinValueField,obj.MaxValueField,obj.ToleranceField, ...
+                obj.DampingField,obj.StrategyDropDown};
+            for i=1:numel(controls),controls{i}.ValueChangedFcn=@(~,~)obj.validateLive();end
         end
         function load(obj)
             obj.NameField.Value=get_param(obj.BlockPath,'Name');
@@ -218,6 +218,24 @@ classdef AdjustDialog < handle
                 'Tolerance',obj.ToleranceField.Value, ...
                 'Damping',obj.DampingField.Value, ...
                 'Strategy',string(obj.StrategyDropDown.Value));
+        end
+        function valid=validateLive(obj)
+            missing=strings(0,1);current=nirp.flowsheet.adjustTarget(obj.BlockPath);
+            if current.Label=="<not connected>",missing(end+1)="manipulated variable";end
+            if strcmp(obj.TargetVariableDropDown.Value,'Select...'),missing(end+1)="objective";end
+            if strcmp(obj.TargetUnitDropDown.Value,'Select...'),missing(end+1)="target unit";end
+            if strcmp(obj.StrategyDropDown.Value,'Select...'),missing(end+1)="strategy";end
+            fields={obj.TargetValueField,'target';obj.InitialValueField,'initial value';obj.MinValueField,'minimum';obj.MaxValueField,'maximum';obj.ToleranceField,'tolerance';obj.DampingField,'damping'};
+            for i=1:size(fields,1),if isempty(fields{i,1}.Value),missing(end+1)=string(fields{i,2});end,end
+            message="";
+            if ~isempty(obj.ToleranceField.Value)&&obj.ToleranceField.Value<=0,message="Tolerance must be positive.";
+            elseif ~isempty(obj.MinValueField.Value)&&~isempty(obj.MaxValueField.Value)&&obj.MinValueField.Value>=obj.MaxValueField.Value,message="Minimum must be less than maximum.";
+            elseif ~isempty(obj.InitialValueField.Value)&&~isempty(obj.MinValueField.Value)&&~isempty(obj.MaxValueField.Value)&&(obj.InitialValueField.Value<obj.MinValueField.Value||obj.InitialValueField.Value>obj.MaxValueField.Value),message="Initial value must be inside [minimum, maximum].";
+            elseif ~isempty(obj.DampingField.Value)&&(obj.DampingField.Value<=0||obj.DampingField.Value>1),message="Damping must be in (0, 1].";end
+            if strlength(message)>0,nirp.flowsheet.internal.paintDofStatus(obj.StatusLabel,'conflict',"Conflict: "+message);valid=false;
+            elseif ~isempty(missing),nirp.flowsheet.internal.paintDofStatus(obj.StatusLabel,'missing',sprintf('%d specifications missing: %s',numel(missing),strjoin(missing,', ')));valid=false;
+            else,nirp.flowsheet.internal.paintDofStatus(obj.StatusLabel,'complete','Fully specified');valid=true;end
+            obj.captureModel();
         end
     end
 end

@@ -31,6 +31,7 @@ classdef (SharedTestFixtures={nirptest.ExamplesFixture}) ...
                 nirp.pkg.examples.firstOrderLiquid(),testCase.Folder,'OpenModel',false) ;
             dialog=nirp.flowsheet.StreamDialog('stream_feed/F1','Visible','off') ;
             testCase.addTeardown(@() deleteValid(dialog)) ;
+            mask=Simulink.Mask.get('stream_feed/F1');parameter=mask.getParameter('Specifications');testCase.verifyEqual(parameter.Visible,'off') ;
             dialog.setUnits('MolarFlow','mol/min','T',[char(176) 'C'], ...
                 'P','atm','Q','L/min') ;
             dialog.setValues('MolarFlow',[60;0],'T',26.85,'P',1, ...
@@ -53,12 +54,25 @@ classdef (SharedTestFixtures={nirptest.ExamplesFixture}) ...
                 nirp.pkg.examples.firstOrderLiquid(),testCase.Folder,'OpenModel',false) ;
             emptyDialog=nirp.flowsheet.StreamDialog('optional_feed/F1','Visible','off') ;
             testCase.addTeardown(@() deleteValid(emptyDialog)) ;
+            testCase.verifyEqual(size(emptyDialog.ComponentTable.Data,2),4) ;
             testCase.verifyEmpty(emptyDialog.getValue('Density')) ;
             testCase.verifyEmpty(emptyDialog.getValue('Viscosity')) ;
             testCase.verifyEqual(string(emptyDialog.DensityField.Editable),"off") ;
             testCase.verifyEqual(string(emptyDialog.ViscosityField.Editable),"off") ;
             % T-131: the tips box was removed at the user's request.
             testCase.verifyEmpty(findall(emptyDialog.Figure,'Type','uitextarea')) ;
+        end
+
+        function massBasisUsesRealTableCallbacksAndPersistsOrigins(testCase)
+            [~,dictionary]=nirp.flowsheet.new('mass_feed',nirp.pkg.examples.problem17AdiabaticGas(),testCase.Folder,'OpenModel',false);
+            dialog=nirp.flowsheet.StreamDialog('mass_feed/F1','Visible','off');testCase.addTeardown(@()deleteValid(dialog));
+            testCase.verifyEqual(size(dialog.ComponentTable.Data,2),6);dialog.setValues('F',nan(4,1));dialog.setUnits('MassFlow','kg/s','T','K','P','Pa');
+            mass=[0.04;0.08;0;0];
+            for i=1:4,data=dialog.ComponentTable.Data;data{i,5}=mass(i);dialog.ComponentTable.Data=data;event=struct('Indices',[i 5],'PreviousData',[],'NewData',mass(i),'EditData',num2str(mass(i)));feval(dialog.ComponentTable.CellEditCallback,dialog.ComponentTable,event);end
+            dialog.setValues('T',300,'P',1e5);testCase.verifyTrue(dialog.apply());
+            values=dialog.getValues();testCase.verifyEqual(values.MassFlow.origin,'specified');testCase.verifyEqual(values.MolarFlow.origin,'calculated');
+            specs=nirp.dof.readSpecs(get_param('mass_feed/F1','Specifications'));testCase.verifyTrue(isfield(specs,'mdot1'));testCase.verifyFalse(isfield(specs,'F1'));
+            pkg=nirp.pkg.readDictionary(dictionary);stream=nirp.pkg.feedStream(pkg,'F1');testCase.verifyEqual(stream.F,[1;2;0;0],'RelTol',1e-12,'AbsTol',1e-14);
         end
 
         function resultDialogConvertsAndReportsState(testCase)

@@ -40,13 +40,28 @@ classdef NirpSeparatorTest < matlab.unittest.TestCase
             nComp=numel(pkg.components);recovery=linspace(0.1,0.9,nComp);
             dialog=nirp.flowsheet.SeparatorDialog([name '/Separator'],'Visible','off');testCase.addTeardown(@() deleteValid(dialog));
             testCase.verifyEqual(string(dialog.Figure.WindowStyle),"alwaysontop");
+            testCase.verifySubstring(dialog.StatusLabel.Text,'inlet from feed');
+            tableData=dialog.RecoveryTable.Data;tableData{1,2}=recovery(1);dialog.RecoveryTable.Data=tableData;
+            event=struct('Indices',[1 2],'PreviousData',0.5,'NewData',recovery(1),'EditData',num2str(recovery(1)));
+            feval(dialog.RecoveryTable.CellEditCallback,dialog.RecoveryTable,event);
             dialog.setRecovery(recovery);testCase.verifyTrue(dialog.apply());
             testCase.verifyEqual(str2num(get_param([name '/Separator'],'Recovery')),recovery,'AbsTol',1e-15); %#ok<ST2NM>
             sim(name);results=evalin('base','nirpResults');
             expected=nirp.units.separator(struct('recovery',recovery),nirp.pkg.feedStream(pkg,feed),nirp.pkg.toReactionSys(pkg));
             testCase.verifyEqual(results.Streams.Top.streamSI.F,expected{1}.F,'RelTol',1e-12,'AbsTol',1e-14);
             testCase.verifyEqual(results.Streams.Bottom.streamSI.F,expected{2}.F,'RelTol',1e-12,'AbsTol',1e-14);
+            legacyTop=results.Streams.Top.streamSI.F;specs=struct();
+            for i=1:nComp,specs.(['r' num2str(i)])=struct('si',recovery(i),'unit','1');end
+            nirp.dof.writeSpecs([name '/Separator'],specs);sim(name);results=evalin('base','nirpResults');
+            testCase.verifyEqual(results.Streams.Top.streamSI.F,legacyTop,'RelTol',1e-12,'AbsTol',1e-14);
             set_param([name '/Top'],'Role','Auto');testCase.verifyEqual(nirp.flowsheet.streamRole([name '/Top']),"Product");
+        end
+        function knownInletFallsBackToLastRun(testCase)
+            pkg=nirp.pkg.examples.firstOrderLiquid();name='known_inlet';nirp.pkg.writeDictionary(pkg,fullfile(testCase.Folder,[name '.sldd']));new_system(name);save_system(name,fullfile(testCase.Folder,[name '.slx']));set_param(name,'DataDictionary',[name '.sldd']);
+            addSystem(name,'F1','nirp.blocks.Stream',[20 100 100 150],'Role','Feed');addSystem(name,'CSTR','nirp.blocks.CSTR',[150 90 260 160]);addSystem(name,'Middle','nirp.blocks.Stream',[310 100 390 150],'Role','Intermediate');addSystem(name,'Separator','nirp.blocks.Separator',[450 90 560 170]);
+            add_line(name,'F1/1','CSTR/1');add_line(name,'CSTR/1','Middle/1');add_line(name,'Middle/1','Separator/1');
+            expected=nirp.pkg.feedStream(pkg,'F1');results=struct('Streams',struct('Middle',struct('streamSI',expected)));assignin('base','nirpResults',results);
+            [actual,source]=nirp.dof.knownInlet([name '/Separator']);testCase.verifyEqual(actual.F,expected.F,'AbsTol',1e-14);testCase.verifyEqual(source,"inlet from last run");
         end
     end
 end

@@ -18,8 +18,7 @@ classdef RecycleDialog < handle
             if string(get_param(obj.BlockPath,'System'))~="nirp.blocks.Recycle"
                 error('nirp:flowsheet:invalidBlock','RecycleDialog requires a Recycle block.');
             end
-            obj.build(char(string(p.Results.Visible)));obj.load();
-            [~,~,label]=nirp.flowsheet.blockStatus(obj.BlockPath);obj.StatusLabel.Text=char(label);
+            obj.build(char(string(p.Results.Visible)));obj.load();obj.validateLive();
         end
         function delete(obj),if ~isempty(obj.Figure)&&isvalid(obj.Figure),delete(obj.Figure);end,end
         function setValues(obj,varargin)
@@ -33,15 +32,12 @@ classdef RecycleDialog < handle
                 if ~isfield(map,key),error('nirp:flowsheet:unknownParameter','Unknown Recycle parameter "%s".',key);end
                 obj.(map.(key)).Value=varargin{i+1};
             end
-            obj.updateVisibility();obj.captureModel();
+            obj.updateVisibility();obj.captureModel();obj.validateLive();
         end
         function values=getValues(obj),obj.captureModel();values=obj.DataModel;end
         function applied=apply(obj)
-            applied=false;
+            applied=false;if ~obj.validateLive(),return,end
             try
-                if strcmp(obj.MethodDropDown.Value,'Select...')||strcmp(obj.InitialGuessDropDown.Value,'Select...'),error('nirp:flowsheet:missingSpecification','Method and initial estimate must be selected.');end
-                if ~(obj.ToleranceField.Value>0),error('nirp:flowsheet:invalidParameter','Tolerance must be positive.');end
-                if obj.QMinField.Value>obj.QMaxField.Value||obj.QMaxField.Value>0,error('nirp:flowsheet:invalidParameter','Wegstein bounds need QMin <= QMax <= 0.');end
                 args={'Method',obj.MethodDropDown.Value,'Tolerance',n(obj.ToleranceField.Value), ...
                     'QMin',n(obj.QMinField.Value),'QMax',n(obj.QMaxField.Value), ...
                     'AccelerationEvery',n(obj.AccelerationField.Value), ...
@@ -70,20 +66,20 @@ classdef RecycleDialog < handle
             label(grid,3,'Calculated stream (input)');obj.TearInLabel=uilabel(grid,'Text','<missing>');place(obj.TearInLabel,3,[2 4]);
             label(grid,4,'Estimate sent to (output)');obj.TearOutLabel=uilabel(grid,'Text','<missing>');place(obj.TearOutLabel,4,[2 4]);
             heading(grid,5,'Method and convergence');
-            label(grid,6,'Method');obj.MethodDropDown=uidropdown(grid,'Items',{'Select...','Direct','Wegstein'},'ValueChangedFcn',@(~,~) obj.updateVisibility());place(obj.MethodDropDown,6,2);
-            label(grid,7,'Tolerance (relative)');obj.ToleranceField=uieditfield(grid,'numeric','AllowEmpty','on','Value',[]);place(obj.ToleranceField,7,2);
+            label(grid,6,'Method');obj.MethodDropDown=uidropdown(grid,'Items',{'Select...','Direct','Wegstein'},'ValueChangedFcn',@(~,~) obj.liveChanged());place(obj.MethodDropDown,6,2);
+            label(grid,7,'Tolerance (relative)');obj.ToleranceField=uieditfield(grid,'numeric','AllowEmpty','on','Value',[],'ValueChangedFcn',@(~,~)obj.validateLive());place(obj.ToleranceField,7,2);
             obj.MaxIterationsLabel=uilabel(grid,'Text','Maximum iterations: -');place(obj.MaxIterationsLabel,7,3);
             settings=uibutton(grid,'Text','Flowsheet settings...','ButtonPushedFcn',@(~,~) nirp.flowsheet.ReactiveSystemDialog.openForModel(bdroot(obj.BlockPath)));place(settings,7,4);
-            label(grid,8,'QMin / QMax');obj.QMinField=uieditfield(grid,'numeric','AllowEmpty','on','Value',[]);place(obj.QMinField,8,2);obj.QMaxField=uieditfield(grid,'numeric','AllowEmpty','on','Value',[]);place(obj.QMaxField,8,3);
-            obj.AccelerationField=uieditfield(grid,'numeric','Limits',[1 Inf],'RoundFractionalValues','on','AllowEmpty','on','Value',[]);label(grid,9,'Accelerate every N iterations');place(obj.AccelerationField,9,2);
+            label(grid,8,'QMin / QMax');obj.QMinField=uieditfield(grid,'numeric','AllowEmpty','on','Value',[],'ValueChangedFcn',@(~,~)obj.validateLive());place(obj.QMinField,8,2);obj.QMaxField=uieditfield(grid,'numeric','AllowEmpty','on','Value',[],'ValueChangedFcn',@(~,~)obj.validateLive());place(obj.QMaxField,8,3);
+            obj.AccelerationField=uieditfield(grid,'numeric','Limits',[1 Inf],'RoundFractionalValues','on','AllowEmpty','on','Value',[],'ValueChangedFcn',@(~,~)obj.validateLive());label(grid,9,'Accelerate every N iterations');place(obj.AccelerationField,9,2);
             obj.WegsteinHelp=uilabel(grid,'Text','Wegstein accelerates convergence; q is bounded in [QMin, QMax].','FontAngle','italic');place(obj.WegsteinHelp,9,[3 4]);
-            label(grid,10,'Initial estimate');obj.InitialGuessDropDown=uidropdown(grid,'Items',{'Select...','Empty stream','Feed'},'ValueChangedFcn',@(~,~) obj.updateVisibility());place(obj.InitialGuessDropDown,10,2);
-            obj.FeedDropDown=uidropdown(grid,'Items',{});place(obj.FeedDropDown,10,3);
+            label(grid,10,'Initial estimate');obj.InitialGuessDropDown=uidropdown(grid,'Items',{'Select...','Empty stream','Feed'},'ValueChangedFcn',@(~,~) obj.liveChanged());place(obj.InitialGuessDropDown,10,2);
+            obj.FeedDropDown=uidropdown(grid,'Items',{},'ValueChangedFcn',@(~,~)obj.validateLive());place(obj.FeedDropDown,10,3);
             label(grid,11,'Initial T / P');
             tGrid=uigridlayout(grid,[1 2],'ColumnWidth',{'1x',50},'Padding',[0 0 0 0]);place(tGrid,11,2);
-            obj.InitialTField=uieditfield(tGrid,'numeric','AllowEmpty','on','Value',[]);obj.InitialTUnitDropDown=uidropdown(tGrid,'Items',{'K',[char(176) 'C']});
+            obj.InitialTField=uieditfield(tGrid,'numeric','AllowEmpty','on','Value',[],'ValueChangedFcn',@(~,~)obj.validateLive());obj.InitialTUnitDropDown=uidropdown(tGrid,'Items',{'K',[char(176) 'C']});
             pGrid=uigridlayout(grid,[1 2],'ColumnWidth',{'1x',60},'Padding',[0 0 0 0]);place(pGrid,11,[3 4]);
-            obj.InitialPField=uieditfield(pGrid,'numeric','AllowEmpty','on','Value',[]);obj.InitialPUnitDropDown=uidropdown(pGrid,'Items',UnitConverterHelper.getUnits('Pressure'));
+            obj.InitialPField=uieditfield(pGrid,'numeric','AllowEmpty','on','Value',[],'ValueChangedFcn',@(~,~)obj.validateLive());obj.InitialPUnitDropDown=uidropdown(pGrid,'Items',UnitConverterHelper.getUnits('Pressure'));
             obj.StatusLabel=uilabel(main,'Text','Ready.','FontAngle','italic');
             b=uigridlayout(main,[1 4],'ColumnWidth',{'1x',90,90,90});uilabel(b,'Text','');
             uibutton(b,'Text','OK','ButtonPushedFcn',@(~,~) obj.accept());uibutton(b,'Text','Cancel','ButtonPushedFcn',@(~,~) obj.cancel());uibutton(b,'Text','Apply','ButtonPushedFcn',@(~,~) obj.apply());
@@ -120,6 +116,20 @@ classdef RecycleDialog < handle
             wegstein=onoff(strcmp(obj.MethodDropDown.Value,'Wegstein'));
             set([obj.QMinField obj.QMaxField obj.AccelerationField obj.WegsteinHelp],'Enable',wegstein);
             obj.FeedDropDown.Visible=onoff(strcmp(obj.InitialGuessDropDown.Value,'Feed'));
+        end
+        function liveChanged(obj),obj.updateVisibility();obj.validateLive();end
+        function valid=validateLive(obj)
+            missing=strings(0,1);if strcmp(obj.MethodDropDown.Value,'Select...'),missing(end+1)="method";end;if isempty(obj.ToleranceField.Value),missing(end+1)="tolerance";end;if strcmp(obj.InitialGuessDropDown.Value,'Select...'),missing(end+1)="initial estimate";end
+            if strcmp(obj.InitialGuessDropDown.Value,'Feed')&&(isempty(obj.FeedDropDown.Items)||isempty(obj.FeedDropDown.Value)),missing(end+1)="initial feed";end
+            if strcmp(obj.InitialGuessDropDown.Value,'Empty stream'),if isempty(obj.InitialTField.Value),missing(end+1)="initial T";end;if isempty(obj.InitialPField.Value),missing(end+1)="initial P";end,end
+            if strcmp(obj.MethodDropDown.Value,'Wegstein'),if isempty(obj.QMinField.Value),missing(end+1)="QMin";end;if isempty(obj.QMaxField.Value),missing(end+1)="QMax";end;if isempty(obj.AccelerationField.Value),missing(end+1)="acceleration interval";end,end
+            message="";if ~isempty(obj.ToleranceField.Value)&&obj.ToleranceField.Value<=0,message="Tolerance must be positive.";
+            elseif strcmp(obj.MethodDropDown.Value,'Wegstein')&&~isempty(obj.QMinField.Value)&&~isempty(obj.QMaxField.Value)&&(obj.QMinField.Value>=obj.QMaxField.Value||obj.QMaxField.Value>0),message="Wegstein bounds need QMin < QMax <= 0.";
+            elseif strcmp(obj.MethodDropDown.Value,'Wegstein')&&~isempty(obj.AccelerationField.Value)&&(obj.AccelerationField.Value<1||obj.AccelerationField.Value~=fix(obj.AccelerationField.Value)),message="Acceleration interval must be a positive integer.";end
+            if strlength(message)>0,nirp.flowsheet.internal.paintDofStatus(obj.StatusLabel,'conflict',"Conflict: "+message);valid=false;
+            elseif ~isempty(missing),nirp.flowsheet.internal.paintDofStatus(obj.StatusLabel,'missing',sprintf('%d specifications missing: %s',numel(missing),strjoin(missing,', ')));valid=false;
+            else,nirp.flowsheet.internal.paintDofStatus(obj.StatusLabel,'complete','Fully specified');valid=true;end
+            obj.captureModel();
         end
         function captureModel(obj)
             q=@(v,u) struct('value',v,'unit',string(u),'origin',"specified");

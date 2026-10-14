@@ -21,7 +21,9 @@ classdef NirpRecycleDialogTest < matlab.unittest.TestCase
             testCase.verifyEqual(string(dialog.Figure.WindowStyle),"alwaysontop");
             testCase.verifyEqual(dialog.MethodDropDown.Value,'Wegstein');
             testCase.verifyEqual(dialog.TearInLabel.Text,'Recycled');testCase.verifyEqual(dialog.TearOutLabel.Text,'Mixer');
-            dialog.setValues('Tolerance',1e-9);testCase.verifyTrue(dialog.apply());
+            dialog.setValues('Tolerance',0);testCase.verifySubstring(dialog.StatusLabel.Text,'Conflict:');testCase.verifyFalse(dialog.apply());
+            dialog.setValues('QMin',-1,'QMax',-1,'Tolerance',1e-9);testCase.verifySubstring(dialog.StatusLabel.Text,'QMin < QMax');
+            dialog.setValues('QMin',-20,'QMax',0,'Tolerance',1e-9);testCase.verifyTrue(dialog.apply());
             testCase.verifyEqual(str2double(get_param([name '/Recycle'],'Tolerance')),1e-9);
             sim(name);tables=nirp.flowsheet.showResults(name,'NoWindow',true);row=tables.Recycles;
             testCase.verifyEqual(height(row),1);testCase.verifyEqual(row.Converged,1);

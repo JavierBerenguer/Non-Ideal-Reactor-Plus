@@ -28,6 +28,11 @@ classdef Stream < matlab.System
         ConcentrationUnit = 'mol/m^3'
     end
 
+    properties (Nontunable)
+        % JSON containing only user specifications; empty means legacy.
+        Specifications = ''
+    end
+
     properties (Constant, Hidden)
         RoleSet = matlab.system.StringSet({'Select...','Auto','Feed','Intermediate','Product'})
         TSourceSet = matlab.system.StringSet({'Dialog','Input port'})
@@ -47,6 +52,8 @@ classdef Stream < matlab.System
         Reference
         KeyIndex = []
         RunRole = "Intermediate"
+        FeedModel
+        Specs
     end
 
     methods (Access = protected)
@@ -72,6 +79,14 @@ classdef Stream < matlab.System
                             'Open this block and save the feed data first.'],obj.BlockName) ;
                     end
                     rethrow(exception) ;
+                end
+                obj.Specs=nirp.dof.readSpecs(obj.Specifications) ;
+                if ~isempty(fieldnames(obj.Specs))
+                    context=struct('nComponents',obj.ReactionSystem.nComponents, ...
+                        'phase',obj.FeedStream.phase,'Mw',obj.ReactionSystem.componentMw) ;
+                    obj.FeedModel=nirp.dof.catalog.feed(context) ;
+                    result=solveFeed(obj.FeedModel,obj.Specs,obj.TSource,obj.QSource,NaN,NaN) ;
+                    if ~strcmp(result.status,'complete'),throwFeedResult(obj.BlockName,result);end
                 end
             end
             referenceName = strtrim(char(string(obj.ReferenceFeed))) ;
@@ -127,6 +142,17 @@ classdef Stream < matlab.System
                         stream.F = stream.F*(flow/obj.FeedStream.Q) ;
                     end
                     stream = nirp.stream.refresh(stream) ;
+                end
+                if ~isempty(fieldnames(obj.Specs))
+                    externalT=NaN;externalQ=NaN ;
+                    if strcmp(obj.TSource,'Input port'),externalT=temperature;end
+                    if strcmp(obj.QSource,'Input port'),externalQ=flow;end
+                    result=solveFeed(obj.FeedModel,obj.Specs,obj.TSource,obj.QSource,externalT,externalQ) ;
+                    if ~strcmp(result.status,'complete'),throwFeedResult(obj.BlockName,result);end
+                    flows=zeros(obj.ReactionSystem.nComponents,1) ;
+                    for i=1:numel(flows),flows(i)=result.values.(['F' num2str(i)]);end
+                    stream=nirp.stream.create(flows,result.values.T,result.values.P, ...
+                        obj.FeedStream.phase,result.values.Q) ;
                 end
             else
                 stream = varargin{1} ;
@@ -255,10 +281,27 @@ classdef Stream < matlab.System
         function groups = getPropertyGroupsImpl()
             groups = matlab.system.display.Section('Title','Stream', ...
                 'PropertyList',{'Role','TSource','T','TUnit','QSource','ReferenceFeed', ...
-                'KeyComponent','FlowUnit','TemperatureUnit','PressureUnit', ...
-                'ConcentrationUnit'}) ;
+                    'KeyComponent','FlowUnit','TemperatureUnit','PressureUnit', ...
+                    'ConcentrationUnit','Specifications'}) ;
         end
         function mode = getSimulateUsingImpl(), mode = 'Interpreted execution' ; end
         function flag = showSimulateUsingImpl(), flag = false ; end
     end
+end
+
+function result=solveFeed(model,specs,tSource,qSource,externalT,externalQ)
+    values=struct();origins=struct();names=fieldnames(specs);allowed={model.variables.name} ;
+    for i=1:numel(names)
+        if ~ismember(names{i},allowed),error('nirp:blocks:invalidSpecifications','Unknown Stream specification "%s".',names{i});end
+        values.(names{i})=specs.(names{i}).si;origins.(names{i})='specified';
+    end
+    if strcmp(tSource,'Input port'),values.T=externalT;origins.T='external';end
+    if strcmp(qSource,'Input port'),values.Q=externalQ;origins.Q='external';end
+    result=nirp.dof.solve(model,values,origins) ;
+end
+function throwFeedResult(block,result)
+    if strcmp(result.status,'missing')
+        error('nirp:blocks:missingSpecifications','Stream "%s": %d specifications missing: %s.',block,result.missingCount,strjoin(result.missing,', '));
+    end
+    error('nirp:blocks:conflictingSpecifications','Stream "%s": conflict in %s: %s',block,strjoin(result.conflicts,', '),strjoin(result.messages,' '));
 end
