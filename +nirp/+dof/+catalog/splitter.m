@@ -12,7 +12,7 @@ function model = splitter(nOutlets)
     model=nirp.dof.model(); fractionNames=cell(1,nOutlets) ;
     for i=1:nOutlets
         fractionNames{i}=sprintf('f%d',i) ;
-        model=nirp.dof.addVariable(model,fractionNames{i},sprintf('f%d',i),'Fraction', ...
+        model=nirp.dof.addVariable(model,fractionNames{i},sprintf('Split fraction for outlet %d',i),'Fraction', ...
             struct('bounds',[0 1],'displayUnit','1')) ;
     end
     model=nirp.dof.addVariable(model,'F_in','Inlet molar flow','MolarFlow', ...
@@ -26,7 +26,7 @@ function model = splitter(nOutlets)
         @(v) abs(sum(cellfun(@(x)v.(x),fractionNames))-1)) ;
     for i=1:nOutlets
         f=fractionNames{i};out=sprintf('F_out%d',i) ;
-        model=nirp.dof.addVariable(model,out,sprintf('F out %d',i),'MolarFlow', ...
+        model=nirp.dof.addVariable(model,out,sprintf('Molar flow from outlet %d',i),'MolarFlow', ...
             struct('bounds',[0 Inf],'specifiable',false,'displayUnit','mol/s')) ;
         relationSolvers=struct();relationSolvers.(out)=@(v)v.(f)*v.F_in;
         relationSolvers.(f)=@(v)v.(out)/v.F_in;

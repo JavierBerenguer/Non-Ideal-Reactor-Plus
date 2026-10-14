@@ -38,6 +38,7 @@ classdef StreamDialog < handle
         TotalConcentrationUnitDropDown
         TotalMassFlowField
         TotalMassFlowUnitDropDown
+        TotalMassFlowLabel
         StatusLabel
         ConversionLabel
         ConversionValue = NaN
@@ -149,7 +150,6 @@ classdef StreamDialog < handle
                 case 'viscosity', obj.ViscosityField.Value = value ;
                 case 'phase'
                     obj.PhaseDropDown.Value = char(string(value)) ;
-                    if obj.PhaseDropDown.Value=='G'&&~strcmp(obj.QSourceDropDown.Value,'Input port'),obj.Origins.Q="empty";obj.VolumetricFlowField.Value=[];end
                 case 'referencefeed', obj.ReferenceFeedDropDown.Value = char(string(value)) ;
                 case 'keycomponent', obj.KeyComponentDropDown.Value = char(string(value)) ;
                 case 'tsource', obj.TSourceDropDown.Value = char(string(value)) ;
@@ -371,7 +371,7 @@ classdef StreamDialog < handle
             obj.QPortLabel = portLabel(obj.VolumetricFlowField.Parent) ;
             [obj.TotalMolarFlowField,obj.TotalMolarFlowUnitDropDown] = quantityRow(grid,7,'Total Molar Flow','MolarFlow') ;
             [obj.TotalConcentrationField,obj.TotalConcentrationUnitDropDown] = quantityRow(grid,8,'Total Concentration','Concentration') ;
-            [obj.TotalMassFlowField,obj.TotalMassFlowUnitDropDown] = quantityRow(grid,9,'Total Mass Flow','MassFlow') ;
+            [obj.TotalMassFlowField,obj.TotalMassFlowUnitDropDown,obj.TotalMassFlowLabel] = quantityRow(grid,9,'Total Mass Flow','MassFlow') ;
             [obj.TSourceDropDown,obj.TSourceLabel] = rowControl(grid,10,'T source', ...
                 {'Dialog','Input port'},'dropdown') ;
             [obj.QSourceDropDown,obj.QSourceLabel] = rowControl(grid,11,'Q source', ...
@@ -440,7 +440,7 @@ classdef StreamDialog < handle
             obj.TotalMolarFlowUnitDropDown.ValueChangedFcn=@(source,event) obj.unitEdited('MolarFlow',source,event,obj.TotalMolarFlowField) ;
             obj.TotalConcentrationUnitDropDown.ValueChangedFcn=@(source,event) obj.unitEdited('Concentration',source,event,obj.TotalConcentrationField) ;
             obj.TotalMassFlowUnitDropDown.ValueChangedFcn=@(source,event) obj.unitEdited('MassFlow',source,event,obj.TotalMassFlowField) ;
-            obj.TotalMassFlowField.Visible=onOff(obj.HasMw);obj.TotalMassFlowUnitDropDown.Visible=onOff(obj.HasMw);
+            obj.TotalMassFlowField.Visible=onOff(obj.HasMw);obj.TotalMassFlowUnitDropDown.Visible=onOff(obj.HasMw);obj.TotalMassFlowLabel.Visible=onOff(obj.HasMw);
             obj.buildSpecificationPanel(grid) ;
             obj.updateRolePresentation() ;
         end
@@ -754,7 +754,7 @@ classdef StreamDialog < handle
             obj.TemperatureField.Visible=onOff(~inputT);obj.TemperatureField.Editable=onOff(~inputT);obj.TPortLabel.Visible=onOff(inputT);
             if inputT,obj.TPortLabel.Text=nirp.flowsheet.receivedValue(obj.BlockPath,'T','Temperature',obj.TemperatureUnitDropDown.Value,1);end
             inputQ=strcmp(obj.QSourceDropDown.Value,'Input port');
-            editableQ=~inputQ&&obj.PhaseDropDown.Value=='L';
+            editableQ=~inputQ;
             obj.VolumetricFlowField.Visible=onOff(~inputQ);obj.VolumetricFlowField.Editable=onOff(editableQ);obj.QPortLabel.Visible=onOff(inputQ);
             if inputQ,obj.QPortLabel.Text=nirp.flowsheet.receivedValue(obj.BlockPath,'Q','VolumetricFlow',obj.VolumetricFlowUnitDropDown.Value,1+inputT);end
         end
@@ -770,7 +770,7 @@ classdef StreamDialog < handle
             obj.closeFeed();
         end
         function scalarEdited(obj,name),if obj.Updating,return,end;field=obj.scalarField(name);if isempty(field.Value),obj.Origins.(name)="empty";else,obj.Origins.(name)="specified";end;obj.closeFeed();end
-        function phaseEdited(obj),if obj.Updating,return,end;if obj.PhaseDropDown.Value=='G'&&~strcmp(obj.QSourceDropDown.Value,'Input port'),obj.Origins.Q="empty";obj.VolumetricFlowField.Value=[];end;obj.closeFeed();end
+        function phaseEdited(obj),if obj.Updating,return,end;obj.closeFeed();end
         function markSpecified(obj,key)
             if any(strcmp(key,{'f','molarflow','molarflows'})),obj.Origins.F(:)="specified";
             elseif any(strcmp(key,{'c','concentration','concentrations'})),obj.Origins.C(:)="specified";
@@ -907,7 +907,7 @@ classdef StreamDialog < handle
     end
 end
 
-function [field,units]=quantityRow(grid,row,label,category)
+function [field,units,text]=quantityRow(grid,row,label,category)
     text=uilabel(grid,'Text',label,'HorizontalAlignment','right');text.Layout.Row=row;text.Layout.Column=4;
     holder=uigridlayout(grid,[1 2],'ColumnWidth',{'1x',85},'Padding',[0 0 0 0]);holder.Layout.Row=row;holder.Layout.Column=5;
     field=uieditfield(holder,'numeric','AllowEmpty','on','Value',[]);units=uidropdown(holder,'Items',UnitConverterHelper.getUnits(category));

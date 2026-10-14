@@ -9,7 +9,7 @@ function model = cstr(context)
 
     catalytic=option(context,'catalytic',false) ;
     model=nirp.dof.model() ; positive=struct('bounds',[0 Inf],'boundsClosed',[false true]) ;
-    model=nirp.dof.addVariable(model,'V','V','Volume',unit(positive,'m^3')) ;
+    model=nirp.dof.addVariable(model,'V','Reactor volume','Volume',unit(positive,'m^3')) ;
     model=nirp.dof.addVariable(model,'tau','Residence time','Time',unit(positive,'s')) ;
     model=nirp.dof.addVariable(model,'SV','Space velocity','Frequency',unit(positive,'1/s')) ;
     model=nirp.dof.addVariable(model,'Q0','Inlet volumetric flow','VolumetricFlow', ...

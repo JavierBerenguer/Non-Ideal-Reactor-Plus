@@ -36,8 +36,9 @@ function result = resolveProducer(model,producerType,producerName,internalSpecs,
     if ~isempty(duplicates)
         for name=duplicates'
             key=char(name);result.states.(key)='conflict';result.conflicts(end+1)=name;
+            label=model.variables(strcmp({model.variables.name},key)).label;
             result.messages(end+1)=sprintf('%s "%s" and Stream "%s" both specify %s.', ...
-                producerType,producerName,output.streams.(key),key) ; %#ok<AGROW>
+                producerType,producerName,output.streams.(key),label) ; %#ok<AGROW>
         end
         result.status='conflict' ;
     end

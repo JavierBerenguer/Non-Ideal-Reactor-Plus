@@ -59,8 +59,25 @@ classdef (SharedTestFixtures={nirptest.ExamplesFixture}) ...
             testCase.verifyEmpty(emptyDialog.getValue('Viscosity')) ;
             testCase.verifyEqual(string(emptyDialog.DensityField.Editable),"off") ;
             testCase.verifyEqual(string(emptyDialog.ViscosityField.Editable),"off") ;
+            testCase.verifyEqual(string(emptyDialog.TotalMassFlowLabel.Visible),"off") ;
             % T-131: the tips box was removed at the user's request.
             testCase.verifyEmpty(findall(emptyDialog.Figure,'Type','uitextarea')) ;
+        end
+
+        function gasFeedAcceptsVolumetricFlowAndClosesComposition(testCase)
+            nirp.flowsheet.new('gas_q_feed',nirp.pkg.examples.problem17AdiabaticGas(),testCase.Folder,'OpenModel',false);
+            dialog=nirp.flowsheet.StreamDialog('gas_q_feed/F1','Visible','off');testCase.addTeardown(@()deleteValid(dialog));
+            n=size(dialog.ComponentTable.Data,1);fractions=zeros(n,1);fractions(1)=0.6;fractions(end)=0.4;fractions(2)=NaN;
+            dialog.setUnits('T',[char(176) 'C'],'P','atm','Q','m^3/s');
+            dialog.setValues('F',nan(n,1),'x',fractions,'T',350,'P',25,'Q',0.01,'Phase','G');
+            testCase.verifyEqual(string(dialog.VolumetricFlowField.Editable),"on");
+            moleFractions=dialog.getValue('x');testCase.verifyEqual(moleFractions(2),0,'AbsTol',1e-14);
+            testCase.verifyEqual(dialog.getValue('status'),"Fully specified");
+            testCase.verifyTrue(dialog.apply());
+
+            dialog.setValues('Q',[]);
+            testCase.verifySubstring(dialog.getValue('status'),'1 specification missing: a flow');
+            testCase.verifyFalse(contains(dialog.getValue('status'),'F1'));
         end
 
         function massBasisUsesRealTableCallbacksAndPersistsOrigins(testCase)

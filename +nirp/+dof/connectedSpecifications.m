@@ -35,8 +35,8 @@ function output = connectedSpecifications(producerBlock,varargin)
                 name=targetNames{k} ;
                 if isfield(output.values,name)
                     error('nirp:dof:conflictingStreamSpecifications', ...
-                        'Streams "%s" and "%s" both specify %s on %s "%s".', ...
-                        output.streams.(name),target.StreamName,name,unit.Type,unit.Name) ;
+                        'Streams "%s" and "%s" both specify the same output quantity on %s "%s".', ...
+                        output.streams.(name),target.StreamName,unit.Type,unit.Name) ;
                 end
                 output.values.(name)=target.Values.(name) ;
                 output.origins.(name)='external' ;

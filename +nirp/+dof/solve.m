@@ -46,7 +46,8 @@ function result = solve(model,values,origins)
             if ~(isnumeric(residual)&&isscalar(residual)&&isfinite(residual)) || abs(residual)>1e-9
                 involved=find(ismember(names,relation.variables) & arrayfun(@(k)string(originStruct.(names{k}))=="specified",1:n)) ;
                 conflict(involved)=true ;
-                messages(end+1)=sprintf('Relation %s is inconsistent.',relation.id) ; %#ok<AGROW>
+                labels=variableLabels(model,relation.variables) ;
+                messages(end+1)="Values for "+strjoin(labels,', ')+" are inconsistent." ; %#ok<AGROW>
             end
         end
     end
@@ -69,7 +70,8 @@ function result = solve(model,values,origins)
     isExternal=arrayfun(@(i)string(originStruct.(names{i}))=="external",1:n) ;
     isSpecified=arrayfun(@(i)string(originStruct.(names{i}))=="specified",1:n) ;
     optionalEmpty=arrayfun(@(i)model.variables(i).optional && ~isKnown(valueStruct.(names{i})),1:n) ;
-    dof=n-numel(model.relations)-sum(isExternal) ;
+    independentRelations=sum(~[model.relations.redundant]) ;
+    dof=n-independentRelations-sum(isExternal) ;
     remaining=dof-sum(isSpecified)-sum(optionalEmpty) ;
     if remaining<0
         % Output-Stream specifications are external to the producer but
@@ -81,6 +83,11 @@ function result = solve(model,values,origins)
     candidates=find(arrayfun(@(i)model.variables(i).specifiable && ~model.variables(i).optional && ...
         string(originStruct.(names{i}))=="empty",1:n)) ;
     missingNames=string(names(candidates(1:min(numel(candidates),missingCount)))) ;
+    missingLabels=strings(size(missingNames)) ;
+    for i=1:numel(missingNames)
+        index=find(strcmp(names,char(missingNames(i))),1) ;
+        missingLabels(i)=string(model.variables(index).missingLabel) ;
+    end
     for i=1:n
         origin=string(originStruct.(names{i})) ;
         if conflict(i), state="conflict"; elseif origin=="external", state="external"; ...
@@ -92,15 +99,21 @@ function result = solve(model,values,origins)
     elseif missingCount>0
         status="missing" ;
         suffix='s';if missingCount==1,suffix='';end
-        if isempty(missingNames), messages(end+1)=sprintf('%d specification%s missing.',missingCount,suffix); ...
-        else, messages(end+1)=sprintf('%d specification%s missing: %s.',missingCount,suffix,strjoin(missingNames,', ')); end
+        if isempty(missingLabels), messages(end+1)=sprintf('%d specification%s missing.',missingCount,suffix); ...
+        else, messages(end+1)=sprintf('%d specification%s missing: %s.',missingCount,suffix,strjoin(missingLabels,', ')); end
     else
         status="complete" ;
     end
     result=struct('values',valueStruct,'origins',originStruct,'states',states, ...
         'producer',producer,'messages',unique(messages,'stable'),'status',char(status), ...
         'dof',dof,'missingCount',missingCount,'missing',missingNames, ...
+        'missingLabels',missingLabels, ...
         'conflicts',string(names(conflict))) ;
+end
+
+function labels=variableLabels(model,names)
+    labels=strings(size(names));allNames={model.variables.name};
+    for i=1:numel(names),labels(i)=string(model.variables(strcmp(allNames,names{i})).label);end
 end
 
 function values=normaliseValues(names,input)

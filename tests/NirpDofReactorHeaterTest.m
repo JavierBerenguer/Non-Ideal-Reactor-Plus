@@ -19,27 +19,27 @@ classdef NirpDofReactorHeaterTest < matlab.unittest.TestCase
     end
     methods (Test)
         function cstrCatalogueClosesBothDirections(testCase)
-            model=nirp.dof.catalog.cstr(struct('catalytic',false));testCase.verifyEqual(numel(model.variables)-numel(model.relations)-1,1);
+            model=nirp.dof.catalog.cstr(struct('catalytic',false));testCase.verifyEqual(catalogDof(model)-1,1);
             r=solveExternal(model,struct('tau',20),struct('Q0',0.01));testCase.verifyEqual(r.values.V,0.2,'AbsTol',1e-14);testCase.verifyEqual(r.values.SV,0.05,'AbsTol',1e-14);
             r=solveExternal(model,struct('V',0.2),struct('Q0',0.01));testCase.verifyEqual(r.values.tau,20,'AbsTol',1e-14);
             r=solveExternal(model,struct('SV',0.05),struct('Q0',0.01));testCase.verifyEqual(r.values.V,0.2,'AbsTol',1e-14);
-            catalytic=nirp.dof.catalog.cstr(struct('catalytic',true));testCase.verifyEqual(numel(catalytic.variables)-numel(catalytic.relations)-1,3);
+            catalytic=nirp.dof.catalog.cstr(struct('catalytic',true));testCase.verifyEqual(catalogDof(catalytic)-1,3);
             r=solveExternal(catalytic,struct('W',80,'rho_cat',1000,'epsilon',0.2),struct('Q0',0.01));testCase.verifyEqual(r.values.V,0.1,'AbsTol',1e-14);
             r=solveExternal(catalytic,struct('V',0.1,'rho_cat',1000,'epsilon',0.2),struct('Q0',0.01));testCase.verifyEqual(r.values.W,80,'AbsTol',1e-14);
         end
         function pfrCatalogueClosesGeometryResidenceAndVelocity(testCase)
-            model=nirp.dof.catalog.pfr(struct('catalytic',false,'pressureMode','Constant'));testCase.verifyEqual(numel(model.variables)-numel(model.relations)-1,3);
+            model=nirp.dof.catalog.pfr(struct('catalytic',false,'pressureMode','Constant'));testCase.verifyEqual(catalogDof(model)-1,3);
             area=3*pi/4*0.2^2;r=solveExternal(model,struct('L',2,'D',0.2,'N_tubes',3),struct('Q0',0.03));
             testCase.verifyEqual(r.values.V,area*2,'RelTol',1e-13);testCase.verifyEqual(r.values.u,0.03/area,'RelTol',1e-13);testCase.verifyEqual(r.values.SV,1/r.values.tau,'RelTol',1e-13);
             r=solveExternal(model,struct('V',area*2,'D',0.2,'N_tubes',3),struct('Q0',0.03));testCase.verifyEqual(r.values.L,2,'RelTol',1e-13);
             r=solveExternal(model,struct('tau',10,'D',0.2,'N_tubes',3),struct('Q0',0.03));testCase.verifyEqual(r.values.V,0.3,'RelTol',1e-13);
             r=solveExternal(model,struct('u',0.03/area,'D',0.2,'L',2),struct('Q0',0.03));testCase.verifyEqual(r.values.N_tubes,3,'RelTol',1e-13);
-            catalytic=nirp.dof.catalog.pfr(struct('catalytic',true,'pressureMode','Constant'));testCase.verifyEqual(numel(catalytic.variables)-numel(catalytic.relations)-1,5);
-            pressure=nirp.dof.catalog.pfr(struct('pressureMode','Non constant','pressureDropEqn','Ergun'));testCase.verifyEqual(numel(pressure.variables)-numel(pressure.relations)-1,6);
+            catalytic=nirp.dof.catalog.pfr(struct('catalytic',true,'pressureMode','Constant'));testCase.verifyEqual(catalogDof(catalytic)-1,5);
+            pressure=nirp.dof.catalog.pfr(struct('pressureMode','Non constant','pressureDropEqn','Ergun'));testCase.verifyEqual(catalogDof(pressure)-1,6);
         end
         function heaterCatalogueClosesThermalAndPressureRelations(testCase)
             pkg=nirp.pkg.examples.firstOrderLiquid();in=nirp.pkg.feedStream(pkg,"F1");rs=nirp.pkg.toReactionSys(pkg);model=nirp.dof.catalog.heater(struct('inlet',in,'RS',rs));
-            testCase.verifyEqual(numel(model.variables)-numel(model.relations)-2,2);
+            testCase.verifyEqual(catalogDof(model)-2,2);
             r=solveExternal(model,struct('T_out',in.T+25,'dP',1000),struct('T_in',in.T,'P_in',in.P));testCase.verifyEqual(r.values.dT,25,'AbsTol',1e-12);testCase.verifyEqual(r.values.P_out,in.P-1000,'AbsTol',1e-12);
             duty=r.values.Q;r2=solveExternal(model,struct('Q',duty,'P_out',in.P-1000),struct('T_in',in.T,'P_in',in.P));testCase.verifyEqual(r2.values.T_out,in.T+25,'AbsTol',1e-10);testCase.verifyEqual(r2.values.dP,1000,'AbsTol',1e-10);
             r3=solveExternal(model,struct('dT',25,'dP',1000),struct('T_in',in.T,'P_in',in.P));testCase.verifyEqual(r3.values.Q,duty,'RelTol',1e-12);
@@ -75,6 +75,7 @@ classdef NirpDofReactorHeaterTest < matlab.unittest.TestCase
         function dialogsPersistOnlyUserSpecifications(testCase)
             createModel(testCase,'dialog_specs');addSystem('dialog_specs','CSTR','nirp.blocks.CSTR',[200 40 320 110]);addSystem('dialog_specs','Heater','nirp.blocks.Heater',[200 150 320 220]);addSystem('dialog_specs','Jacket','nirp.blocks.Jacket',[200 260 320 330]);
             reactor=nirp.flowsheet.ReactorDialog('dialog_specs/CSTR','Visible','off');heater=nirp.flowsheet.HeaterDialog('dialog_specs/Heater','Visible','off');jacket=nirp.flowsheet.JacketDialog('dialog_specs/Jacket','Visible','off');testCase.addTeardown(@()deleteDialogs({reactor,heater,jacket}));
+            testCase.verifyEqual(string(heater.ToutField.Visible),"on");testCase.verifyEqual(string(heater.DutyField.Visible),"on");
             reactor.setValues('V',NaN,'tau',100);testCase.verifyTrue(reactor.apply());specs=nirp.dof.readSpecs(get_param('dialog_specs/CSTR','Specifications'));testCase.verifyEqual(fieldnames(specs),{'tau'});
             heater.setValues('Tout',NaN,'dT',10,'dP',0);testCase.verifyEqual(string(heater.DutyField.Visible),"on");testCase.verifyTrue(heater.apply());specs=nirp.dof.readSpecs(get_param('dialog_specs/Heater','Specifications'));testCase.verifyEqual(sort(fieldnames(specs)),sort({'dP';'dT'}));
             jacket.setValues('U',NaN,'UA',1000,'A',5,'UtilityTin',300);testCase.verifyTrue(jacket.apply());specs=nirp.dof.readSpecs(get_param('dialog_specs/Jacket','Specifications'));testCase.verifyEqual(sort(fieldnames(specs)),sort({'A';'T_in_s';'UA'}));
@@ -94,6 +95,7 @@ classdef NirpDofReactorHeaterTest < matlab.unittest.TestCase
 end
 
 function result=solveExternal(model,specified,external),values=specified;origins=struct();names=fieldnames(specified);for i=1:numel(names),origins.(names{i})='specified';end;names=fieldnames(external);for i=1:numel(names),values.(names{i})=external.(names{i});origins.(names{i})='external';end;result=nirp.dof.solve(model,values,origins);end
+function value=catalogDof(model),value=numel(model.variables)-sum(~[model.relations.redundant]);end
 function value=spec(si,unit),value=struct('si',si,'unit',unit);end
 function createModel(testCase,name),nirp.flowsheet.new(name,nirp.pkg.examples.firstOrderLiquid(),testCase.Folder,'OpenModel',false);load_system(fullfile(testCase.Folder,[name '.slx']));end
 function addSystem(model,name,className,position,varargin),add_block('simulink/User-Defined Functions/MATLAB System',[model '/' name],'System',className,'Position',position,varargin{:});if startsWith(className,'nirp.blocks.'),if strcmp(className,'nirp.blocks.Stream'),nirp.flowsheet.setupStreamBlock([model '/' name]);else,nirp.flowsheet.setupUnitBlock([model '/' name]);end,end,end

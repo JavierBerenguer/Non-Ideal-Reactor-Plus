@@ -118,7 +118,7 @@ classdef HeaterDialog < handle
         function setFromSI(obj,name,value,unit),dropdown=obj.unitField(name);if ~isempty(unit)&&any(string(dropdown.Items)==string(unit)),dropdown.Value=unit;end;obj.setCalculated(name,value,'calculated');end
         function value=field(obj,name),map=struct('T_out','ToutField','dT','TemperatureChangeField','Q','DutyField','dP','PressureDropField','P_out','OutletPressureField');value=obj.(map.(name));end
         function value=unitField(obj,name),map=struct('T_out','ToutUnitDropDown','dT','TemperatureChangeUnitDropDown','Q','DutyUnitDropDown','dP','PressureDropUnitDropDown','P_out','OutletPressureUnitDropDown');value=obj.(map.(name));end
-        function updateCompatibilityVisibility(obj),showTout=~strcmp(obj.CompatibilityMode,'Duty');showDuty=~strcmp(obj.CompatibilityMode,'Outlet T');obj.ToutField.Visible=onoff(showTout);obj.ToutUnitDropDown.Visible=onoff(showTout);obj.DutyField.Visible=onoff(showDuty);obj.DutyUnitDropDown.Visible=onoff(showDuty);if isempty(obj.CompatibilityMode),obj.ToutField.Visible='on';obj.ToutUnitDropDown.Visible='on';obj.DutyField.Visible='on';obj.DutyUnitDropDown.Visible='on';end,end
+        function updateCompatibilityVisibility(obj),obj.ToutField.Visible='on';obj.ToutUnitDropDown.Visible='on';obj.DutyField.Visible='on';obj.DutyUnitDropDown.Visible='on';end
         function refreshConnections(obj),graph=nirp.flowsheet.topology(bdroot(obj.BlockPath));key=matlab.lang.makeValidName(get_param(obj.BlockPath,'Name'));data=cell(0,3);if isfield(graph.Units,key),x=graph.Units.(key);for i=1:numel(x.Inputs),data(end+1,:)={'Input',i,label(x.Inputs{i})};end;for i=1:numel(x.Outputs),data(end+1,:)={'Output',i,label(x.Outputs{i})};end;end;obj.ConnectionTable.Data=data;end
     end
 end

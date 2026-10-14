@@ -6,14 +6,14 @@ function model = separator(context)
 % Created: October 14, 2026. Last update: October 14, 2026
 % =========================================================================
 
-    n=componentCount(context);model=nirp.dof.model();flows=struct('bounds',[0 Inf],'displayUnit','mol/s');fractions=struct('bounds',[0 1],'displayUnit','1');
+    [n,names]=componentData(context);model=nirp.dof.model();flows=struct('bounds',[0 Inf],'displayUnit','mol/s');fractions=struct('bounds',[0 1],'displayUnit','1');
     for i=1:n
-        model=nirp.dof.addVariable(model,nm('r',i),sprintf('Recovery %d',i),'Fraction',fractions);
-        model=nirp.dof.addVariable(model,nm('F_top',i),sprintf('Top flow %d',i),'MolarFlow',flows);
-        model=nirp.dof.addVariable(model,nm('F_bot',i),sprintf('Bottom flow %d',i),'MolarFlow',flows);
-        model=nirp.dof.addVariable(model,nm('x_top',i),sprintf('Top mole fraction %d',i),'Fraction',fractions);
-        model=nirp.dof.addVariable(model,nm('x_bot',i),sprintf('Bottom mole fraction %d',i),'Fraction',fractions);
-        model=nirp.dof.addVariable(model,nm('F_in',i),sprintf('Inlet flow %d',i),'MolarFlow',struct('bounds',[0 Inf],'specifiable',false,'displayUnit','mol/s'));
+        model=nirp.dof.addVariable(model,nm('r',i),sprintf('Recovery of %s',names{i}),'Fraction',fractions);
+        model=nirp.dof.addVariable(model,nm('F_top',i),sprintf('Top molar flow of %s',names{i}),'MolarFlow',flows);
+        model=nirp.dof.addVariable(model,nm('F_bot',i),sprintf('Bottom molar flow of %s',names{i}),'MolarFlow',flows);
+        model=nirp.dof.addVariable(model,nm('x_top',i),sprintf('Top mole fraction of %s',names{i}),'Fraction',fractions);
+        model=nirp.dof.addVariable(model,nm('x_bot',i),sprintf('Bottom mole fraction of %s',names{i}),'Fraction',fractions);
+        model=nirp.dof.addVariable(model,nm('F_in',i),sprintf('Inlet molar flow of %s',names{i}),'MolarFlow',struct('bounds',[0 Inf],'specifiable',false,'displayUnit','mol/s'));
     end
     top=arrayfun(@(i)nm('F_top',i),1:n,'UniformOutput',false);bot=arrayfun(@(i)nm('F_bot',i),1:n,'UniformOutput',false);
     for i=1:n
@@ -30,9 +30,11 @@ function model = separator(context)
         model=nirp.dof.addRelation(model,['bottom_fraction_' num2str(i)],botVars,s,@(v)rel(v.(fb),v.(xb)*sumFields(v,bot)));
     end
 end
-function n=componentCount(context)
+function [n,names]=componentData(context)
     if isnumeric(context),n=context;elseif isstruct(context)&&isfield(context,'nComponents'),n=context.nComponents;elseif isstruct(context)&&isfield(context,'components'),n=numel(context.components);else,error('nirp:dof:invalidContext','Separator context needs nComponents or components.');end
     if ~(isnumeric(n)&&isscalar(n)&&isfinite(n)&&n==fix(n)&&n>=1),error('nirp:dof:invalidContext','nComponents must be a positive integer.');end
+    names=arrayfun(@(i)sprintf('component %d',i),1:n,'UniformOutput',false);
+    if isstruct(context)&&isfield(context,'components')&&isfield(context.components,'name'),candidate=cellstr(string({context.components.name}));if numel(candidate)==n,names=candidate;end,end
 end
 function output=nm(prefix,index),output=[prefix num2str(index)];end
 function value=sumFields(values,names),value=sum(cellfun(@(x)values.(x),names));end

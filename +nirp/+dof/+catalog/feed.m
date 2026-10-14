@@ -8,22 +8,24 @@ function model = feed(context)
 % Created: October 14, 2026. Last update: October 14, 2026
 % =========================================================================
 
-    [n,mw,gas]=contextData(context) ;
+    [n,mw,gas,components]=contextData(context) ;
     model=nirp.dof.model() ;
     positive=struct('bounds',[0 Inf],'boundsClosed',[false true]) ;
     nonnegative=struct('bounds',[0 Inf]) ;
     fraction=struct('bounds',[0 1],'displayUnit','1') ;
+    flowHint='a flow (total molar flow, volumetric flow or a component flow)' ;
     for i=1:n
-        model=nirp.dof.addVariable(model,name('F',i),sprintf('F_%d',i), ...
-            'MolarFlow',withUnit(nonnegative,'mol/s')) ;
-        model=nirp.dof.addVariable(model,name('C',i),sprintf('C_%d',i), ...
+        component=components{i} ; flowOptions=withUnit(nonnegative,'mol/s');flowOptions.missingLabel=flowHint;
+        model=nirp.dof.addVariable(model,name('F',i),sprintf('Molar flow of %s',component), ...
+            'MolarFlow',flowOptions) ;
+        model=nirp.dof.addVariable(model,name('C',i),sprintf('Concentration of %s',component), ...
             'Concentration',withUnit(nonnegative,'mol/m^3')) ;
-        model=nirp.dof.addVariable(model,name('x',i),sprintf('x_%d',i), ...
+        model=nirp.dof.addVariable(model,name('x',i),sprintf('Mole fraction of %s',component), ...
             'Fraction',fraction) ;
         if ~isempty(mw)
-            model=nirp.dof.addVariable(model,name('mdot',i),sprintf('mass flow %d',i), ...
+            model=nirp.dof.addVariable(model,name('mdot',i),sprintf('Mass flow of %s',component), ...
                 'MassFlow',withUnit(nonnegative,'kg/s')) ;
-            model=nirp.dof.addVariable(model,name('w',i),sprintf('mass fraction %d',i), ...
+            model=nirp.dof.addVariable(model,name('w',i),sprintf('Mass fraction of %s',component), ...
                 'Fraction',fraction) ;
         end
     end
@@ -55,6 +57,9 @@ function model = feed(context)
         end
     end
     fNames=arrayfun(@(i)name('F',i),1:n,'UniformOutput',false) ;
+    xNames=arrayfun(@(i)name('x',i),1:n,'UniformOutput',false) ;
+    model=nirp.dof.addRelation(model,'mole_fraction_sum',xNames, ...
+        fixedSumSolvers(xNames,1),@(v) abs(sumFields(v,xNames)-1),struct('redundant',true)) ;
     model=nirp.dof.addRelation(model,'total_molar_flow',[fNames {'F'}], ...
         sumSolvers(fNames,'F'),@(v) relative(v.F,sumFields(v,fNames))) ;
     model=nirp.dof.addRelation(model,'total_concentration',{'C_tot','F','Q'}, ...
@@ -62,6 +67,9 @@ function model = feed(context)
         @(v) relative(v.C_tot,v.F/v.Q)) ;
     if ~isempty(mw)
         mNames=arrayfun(@(i)name('mdot',i),1:n,'UniformOutput',false) ;
+        wNames=arrayfun(@(i)name('w',i),1:n,'UniformOutput',false) ;
+        model=nirp.dof.addRelation(model,'mass_fraction_sum',wNames, ...
+            fixedSumSolvers(wNames,1),@(v) abs(sumFields(v,wNames)-1),struct('redundant',true)) ;
         model=nirp.dof.addRelation(model,'total_mass_flow',[mNames {'mdot'}], ...
             sumSolvers(mNames,'mdot'),@(v) relative(v.mdot,sumFields(v,mNames))) ;
     end
@@ -74,8 +82,8 @@ function model = feed(context)
     end
 end
 
-function [n,mw,gas]=contextData(context)
-    if isnumeric(context),n=context;mw=[];gas=false;return,end
+function [n,mw,gas,names]=contextData(context)
+    if isnumeric(context),n=context;mw=[];gas=false;names=defaultNames(n);return,end
     if ~isstruct(context)||~isscalar(context),error('nirp:dof:invalidContext','Feed context must be a scalar structure.');end
     if isfield(context,'nComponents'),n=context.nComponents;
     elseif isfield(context,'components'),n=numel(context.components);
@@ -91,6 +99,10 @@ function [n,mw,gas]=contextData(context)
     phase='L';if isfield(context,'phase'),phase=context.phase;end
     gas=(isnumeric(phase)&&isscalar(phase)&&phase==1)||strcmpi(char(string(phase)),'G')||strcmpi(char(string(phase)),'Gas') ;
     if ~(isnumeric(n)&&isscalar(n)&&isfinite(n)&&n==fix(n)&&n>=1),error('nirp:dof:invalidContext','nComponents must be a positive integer.');end
+    names=defaultNames(n);
+    if isfield(context,'components')&&isfield(context.components,'name')
+        candidate=cellstr(string({context.components.name}));if numel(candidate)==n,names=candidate;end
+    end
 end
 function output=withUnit(options,unit),output=options;output.displayUnit=unit;end
 function output=name(prefix,index),output=[prefix num2str(index)];end
@@ -99,5 +111,10 @@ function solvers=sumSolvers(parts,total)
     solvers.(total)=@(v)sumFields(v,parts);
     for i=1:numel(parts),target=parts{i};others=parts;others(i)=[];solvers.(target)=@(v)v.(total)-sumFields(v,others);end
 end
+function solvers=fixedSumSolvers(parts,total)
+    solvers=struct();
+    for i=1:numel(parts),target=parts{i};others=parts;others(i)=[];solvers.(target)=@(v)total-sumFields(v,others);end
+end
+function names=defaultNames(n),names=arrayfun(@(i)sprintf('component %d',i),1:n,'UniformOutput',false);end
 function value=sumFields(values,names),value=sum(cellfun(@(x)values.(x),names));end
 function value=relative(first,second),value=abs(first-second)/max([abs(first) abs(second) 1e-12]);end

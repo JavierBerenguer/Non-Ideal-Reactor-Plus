@@ -83,7 +83,7 @@ classdef SeparatorDialog < handle
             elseif unresolved,message="Needs the other components";status='missing';
             else,message="Fully specified";status='complete';if strlength(source)>0,message=message+" - "+source;elseif isempty(inlet),message=message+" - results need a run or a defined feed";end,end
             [~,~,runLabel]=nirp.flowsheet.blockStatus(obj.BlockPath);message=message+" - "+runLabel;nirp.flowsheet.internal.paintDofStatus(obj.StatusLabel,status,message);valid=strcmp(status,'complete');
-            if isempty(inlet),obj.RecoveryTable.ColumnEditable=[false true false false false false];else,obj.RecoveryTable.ColumnEditable=[false true true true true true];end
+            obj.RecoveryTable.ColumnEditable=[false true true true true true];
         end
         function cellEdited(obj,event)
             if obj.Updating,return,end;row=event.Indices(1);column=event.Indices(2);keys={'','r','f_top','f_bot','x_top','x_bot'};obj.Origins.(keys{column})(row)=valueOrigin(event.NewData);obj.close();

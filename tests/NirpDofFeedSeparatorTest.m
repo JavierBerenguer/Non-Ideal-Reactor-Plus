@@ -8,8 +8,8 @@ classdef NirpDofFeedSeparatorTest < matlab.unittest.TestCase
         function feedCatalogueClosesMolarConcentrationAndFractionBases(testCase)
             liquid=nirp.dof.catalog.feed(struct('nComponents',2,'phase','L'));
             gas=nirp.dof.catalog.feed(struct('nComponents',2,'phase','G'));
-            testCase.verifyEqual(numel(liquid.variables)-numel(liquid.relations),5);
-            testCase.verifyEqual(numel(gas.variables)-numel(gas.relations),4);
+            testCase.verifyEqual(catalogDof(liquid),5);
+            testCase.verifyEqual(catalogDof(gas),4);
 
             r=solve(liquid,struct('F1',1,'F2',2,'Q',0.01,'T',300,'P',1e5));
             testCase.verifyEqual(r.status,'complete');testCase.verifyEqual([r.values.C1 r.values.C2],[100 200],'RelTol',1e-12);
@@ -26,12 +26,29 @@ classdef NirpDofFeedSeparatorTest < matlab.unittest.TestCase
             testCase.verifyEqual(r.values.P,101325,'RelTol',1e-12);
         end
 
+        function gasFeedClosesRemainingFractionFromSpecifiedVolume(testCase)
+            components=struct('name',{'A','B','Inert'});
+            gas=nirp.dof.catalog.feed(struct('components',components,'phase','G'));
+            specified=struct('x1',0.6,'x3',0.4,'P',25*101325,'T',623.15,'Q',0.01);
+            r=solve(gas,specified);expectedF=specified.Q*specified.P/(8.314*specified.T);
+            testCase.verifyEqual(r.status,'complete');
+            testCase.verifyEqual(r.values.x2,0,'AbsTol',1e-14);
+            testCase.verifyEqual(r.values.F,expectedF,'RelTol',1e-12);
+            testCase.verifyEqual([r.values.F1 r.values.F2 r.values.F3],expectedF*[0.6 0 0.4],'RelTol',1e-12,'AbsTol',1e-14);
+            testCase.verifyEqual([r.values.C1 r.values.C2 r.values.C3],[r.values.F1 r.values.F2 r.values.F3]/specified.Q,'RelTol',1e-12,'AbsTol',1e-14);
+
+            missing=rmfield(specified,'Q');r=solve(gas,missing);
+            testCase.verifyEqual(r.status,'missing');testCase.verifyEqual(r.missingCount,1);
+            testCase.verifySubstring(r.messages(end),'a flow (total molar flow, volumetric flow or a component flow)');
+            testCase.verifyFalse(contains(r.messages(end),'F1'));
+        end
+
         function massBasisAppearsOnlyWithCompleteMolecularWeights(testCase)
             withMw=nirp.dof.catalog.feed(struct('nComponents',2,'phase','L','Mw',[18 44]));
             withoutMw=nirp.dof.catalog.feed(struct('nComponents',2,'phase','L','Mw',[18 NaN]));
             testCase.verifyTrue(any(strcmp({withMw.variables.name},'mdot1')));
             testCase.verifyFalse(any(strcmp({withoutMw.variables.name},'mdot1')));
-            testCase.verifyEqual(numel(withMw.variables)-numel(withMw.relations),5);
+            testCase.verifyEqual(catalogDof(withMw),5);
             r=solve(withMw,struct('w1',18/106,'mdot',0.106,'Q',0.01,'T',300,'P',1e5));
             testCase.verifyEqual([r.values.F1 r.values.F2],[1 2],'RelTol',1e-12);
             testCase.verifyEqual([r.values.mdot1 r.values.mdot2],[0.018 0.088],'RelTol',1e-12);
@@ -61,6 +78,24 @@ classdef NirpDofFeedSeparatorTest < matlab.unittest.TestCase
             testCase.verifyEqual(result.status,'complete');testCase.verifyEqual(result.missingCount,0);
             testCase.verifyTrue(all(~[model.variables.specifiable]));
         end
+
+        function catalogueStatusMessagesUseUserLabels(testCase)
+            components=struct('name',{'A','B'});
+            models={nirp.dof.catalog.feed(struct('components',components,'phase','G')), ...
+                nirp.dof.catalog.cstr(struct('catalytic',true)), ...
+                nirp.dof.catalog.pfr(struct('catalytic',true)), ...
+                nirp.dof.catalog.heater(struct()),nirp.dof.catalog.jacket(struct('mode','Utility')), ...
+                nirp.dof.catalog.mixer(struct('components',components)), ...
+                nirp.dof.catalog.splitter(2),nirp.dof.catalog.separator(struct('components',components))};
+            pattern='(?<![A-Za-z0-9_])(F1|C1|x1|mdot1|w1|F_out1|F_top1|F_bot1|x_top1|x_bot1|Q0|T_out|P_out|T_in_s)(?![A-Za-z0-9_])';
+            for i=1:numel(models)
+                result=nirp.dof.solve(models{i},struct(),struct());message=strjoin(result.messages,' ');
+                testCase.verifyFalse(strcmp(models{i}.variables(1).label,models{i}.variables(1).name), ...
+                    sprintf('Catalogue %d starts with an internal label.',i));
+                testCase.verifyEmpty(regexp(message,pattern,'once'), ...
+                    sprintf('Catalogue %d exposed an internal variable in "%s".',i,message));
+            end
+        end
     end
 end
 
@@ -68,3 +103,4 @@ function result=solve(model,values),names=fieldnames(values);origins=struct();fo
 function result=solveWithOrigins(model,values,origins),result=nirp.dof.solve(model,values,origins);end
 function value=specified(names),value=struct();for i=1:numel(names),value.(names{i})='specified';end,end
 function value=merge(first,second),value=first;names=fieldnames(second);for i=1:numel(names),value.(names{i})=second.(names{i});end,end
+function value=catalogDof(model),value=numel(model.variables)-sum(~[model.relations.redundant]);end

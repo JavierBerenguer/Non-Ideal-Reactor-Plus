@@ -59,6 +59,19 @@ classdef NirpDofEngineTest < matlab.unittest.TestCase
             testCase.verifyEqual(r.states.x,'empty');testCase.verifyEqual(r.status,'missing');
         end
 
+        function redundantRelationPropagatesWithoutReducingDof(testCase)
+            m=nirp.dof.model();
+            m=nirp.dof.addVariable(m,'x1','Mole fraction of A','Fraction',struct());
+            m=nirp.dof.addVariable(m,'x2','Mole fraction of B','Fraction',struct());
+            solvers=struct('x1',@(v)1-v.x2,'x2',@(v)1-v.x1);
+            m=nirp.dof.addRelation(m,'fraction_sum',{'x1','x2'},solvers, ...
+                @(v)abs(v.x1+v.x2-1),struct('redundant',true));
+            r=nirp.dof.solve(m,struct('x1',0.6),struct('x1','specified'));
+            testCase.verifyEqual(r.values.x2,0.4,'AbsTol',1e-15);
+            testCase.verifyEqual(r.dof,2);
+            testCase.verifyEqual(r.missingCount,1);
+        end
+
         function specificationsRoundTrip(testCase)
             specs=struct('V',struct('si',0.1,'unit','L'),'tau',struct('si',120,'unit','s'));
             text=nirp.dof.writeSpecs(specs);actual=nirp.dof.readSpecs(text);

@@ -90,6 +90,14 @@ classdef NirpConnectedStreamSpecificationsTest < matlab.unittest.TestCase
             testCase.verifyEqual(dialog.SpecificationTemperatureField.BackgroundColor,[1 1 1],'AbsTol',1e-12);
             testCase.verifyEqual(dialog.SpecificationPressureField.BackgroundColor,[1 1 1],'AbsTol',1e-12);
         end
+
+        function separatorSpecificationsStayEditableWithoutKnownInlet(testCase)
+            createModel(testCase.Folder,'separator_without_inlet');
+            addSystem('separator_without_inlet','Separator','nirp.blocks.Separator',[160 80 270 170]);
+            nirp.flowsheet.setupUnitBlock('separator_without_inlet/Separator');
+            dialog=nirp.flowsheet.SeparatorDialog('separator_without_inlet/Separator','Visible','off');testCase.addTeardown(@()deleteValid(dialog));
+            testCase.verifyEqual(dialog.RecoveryTable.ColumnEditable,[false true true true true true]);
+        end
     end
 end
 

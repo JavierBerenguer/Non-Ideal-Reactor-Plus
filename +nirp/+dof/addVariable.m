@@ -1,7 +1,9 @@
 function model = addVariable(model,name,label,category,options)
 %ADDVARIABLE Add one SI variable to a degree-of-freedom model.
 %   OPTIONS supports bounds [MIN MAX], boundsClosed [LOW HIGH],
-%   specifiable, optional, and displayUnit.
+%   specifiable, optional, displayUnit, and missingLabel. missingLabel is
+%   used only in status messages when several equivalent specifications
+%   can close the same degree of freedom.
 % =========================================================================
 % Javier Berenguer Sabater
 % Created: October 14, 2026. Last update: October 14, 2026
@@ -24,6 +26,7 @@ function model = addVariable(model,name,label,category,options)
         error('nirp:dof:invalidBounds','boundsClosed must contain two logical values.') ;
     end
     variable = struct('name',name,'label',char(string(label)), ...
+        'missingLabel',char(string(option(options,'missingLabel',label))), ...
         'category',char(string(category)),'bounds',double(reshape(bounds,1,2)), ...
         'boundsClosed',logical(reshape(closed,1,2)), ...
         'specifiable',logical(option(options,'specifiable',true)), ...

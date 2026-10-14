@@ -7,8 +7,8 @@ function value = model()
 % Created: October 14, 2026. Last update: October 14, 2026
 % =========================================================================
 
-    variables = struct('name',{},'label',{},'category',{},'bounds',{}, ...
+    variables = struct('name',{},'label',{},'missingLabel',{},'category',{},'bounds',{}, ...
         'boundsClosed',{},'specifiable',{},'optional',{},'displayUnit',{}) ;
-    relations = struct('id',{},'variables',{},'solvers',{},'residual',{}) ;
+    relations = struct('id',{},'variables',{},'solvers',{},'residual',{},'redundant',{}) ;
     value = struct('variables',variables,'relations',relations) ;
 end
