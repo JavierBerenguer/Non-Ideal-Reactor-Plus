@@ -154,7 +154,7 @@ classdef (SharedTestFixtures={nirptest.ExamplesFixture}) ...
             dialog = nirp.flowsheet.ReactorDialog( ...
                 'ex1_cstr_isothermal/CSTR','Visible','off') ;
             testCase.addTeardown(@() deleteValid(dialog)) ;
-            testCase.verifyEqual(string(dialog.StatusLabel.Text),"Solved") ;
+            testCase.verifySubstring(string(dialog.StatusLabel.Text),"Solved") ; % T-156: combined status line
         end
     end
 end
