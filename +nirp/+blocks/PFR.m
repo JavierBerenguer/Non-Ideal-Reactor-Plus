@@ -4,7 +4,7 @@ classdef PFR < matlab.System
     % pressure-correlation data when pressure is nonconstant.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 2, 2026. Last update: October 8, 2026
+    % Created: October 2, 2026. Last update: October 14, 2026
     % =========================================================================
 
     properties (Nontunable)
@@ -58,6 +58,17 @@ classdef PFR < matlab.System
         ShowHeatPort (1,1) logical = false
         % Show the Jacket signal input port.
         ShowJacketPort (1,1) logical = false
+        % JSON containing only user specifications; empty means legacy.
+        Specifications = ''
+        Catalytic (1,1) logical = false
+        Tau = NaN
+        TauUnit = 's'
+        SpaceVelocity = NaN
+        SpaceVelocityUnit = '1/s'
+        SuperficialVelocity = NaN
+        SuperficialVelocityUnit = 'm/s'
+        CatalystMass = NaN
+        CatalystMassUnit = 'kg'
     end
     properties (Nontunable, Hidden)
         % Hidden since T-131 (D-057): no bypass or specified T/Q in the
@@ -100,15 +111,20 @@ classdef PFR < matlab.System
         ParticleDiameterUnitSet=matlab.system.StringSet(UnitConverterHelper.getUnits('Length'))
         DensityUnitSet=matlab.system.StringSet(UnitConverterHelper.getUnits('Density'))
         ViscosityUnitSet=matlab.system.StringSet(UnitConverterHelper.getUnits('Viscosity'))
+        TauUnitSet=matlab.system.StringSet({'s','min','h'})
+        SpaceVelocityUnitSet=matlab.system.StringSet({'1/s','1/min','1/h'})
+        SuperficialVelocityUnitSet=matlab.system.StringSet({'m/s','cm/s'})
+        CatalystMassUnitSet=matlab.system.StringSet({'kg','g'})
     end
     properties (Access=private)
         RS; Params; LastInput; LastOutput; LastInfo; HasCache=false
-        CalculationCount=0; Model; Block
+        CalculationCount=0; Model; Block; Specs; DofModel
     end
     methods (Access=protected)
         function setupImpl(obj)
             [obj.Model,pkg,obj.RS]=nirp.blocks.internal.modelPackage(); obj.Block=get_param(gcb,'Name');
-            missing=strings(0,1);if strcmp(obj.GeometryMode,'Select...'),missing(end+1)="GeometryMode";end
+            obj.Specs=nirp.dof.readSpecs(obj.Specifications);
+            missing=strings(0,1);if isempty(fieldnames(obj.Specs))&&strcmp(obj.GeometryMode,'Select...'),missing(end+1)="GeometryMode";end
             if strcmp(obj.HeatMode,'Select...'),missing(end+1)="HeatMode";end
             if strcmp(obj.PressureMode,'Select...'),missing(end+1)="PressureMode";end
             if strcmp(obj.PressureMode,'Non constant')&&strcmp(obj.PressureDropEqn,'Select...'),missing(end+1)="PressureDropEqn";end
@@ -126,7 +142,12 @@ classdef PFR < matlab.System
             geometry=[UnitConverterHelper.convertToSI('Volume',obj.V,char(obj.VUnit)) ...
                 UnitConverterHelper.convertToSI('Length',obj.L,char(obj.LUnit)) ...
                 UnitConverterHelper.convertToSI('Length',obj.D,char(obj.DUnit)) obj.NTubes];
-            if any(isnan(geometry))
+            if ~isempty(fieldnames(obj.Specs))
+                context=struct('catalytic',obj.Catalytic,'pressureMode',obj.PressureMode, ...
+                    'pressureDropEqn',obj.PressureDropEqn,'phase','L');
+                obj.DofModel=nirp.dof.catalog.pfr(context);result=solveDof(obj,NaN,NaN);requireDof(obj.Block,result);
+                useLength=true;
+            elseif any(isnan(geometry))
                 [geometry,~,message]=nirp.flowsheet.closeProduct(geometry,pi/4,[1 -1 -2 -1]);
                 if strlength(message)>0||any(~isfinite(geometry))
                     if strlength(message)==0,message="PFR geometry is incomplete.";end
@@ -156,6 +177,15 @@ classdef PFR < matlab.System
                 if ~isnumeric(value)||~isscalar(value)||~isfinite(value)||value<=0,error('nirp:blocks:invalidParameterPort','PFR V input must be positive m^3.');end
                 params.V=value;
             end
+            if ~isempty(fieldnames(obj.Specs))
+                externalV=NaN;if strcmp(obj.VSource,'Input port'),externalV=params.V;end
+                result=solveDof(obj,in.Q,externalV);requireDof(obj.Block,result);validateTubeCount(result.values.N_tubes);
+                params.V=result.values.V;params.L=result.values.L;params.D=result.values.D;params.nTubes=round(result.values.N_tubes);
+                if obj.Catalytic,params.catalystDensity=result.values.rho_cat;params.catalystPorosity=result.values.epsilon;end
+                if isfield(result.values,'density'),params.density=result.values.density;end
+                if isfield(result.values,'viscosity'),params.viscosity=result.values.viscosity;end
+                if isfield(result.values,'particleDiameter'),params.particleDiameter=result.values.particleDiameter;end
+            end
             index=1+strcmp(obj.VSource,'Input port');
             if obj.hasJacket()
                 params=nirp.blocks.internal.applyJacket(params,varargin{index},'PFR');
@@ -182,7 +212,7 @@ classdef PFR < matlab.System
     end
     methods (Static,Access=protected)
         function groups=getPropertyGroupsImpl()
-            groups=matlab.system.display.Section('Title','PFR','PropertyList',{'GeometryMode','VSource','V','VUnit','L','LUnit','D','DUnit','NTubes','HeatMode','CatalystDensity','CatalystPorosity','InitialTGuess','InitialTGuessUnit','Reactions','PressureMode','PressureDropEqn','ParticleDiameter','ParticleDiameterUnit','Density','DensityUnit','Viscosity','ViscosityUnit','ShowJacketPort','ShowHeatPort'});
+            groups=matlab.system.display.Section('Title','PFR','PropertyList',{'GeometryMode','VSource','V','VUnit','L','LUnit','D','DUnit','NTubes','HeatMode','CatalystDensity','CatalystPorosity','InitialTGuess','InitialTGuessUnit','Reactions','PressureMode','PressureDropEqn','ParticleDiameter','ParticleDiameterUnit','Density','DensityUnit','Viscosity','ViscosityUnit','ShowJacketPort','ShowHeatPort','Specifications','Catalytic','Tau','TauUnit','SpaceVelocity','SpaceVelocityUnit','SuperficialVelocity','SuperficialVelocityUnit','CatalystMass','CatalystMassUnit'});
         end
         function mode=getSimulateUsingImpl(),mode='Interpreted execution';end
         function flag=showSimulateUsingImpl(),flag=false;end
@@ -194,4 +224,23 @@ classdef PFR < matlab.System
             flag = strcmp(obj.HeatMode,'Heat exchange') || obj.ShowJacketPort ;
         end
     end
+end
+
+function result=solveDof(obj,flow,externalV)
+    values=struct('Q0',flow);origins=struct('Q0','external');
+    if strcmp(obj.VSource,'Input port'),values.V=externalV;origins.V='external';end
+    names=fieldnames(obj.Specs);allowed={obj.DofModel.variables.name};
+    for i=1:numel(names)
+        index=find(strcmp(allowed,names{i}),1);if isempty(index)||~obj.DofModel.variables(index).specifiable,error('nirp:blocks:invalidSpecifications','Unknown or non-specifiable PFR specification "%s".',names{i});end
+        values.(names{i})=obj.Specs.(names{i}).si;origins.(names{i})='specified';
+    end
+    result=nirp.dof.solve(obj.DofModel,values,origins);
+end
+function requireDof(block,result)
+    if strcmp(result.status,'complete'),return,end
+    if strcmp(result.status,'missing'),error('nirp:blocks:missingSpecifications','PFR "%s": %d specifications missing: %s.',block,result.missingCount,strjoin(result.missing,', '));end
+    error('nirp:blocks:conflictingSpecifications','PFR "%s": conflict in %s: %s',block,strjoin(result.conflicts,', '),strjoin(result.messages,' '));
+end
+function validateTubeCount(value)
+    if ~isfinite(value)||value<1||abs(value-round(value))>1e-9,error('nirp:blocks:invalidGeometry','Number of tubes must be a positive integer.');end
 end

@@ -188,7 +188,7 @@ classdef NirpDofClosureTest < matlab.unittest.TestCase
             testCase.verifyEqual(dialog.LField.Value,expectedL,'RelTol',1e-12);
             testCase.verifyEqual(dialog.getValues().L.origin,"calculated");
             testCase.verifyTrue(dialog.apply());
-            testCase.verifyTrue(isnan(str2double(get_param('pfr_dof/PFR','L'))));
+            testCase.verifyEqual(str2double(get_param('pfr_dof/PFR','L')),expectedL,'RelTol',1e-12);
             delete(dialog);
             reopened=nirp.flowsheet.ReactorDialog('pfr_dof/PFR','Visible','off');
             testCase.addTeardown(@() deleteValid(reopened));
@@ -204,7 +204,7 @@ classdef NirpDofClosureTest < matlab.unittest.TestCase
             testCase.verifyEqual(reopened.VField.Value,pi*0.05^2*2,'RelTol',1e-12);
             testCase.verifyEqual(reopened.getValues().V.origin,"calculated");
             reopened.setValues('V',0.1,'L',2,'D',0.1,'NTubes',1);
-            testCase.verifySubstring(string(reopened.StatusLabel.Text),'do not satisfy');
+            testCase.verifySubstring(string(reopened.StatusLabel.Text),'Conflict');
         end
 
         function dialogActionsAreUniformAndInvalidOkStaysOpen(testCase)

@@ -4,7 +4,7 @@ classdef Jacket < matlab.System
     % Specified T [2; T; NaN; NaN; NaN], Specified Q [3; Q; NaN; NaN; NaN].
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 8, 2026. Last update: October 8, 2026
+    % Created: October 8, 2026. Last update: October 14, 2026
     % =========================================================================
 
     properties (Nontunable)
@@ -42,6 +42,8 @@ classdef Jacket < matlab.System
         Condenses (1,1) logical = false
         % Optional utility latent heat in J/kg.
         LatentHeat = NaN
+        % JSON containing only user specifications; empty means legacy.
+        Specifications = ''
     end
     properties (Constant,Hidden)
         ModeSet = matlab.system.StringSet({'Select...','Utility','Specified T','Specified Q'})
@@ -54,20 +56,33 @@ classdef Jacket < matlab.System
         UtilityTinSourceSet = matlab.system.StringSet({'Dialog','Input port'})
         UtilityToutUnitSet = matlab.system.StringSet({'K',[char(176) 'C']})
     end
+    properties (Nontunable,Hidden)
+        UA = NaN
+        UAUnit = 'W/K'
+    end
     properties (Access=private)
         Values
         Model
         Block
         CalculationCount = 0
+        Specs
+        DofModel
     end
     methods (Access=protected)
         function setupImpl(obj)
             [obj.Model,pkg,~] = nirp.blocks.internal.modelPackage() ;
             obj.Block = get_param(gcb,'Name') ;
-            missing=strings(0,1);if strcmp(obj.Mode,'Select...'),missing(end+1)="Mode";elseif strcmp(obj.Mode,'Specified T')&&~isfinite(obj.SpecifiedT),missing(end+1)="SpecifiedT";elseif strcmp(obj.Mode,'Specified Q')&&~isfinite(obj.SpecifiedQ),missing(end+1)="SpecifiedQ";elseif strcmp(obj.Mode,'Utility'),if ~isfinite(obj.U),missing(end+1)="U";end;if strcmp(obj.ASource,'Dialog')&&~isfinite(obj.A),missing(end+1)="A";end;if strcmp(obj.UtilityTinSource,'Dialog')&&~isfinite(obj.UtilityTin),missing(end+1)="UtilityTin";end;end
+            obj.Specs=nirp.dof.readSpecs(obj.Specifications);
+            missing=strings(0,1);if strcmp(obj.Mode,'Select...'),missing(end+1)="Mode";elseif isempty(fieldnames(obj.Specs)),if strcmp(obj.Mode,'Specified T')&&~isfinite(obj.SpecifiedT),missing(end+1)="SpecifiedT";elseif strcmp(obj.Mode,'Specified Q')&&~isfinite(obj.SpecifiedQ),missing(end+1)="SpecifiedQ";elseif strcmp(obj.Mode,'Utility'),if ~isfinite(obj.U),missing(end+1)="U";end;if strcmp(obj.ASource,'Dialog')&&~isfinite(obj.A),missing(end+1)="A";end;if strcmp(obj.UtilityTinSource,'Dialog')&&~isfinite(obj.UtilityTin),missing(end+1)="UtilityTin";end;end;end
             nirp.blocks.internal.requireSpecifications('Jacket',obj.Block,missing);
             nirp.blocks.internal.requireThermodynamics(pkg,sprintf('Jacket "%s"',obj.Block)) ;
             obj.CalculationCount = 0 ;
+            if ~isempty(fieldnames(obj.Specs))
+                obj.DofModel=nirp.dof.catalog.jacket(struct('mode',obj.Mode,'condenses',obj.Condenses));
+                result=solveDof(obj,NaN,NaN,NaN);requireDof(obj.Block,result);
+                if strcmp(obj.Mode,'Specified T'),obj.Values=[result.values.T_reactor;NaN;NaN;NaN];return,end
+                if strcmp(obj.Mode,'Specified Q'),obj.Values=[result.values.Q;NaN;NaN;NaN];return,end
+            end
             if strcmp(obj.Mode,'Specified T')
                 obj.Values = [convert('Temperature',obj.SpecifiedT,obj.SpecifiedTUnit); NaN; NaN; NaN] ;
                 if ~isfinite(obj.Values(1)) || obj.Values(1) <= 0
@@ -112,6 +127,11 @@ classdef Jacket < matlab.System
             if strcmp(obj.UtilityTinSource,'Input port')
                 value(3) = varargin{index} ;
             end
+            if ~isempty(fieldnames(obj.Specs))
+                externalA=NaN;externalTin=NaN;if strcmp(obj.ASource,'Input port'),externalA=value(2);end;if strcmp(obj.UtilityTinSource,'Input port'),externalTin=value(3);end
+                result=solveDof(obj,externalA,externalTin,lastReactorDuty(obj.Model,obj.Block));requireDof(obj.Block,result);
+                value(1)=result.values.U;value(2)=result.values.A;value(3)=result.values.T_in_s;value(4)=result.values.T_out_s;
+            end
             validateValues(value) ;
             obj.CalculationCount = obj.CalculationCount+1 ;
             info = struct('status',1,'message','','mode','Utility','U',value(1),'A',value(2), ...
@@ -144,11 +164,30 @@ classdef Jacket < matlab.System
             groups = matlab.system.display.Section('Title','Jacket', ...
                 'PropertyList',{'Mode','SpecifiedT','SpecifiedTUnit','SpecifiedQ','SpecifiedQUnit','U','UUnit','ASource','A','AUnit', ...
                 'UtilityTinSource','UtilityTin','UtilityTinUnit', ...
-                'UtilityTout','UtilityToutUnit','UtilityCp','Condenses','LatentHeat'}) ;
+                'UtilityTout','UtilityToutUnit','UtilityCp','Condenses','LatentHeat','Specifications'}) ;
         end
         function mode = getSimulateUsingImpl(), mode = 'Interpreted execution' ; end
         function flag = showSimulateUsingImpl(), flag = false ; end
     end
+end
+
+function result=solveDof(obj,externalA,externalTin,duty)
+    values=struct();origins=struct();
+    if strcmp(obj.ASource,'Input port'),values.A=externalA;origins.A='external';end
+    if strcmp(obj.UtilityTinSource,'Input port'),values.T_in_s=externalTin;origins.T_in_s='external';end
+    if strcmp(obj.Mode,'Utility'),values.Q=duty;origins.Q='external';end
+    names=fieldnames(obj.Specs);allowed={obj.DofModel.variables.name};
+    for i=1:numel(names),index=find(strcmp(allowed,names{i}),1);if isempty(index)||~obj.DofModel.variables(index).specifiable,error('nirp:blocks:invalidSpecifications','Unknown or non-specifiable Jacket specification "%s".',names{i});end;values.(names{i})=obj.Specs.(names{i}).si;origins.(names{i})='specified';end
+    result=nirp.dof.solve(obj.DofModel,values,origins);
+end
+function requireDof(block,result)
+    if strcmp(result.status,'complete'),return,end
+    if strcmp(result.status,'missing'),error('nirp:blocks:missingSpecifications','Jacket "%s": %d specifications missing: %s.',block,result.missingCount,strjoin(result.missing,', '));end
+    error('nirp:blocks:conflictingSpecifications','Jacket "%s": conflict in %s: %s',block,strjoin(result.conflicts,', '),strjoin(result.messages,' '));
+end
+function duty=lastReactorDuty(model,block)
+    duty=NaN;if ~evalin('base','exist(''nirpResults'',''var'')'),return,end;results=evalin('base','nirpResults');if ~isstruct(results)||~isfield(results,'Diagnostics'),return,end
+    try,ports=get_param([model '/' block],'PortHandles');line=get_param(ports.Outport(1),'Line');dest=get_param(line,'DstBlockHandle');for h=reshape(dest,1,[]),key=matlab.lang.makeValidName([model '_' get_param(h,'Name')]);if isfield(results.Diagnostics,key)&&isfield(results.Diagnostics.(key),'lastInfo')&&isfield(results.Diagnostics.(key).lastInfo,'heatDuty'),duty=results.Diagnostics.(key).lastInfo.heatDuty;return,end,end,catch,end
 end
 
 function value = convert(category,value,unit)

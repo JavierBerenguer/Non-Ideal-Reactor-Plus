@@ -4,7 +4,7 @@ classdef CSTR < matlab.System
     % material and energy balances determine the outlet stream.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 2, 2026. Last update: October 8, 2026
+    % Created: October 2, 2026. Last update: October 14, 2026
     % =========================================================================
 
     properties (Nontunable)
@@ -30,6 +30,17 @@ classdef CSTR < matlab.System
         ShowHeatPort (1,1) logical = false
         % Show the Jacket signal input port.
         ShowJacketPort (1,1) logical = false
+        % JSON containing only user specifications; empty means legacy.
+        Specifications = ''
+        % Select the catalyst form of the DOF catalogue.
+        Catalytic (1,1) logical = false
+        % Last displayed residence time, space velocity, and catalyst mass.
+        Tau = NaN
+        TauUnit = 's'
+        SpaceVelocity = NaN
+        SpaceVelocityUnit = '1/s'
+        CatalystMass = NaN
+        CatalystMassUnit = 'kg'
     end
 
     properties (Nontunable, Hidden)
@@ -71,6 +82,9 @@ classdef CSTR < matlab.System
         UtilityTinUnitSet = matlab.system.StringSet({'K',[char(176) 'C']})
         UtilityToutUnitSet = matlab.system.StringSet({'K',[char(176) 'C']})
         InitialTGuessUnitSet = matlab.system.StringSet({'K',[char(176) 'C']})
+        TauUnitSet = matlab.system.StringSet({'s','min','h'})
+        SpaceVelocityUnitSet = matlab.system.StringSet({'1/s','1/min','1/h'})
+        CatalystMassUnitSet = matlab.system.StringSet({'kg','g'})
     end
 
     properties (Access = private)
@@ -83,6 +97,8 @@ classdef CSTR < matlab.System
         CalculationCount = 0
         Model
         Block
+        Specs
+        DofModel
     end
 
     methods (Access = protected)
@@ -93,8 +109,9 @@ classdef CSTR < matlab.System
                 obj.RS = nirp.pkg.toReactionSys(nirp.pkg.selectReactions(pkg,obj.Reactions)) ;
             end
             obj.Block = get_param(gcb,'Name') ;
+            obj.Specs=nirp.dof.readSpecs(obj.Specifications) ;
             missing=strings(0,1);if strcmp(obj.HeatMode,'Select...'),missing(end+1)="HeatMode";end
-            if strcmp(obj.VSource,'Dialog')&&~isfinite(obj.V),missing(end+1)="V";end
+            if isempty(fieldnames(obj.Specs))&&strcmp(obj.VSource,'Dialog')&&~isfinite(obj.V),missing(end+1)="V";end
             nirp.blocks.internal.requireSpecifications('CSTR',obj.Block,missing);
             if ~strcmp(obj.HeatMode,'Isothermal') || obj.ShowJacketPort
                 nirp.blocks.internal.requireThermodynamics(pkg,sprintf('CSTR "%s"',obj.Block)) ;
@@ -103,6 +120,11 @@ classdef CSTR < matlab.System
             if isnan(obj.Params.catalystDensity),obj.Params.catalystDensity=1;end
             if isnan(obj.Params.catalystPorosity),obj.Params.catalystPorosity=0;end
             obj.Params.V = UnitConverterHelper.convertToSI('Volume',obj.V,char(obj.VUnit)) ;
+            if ~isempty(fieldnames(obj.Specs))
+                obj.DofModel=nirp.dof.catalog.cstr(struct('catalytic',obj.Catalytic)) ;
+                result=solveDof(obj,obj.Params,NaN,NaN) ;
+                requireDof(obj.Block,result) ;
+            end
             obj.HasCache = false ;
             obj.CalculationCount = 0 ;
         end
@@ -116,6 +138,15 @@ classdef CSTR < matlab.System
                     error('nirp:blocks:invalidParameterPort','CSTR V input must be positive m^3.') ;
                 end
                 params.V = value ;
+            end
+            if ~isempty(fieldnames(obj.Specs))
+                externalV=NaN;if strcmp(obj.VSource,'Input port'),externalV=params.V;end
+                result=solveDof(obj,params,in.Q,externalV);requireDof(obj.Block,result);
+                params.V=result.values.V;
+                if obj.Catalytic
+                    params.catalystDensity=result.values.rho_cat;
+                    params.catalystPorosity=result.values.epsilon;
+                end
             end
             index = 1+strcmp(obj.VSource,'Input port') ;
             if obj.hasJacket()
@@ -170,7 +201,9 @@ classdef CSTR < matlab.System
             groups = matlab.system.display.Section('Title','CSTR', ...
                 'PropertyList',{'VSource','V','VUnit','HeatMode', ...
                 'CatalystDensity','CatalystPorosity','InitialTGuess', ...
-                'InitialTGuessUnit','Reactions','ShowJacketPort','ShowHeatPort'}) ;
+                'InitialTGuessUnit','Reactions','ShowJacketPort','ShowHeatPort', ...
+                'Specifications','Catalytic','Tau','TauUnit','SpaceVelocity', ...
+                'SpaceVelocityUnit','CatalystMass','CatalystMassUnit'}) ;
         end
         function mode = getSimulateUsingImpl(), mode = 'Interpreted execution' ; end
         function flag = showSimulateUsingImpl(), flag = false ; end
@@ -182,4 +215,27 @@ classdef CSTR < matlab.System
             flag = strcmp(obj.HeatMode,'Heat exchange') || obj.ShowJacketPort ;
         end
     end
+end
+
+function result=solveDof(obj,~,flow,externalV)
+    values=struct('Q0',flow);origins=struct('Q0','external');
+    names=fieldnames(obj.Specs);allowed={obj.DofModel.variables.name};
+    if strcmp(obj.VSource,'Input port')
+        forbidden=intersect(names,{'tau','SV','W'},'stable');
+        if ~isempty(forbidden),error('nirp:blocks:conflictingSpecifications','CSTR "%s": %s cannot be specified when V comes from an input port.',obj.Block,strjoin(forbidden,', '));end
+        values.V=externalV;origins.V='external';
+    end
+    for i=1:numel(names)
+        index=find(strcmp(allowed,names{i}),1);
+        if isempty(index)||~obj.DofModel.variables(index).specifiable
+            error('nirp:blocks:invalidSpecifications','Unknown or non-specifiable CSTR specification "%s".',names{i});
+        end
+        values.(names{i})=obj.Specs.(names{i}).si;origins.(names{i})='specified';
+    end
+    result=nirp.dof.solve(obj.DofModel,values,origins);
+end
+function requireDof(block,result)
+    if strcmp(result.status,'complete'),return,end
+    if strcmp(result.status,'missing'),error('nirp:blocks:missingSpecifications','CSTR "%s": %d specifications missing: %s.',block,result.missingCount,strjoin(result.missing,', '));end
+    error('nirp:blocks:conflictingSpecifications','CSTR "%s": conflict in %s: %s',block,strjoin(result.conflicts,', '),strjoin(result.messages,' '));
 end

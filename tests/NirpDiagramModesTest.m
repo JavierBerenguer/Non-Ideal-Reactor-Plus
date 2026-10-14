@@ -24,7 +24,8 @@ classdef NirpDiagramModesTest < matlab.unittest.TestCase
             % The System-object set retains the obsolete value solely so a
             % saved model can load far enough to emit jacketRequired. The
             % structured reactor dialog below is the user-facing offer.
-            expected={'Isothermal','Adiabatic','Heat exchange'};
+            % T-152/T-154: a fresh selector starts unresolved.
+            expected={'Select...','Isothermal','Adiabatic','Heat exchange'};
             testCase.verifyEqual(reshape(getAllowedValues(nirp.blocks.CSTR.HeatModeSet),1,[]),expected);
             testCase.verifyEqual(reshape(getAllowedValues(nirp.blocks.PFR.HeatModeSet),1,[]),expected);
             for className=["nirp.blocks.CSTR","nirp.blocks.PFR"]
@@ -63,7 +64,7 @@ classdef NirpDiagramModesTest < matlab.unittest.TestCase
                 addUnit('modes_model',char(type),"nirp.blocks."+type,[240 120 350 190]);
                 d=nirp.flowsheet.ReactorDialog("modes_model/"+type,'Visible','off');
                 testCase.verifyEqual(sort(string({d.HeatModeGroup.Children.Text})), ...
-                    sort(["Isothermal","Adiabatic","Heat exchange"]));
+                    sort(["Select...","Isothermal","Adiabatic","Heat exchange"]));
                 for name=["BypassField","SpecifiedTField","SpecifiedQField"]
                     testCase.verifyFalse(isprop(d,name));
                 end
