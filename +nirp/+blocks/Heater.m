@@ -50,20 +50,22 @@ classdef Heater < matlab.System
         Model
         Block
         Specs
+        OutputSpecs
     end
     methods (Access = protected)
         function setupImpl(obj)
             [obj.Model,pkg,obj.RS] = nirp.blocks.internal.modelPackage() ;
             obj.Block = get_param(gcb,'Name') ;
-            obj.Specs=nirp.dof.readSpecs(obj.Specifications);
-            missing=strings(0,1);if isempty(fieldnames(obj.Specs)),if strcmp(obj.Mode,'Select...'),missing(end+1)="Mode";elseif strcmp(obj.Mode,'Outlet T')&&~isfinite(obj.Tout),missing(end+1)="Tout";elseif strcmp(obj.Mode,'Duty')&&~isfinite(obj.Duty),missing(end+1)="Duty";end;if ~isfinite(obj.PressureDrop),missing(end+1)="PressureDrop";end,end
+            obj.Specs=nirp.dof.readSpecs(obj.Specifications);obj.OutputSpecs=nirp.dof.connectedSpecifications(gcb);
+            missing=strings(0,1);if isempty(strtrim(obj.Specifications))&&isempty(fieldnames(obj.Specs))&&isempty(fieldnames(obj.OutputSpecs.values)),if strcmp(obj.Mode,'Select...'),missing(end+1)="Mode";elseif strcmp(obj.Mode,'Outlet T')&&~isfinite(obj.Tout),missing(end+1)="Tout";elseif strcmp(obj.Mode,'Duty')&&~isfinite(obj.Duty),missing(end+1)="Duty";end;if ~isfinite(obj.PressureDrop),missing(end+1)="PressureDrop";end,end
             nirp.blocks.internal.requireSpecifications('Heater',obj.Block,missing);
             nirp.blocks.internal.requireThermodynamics(pkg,sprintf('Heater "%s"',obj.Block)) ;
             obj.Params.mode = char(obj.Mode) ;
             obj.Params.Tout = UnitConverterHelper.convertToSI('Temperature',obj.Tout,char(obj.ToutUnit)) ;
             obj.Params.Q = UnitConverterHelper.convertToSI('Power',obj.Duty,char(obj.DutyUnit)) ;
             obj.Params.dP = UnitConverterHelper.convertToSI('Pressure',obj.PressureDrop,char(obj.PressureDropUnit)) ;
-            if ~isempty(fieldnames(obj.Specs))
+            if ~isempty(strtrim(obj.Specifications))||~isempty(fieldnames(obj.Specs))||~isempty(fieldnames(obj.OutputSpecs.values))
+                if isempty(fieldnames(obj.Specs))&&isempty(strtrim(obj.Specifications)),obj.Specs=legacySpecs(obj);end
                 result=solveDof(obj,[],pkg,obj.RS);requireDof(obj.Block,result);
             end
             obj.HasCache = false ; obj.CalculationCount = 0 ;
@@ -74,10 +76,10 @@ classdef Heater < matlab.System
                 out = obj.LastOutput ; info = obj.LastInfo ;
             else
                 params=obj.Params;
-                if ~isempty(fieldnames(obj.Specs))
+                if ~isempty(fieldnames(obj.Specs))||~isempty(fieldnames(obj.OutputSpecs.values))
                     result=solveDof(obj,in,[],obj.RS);requireDof(obj.Block,result);
                     params.dP=result.values.dP;
-                    if isfield(obj.Specs,'Q'),params.mode='Duty';params.Q=result.values.Q;else,params.mode='Outlet T';params.Tout=result.values.T_out;end
+                    if isfield(obj.Specs,'Q')&&~isfield(obj.OutputSpecs.values,'T_out'),params.mode='Duty';params.Q=result.values.Q;else,params.mode='Outlet T';params.Tout=result.values.T_out;end
                 end
                 [out,info] = nirp.units.heater(params,in,obj.RS) ;
                 obj.LastInput = in ; obj.LastOutput = out ; obj.LastInfo = info ;
@@ -108,9 +110,14 @@ end
 
 function result=solveDof(obj,in,~,rs)
     if isempty(in),context=struct('inlet',[],'RS',rs);values=struct('T_in',NaN,'P_in',NaN);else,context=struct('inlet',in,'RS',rs);values=struct('T_in',in.T,'P_in',in.P);end
-    origins=struct('T_in','external','P_in','external');model=nirp.dof.catalog.heater(context);names=fieldnames(obj.Specs);allowed={model.variables.name};
-    for i=1:numel(names),index=find(strcmp(allowed,names{i}),1);if isempty(index)||~model.variables(index).specifiable,error('nirp:blocks:invalidSpecifications','Unknown or non-specifiable Heater specification "%s".',names{i});end;values.(names{i})=obj.Specs.(names{i}).si;origins.(names{i})='specified';end
-    result=nirp.dof.solve(model,values,origins);
+    origins=struct('T_in','external','P_in','external');model=nirp.dof.catalog.heater(context);
+    result=nirp.dof.resolveProducer(model,'Heater',obj.Block,obj.Specs,obj.OutputSpecs,values,origins);
+end
+function specs=legacySpecs(obj)
+    specs=struct();
+    if strcmp(obj.Mode,'Duty'),specs.Q=struct('si',UnitConverterHelper.convertToSI('Power',obj.Duty,char(obj.DutyUnit)),'unit',char(obj.DutyUnit));
+    elseif ~strcmp(obj.Mode,'Select...'),specs.T_out=struct('si',UnitConverterHelper.convertToSI('Temperature',obj.Tout,char(obj.ToutUnit)),'unit',char(obj.ToutUnit));end
+    if isfinite(obj.PressureDrop),specs.dP=struct('si',UnitConverterHelper.convertToSI('Pressure',obj.PressureDrop,char(obj.PressureDropUnit)),'unit',char(obj.PressureDropUnit));end
 end
 function requireDof(block,result)
     if strcmp(result.status,'complete'),return,end

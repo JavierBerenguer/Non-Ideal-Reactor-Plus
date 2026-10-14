@@ -72,7 +72,9 @@ function result = solve(model,values,origins)
     dof=n-numel(model.relations)-sum(isExternal) ;
     remaining=dof-sum(isSpecified)-sum(optionalEmpty) ;
     if remaining<0
-        conflict(isSpecified)=true ;
+        % Output-Stream specifications are external to the producer but
+        % consume its DOF exactly like local user specifications.
+        conflict(isSpecified|isExternal)=true ;
         messages(end+1)="Over-specified model." ;
     end
     missingCount=max(0,remaining) ;

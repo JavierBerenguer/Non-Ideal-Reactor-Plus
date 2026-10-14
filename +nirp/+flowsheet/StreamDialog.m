@@ -47,6 +47,15 @@ classdef StreamDialog < handle
         OKButton
         ApplyButton
         CancelButton
+        SpecificationPanel
+        SpecificationTable
+        SpecificationFlowUnitDropDown
+        SpecificationTotalFlowField
+        SpecificationTotalFlowUnitDropDown
+        SpecificationTemperatureField
+        SpecificationTemperatureUnitDropDown
+        SpecificationPressureField
+        SpecificationPressureUnitDropDown
         DataModel
     end
 
@@ -87,7 +96,7 @@ classdef StreamDialog < handle
             obj.HasMw=all(cellfun(@(x)isnumeric(x)&&isscalar(x)&&isfinite(x)&&x>0,weights)) ;
             obj.build(char(string(parser.Results.Visible))) ;
             obj.loadData() ;
-            if obj.Role~="Feed"
+            if obj.Role~="Feed"&&isempty(fieldnames(nirp.dof.readSpecs(obj.BlockPath)))
                 [~,~,label] = nirp.flowsheet.blockStatus(obj.BlockPath) ;
                 obj.StatusLabel.Text = char(label) ;
             end
@@ -217,15 +226,39 @@ classdef StreamDialog < handle
             obj.captureModel() ; values = obj.DataModel ;
         end
 
+        function setSpecification(obj,name,value,varargin)
+            if obj.Role=="Feed",error('nirp:flowsheet:feedStreamSpecification','Feed data are edited in the feed fields.');end
+            key=char(string(name));unit='';if ~isempty(varargin),unit=char(string(varargin{1}));end
+            token=regexp(key,'^(F|x)(\d+)$','tokens','once') ;
+            if ~isempty(token)
+                row=str2double(token{2});if row<1||row>numel(obj.ComponentNames),error('nirp:flowsheet:unknownMagnitude','Unknown stream specification "%s".',name);end
+                column=2;if strcmp(token{1},'x'),column=3;end
+                if column==2&&~isempty(unit),setUnitIfValid(obj.SpecificationFlowUnitDropDown,unit);end
+                data=obj.SpecificationTable.Data;data{row,column}=emptyValue(value);obj.SpecificationTable.Data=data;
+            else
+                switch upper(key)
+                    case 'F',field=obj.SpecificationTotalFlowField;dropdown=obj.SpecificationTotalFlowUnitDropDown;
+                    case 'T',field=obj.SpecificationTemperatureField;dropdown=obj.SpecificationTemperatureUnitDropDown;
+                    case 'P',field=obj.SpecificationPressureField;dropdown=obj.SpecificationPressureUnitDropDown;
+                    otherwise,error('nirp:flowsheet:unknownMagnitude','Unknown stream specification "%s".',name);
+                end
+                if ~isempty(unit),setUnitIfValid(dropdown,unit);end;field.Value=emptyValue(value);
+            end
+            obj.previewConnectedSpecifications();
+        end
+
+        function specs=getSpecifications(obj),specs=obj.buildConnectedSpecs();end
+
         function applied = apply(obj)
             applied=false ;
             try
                 if obj.Role ~= "Feed"
+                    if ~obj.saveConnectedSpecifications(),return,end
                     if obj.Role=="Product"
                         set_param(obj.BlockPath,'ReferenceFeed',obj.ReferenceFeedDropDown.Value, ...
                             'KeyComponent',obj.KeyComponentDropDown.Value);
                     end
-                    obj.Committed=true;obj.StatusLabel.Text='Applied.';applied=true;return
+                    obj.Committed=true;applied=true;return
                 end
                 if ~obj.closeFeed(true), return, end
                 obj.saveFeed() ; obj.Committed=true;applied=true ;
@@ -292,12 +325,12 @@ classdef StreamDialog < handle
             % T-131: grid layout, resizable and always on top; the component
             % table keeps its height and the unit drop-downs sit below it.
             obj.Figure = uifigure('Name','Stream','Visible',visible, ...
-                'Position',[60 60 1220 680],'Resize','on', ...
+                'Position',[30 60 1510 680],'Resize','on', ...
                 'WindowStyle','alwaysontop','Tag','NirpStreamDialog') ;
             root = uigridlayout(obj.Figure,[2 1],'RowHeight',{'1x',74}, ...
                 'Padding',[0 0 0 0],'RowSpacing',0) ;
-            grid = uigridlayout(root,[15 5], ...
-                'ColumnWidth',{'1x','1x',110,120,270}, ...
+            grid = uigridlayout(root,[15 7], ...
+                'ColumnWidth',{'1x','1x',110,120,245,135,255}, ...
                 'RowHeight',{34,30,30,30,30,30,30,30,30,30,30,30,30,'1x',26}, ...
                 'Padding',[18 14 18 4]) ;
             grid.Layout.Row=1 ;
@@ -405,7 +438,106 @@ classdef StreamDialog < handle
             obj.TotalConcentrationUnitDropDown.ValueChangedFcn=@(source,event) obj.unitEdited('Concentration',source,event,obj.TotalConcentrationField) ;
             obj.TotalMassFlowUnitDropDown.ValueChangedFcn=@(source,event) obj.unitEdited('MassFlow',source,event,obj.TotalMassFlowField) ;
             obj.TotalMassFlowField.Visible=onOff(obj.HasMw);obj.TotalMassFlowUnitDropDown.Visible=onOff(obj.HasMw);
+            obj.buildSpecificationPanel(grid) ;
             obj.updateRolePresentation() ;
+        end
+
+        function buildSpecificationPanel(obj,grid)
+            obj.SpecificationPanel=uipanel(grid,'Title','Specifications','FontWeight','bold');
+            obj.SpecificationPanel.Layout.Row=[2 14];obj.SpecificationPanel.Layout.Column=[6 7];
+            g=uigridlayout(obj.SpecificationPanel,[8 3],'ColumnWidth',{115,'1x',88}, ...
+                'RowHeight',{44,30,24,'1x',30,30,30,42},'Padding',[8 6 8 6]);
+            note=uilabel(g,'Text','Output targets for the directly connected producer. Leave all fields empty unless the producer can meet them.','WordWrap','on','FontAngle','italic');note.Layout.Row=1;note.Layout.Column=[1 3];
+            label=uilabel(g,'Text','Total molar flow','HorizontalAlignment','right');label.Layout.Row=2;label.Layout.Column=1;
+            obj.SpecificationTotalFlowField=uieditfield(g,'numeric','AllowEmpty','on','Value',[],'ValueChangedFcn',@(~,~)obj.previewConnectedSpecifications());obj.SpecificationTotalFlowField.Layout.Row=2;obj.SpecificationTotalFlowField.Layout.Column=2;
+            obj.SpecificationTotalFlowUnitDropDown=uidropdown(g,'Items',UnitConverterHelper.getUnits('MolarFlow'),'ValueChangedFcn',@(source,event)obj.specificationUnitEdited('MolarFlow',source,event,obj.SpecificationTotalFlowField));obj.SpecificationTotalFlowUnitDropDown.Layout.Row=2;obj.SpecificationTotalFlowUnitDropDown.Layout.Column=3;
+            label=uilabel(g,'Text','Component specifications','FontWeight','bold');label.Layout.Row=3;label.Layout.Column=[1 3];
+            data=[cellstr(obj.ComponentNames(:)) repmat({[]},numel(obj.ComponentNames),2)];
+            obj.SpecificationTable=uitable(g,'Data',data,'ColumnName',{'Component','F','x'},'RowName',{},'ColumnEditable',[false true true],'CellEditCallback',@(~,~)obj.previewConnectedSpecifications());obj.SpecificationTable.Layout.Row=4;obj.SpecificationTable.Layout.Column=[1 3];
+            label=uilabel(g,'Text','Component F unit','HorizontalAlignment','right');label.Layout.Row=5;label.Layout.Column=1;
+            obj.SpecificationFlowUnitDropDown=uidropdown(g,'Items',UnitConverterHelper.getUnits('MolarFlow'),'ValueChangedFcn',@(source,event)obj.specificationUnitEdited('MolarFlow',source,event,2));obj.SpecificationFlowUnitDropDown.Layout.Row=5;obj.SpecificationFlowUnitDropDown.Layout.Column=[2 3];
+            label=uilabel(g,'Text','Temperature','HorizontalAlignment','right');label.Layout.Row=6;label.Layout.Column=1;
+            obj.SpecificationTemperatureField=uieditfield(g,'numeric','AllowEmpty','on','Value',[],'ValueChangedFcn',@(~,~)obj.previewConnectedSpecifications());obj.SpecificationTemperatureField.Layout.Row=6;obj.SpecificationTemperatureField.Layout.Column=2;
+            obj.SpecificationTemperatureUnitDropDown=uidropdown(g,'Items',UnitConverterHelper.getUnits('Temperature'),'ValueChangedFcn',@(source,event)obj.specificationUnitEdited('Temperature',source,event,obj.SpecificationTemperatureField));obj.SpecificationTemperatureUnitDropDown.Layout.Row=6;obj.SpecificationTemperatureUnitDropDown.Layout.Column=3;
+            label=uilabel(g,'Text','Pressure','HorizontalAlignment','right');label.Layout.Row=7;label.Layout.Column=1;
+            obj.SpecificationPressureField=uieditfield(g,'numeric','AllowEmpty','on','Value',[],'ValueChangedFcn',@(~,~)obj.previewConnectedSpecifications());obj.SpecificationPressureField.Layout.Row=7;obj.SpecificationPressureField.Layout.Column=2;
+            obj.SpecificationPressureUnitDropDown=uidropdown(g,'Items',UnitConverterHelper.getUnits('Pressure'),'ValueChangedFcn',@(source,event)obj.specificationUnitEdited('Pressure',source,event,obj.SpecificationPressureField));obj.SpecificationPressureUnitDropDown.Layout.Row=7;obj.SpecificationPressureUnitDropDown.Layout.Column=3;
+            hint=uilabel(g,'Text','Splitter: total F. Separator: component F or x. Heater: T or P.','WordWrap','on');hint.Layout.Row=8;hint.Layout.Column=[1 3];
+        end
+
+        function loadConnectedSpecifications(obj)
+            obj.SpecificationTotalFlowField.Value=[];obj.SpecificationTemperatureField.Value=[];obj.SpecificationPressureField.Value=[];
+            data=obj.SpecificationTable.Data;data(:,2:3)={[]};obj.SpecificationTable.Data=data;
+            specs=nirp.dof.readSpecs(obj.BlockPath);names=fieldnames(specs);
+            flowUnit='';for i=1:numel(names),if strcmp(names{i},'F')||~isempty(regexp(names{i},'^F\d+$','once')),flowUnit=char(string(specs.(names{i}).unit));break,end,end
+            if ~isempty(flowUnit),setUnitIfValid(obj.SpecificationTotalFlowUnitDropDown,flowUnit);setUnitIfValid(obj.SpecificationFlowUnitDropDown,flowUnit);end
+            for i=1:numel(names)
+                name=names{i};item=specs.(name);token=regexp(name,'^(F|x)(\d+)$','tokens','once');
+                if ~isempty(token)
+                    row=str2double(token{2});if row>numel(obj.ComponentNames),continue,end;column=2;if strcmp(token{1},'x'),column=3;value=item.si;else,value=UnitConverterHelper.convertFromSI('MolarFlow',value,obj.SpecificationFlowUnitDropDown.Value);end
+                    data=obj.SpecificationTable.Data;data{row,column}=value;obj.SpecificationTable.Data=data;continue
+                end
+                switch name
+                    case 'F',setUnitIfValid(obj.SpecificationTotalFlowUnitDropDown,item.unit);obj.SpecificationTotalFlowField.Value=UnitConverterHelper.convertFromSI('MolarFlow',item.si,obj.SpecificationTotalFlowUnitDropDown.Value);
+                    case 'T',setUnitIfValid(obj.SpecificationTemperatureUnitDropDown,item.unit);obj.SpecificationTemperatureField.Value=UnitConverterHelper.convertFromSI('Temperature',item.si,obj.SpecificationTemperatureUnitDropDown.Value);
+                    case 'P',setUnitIfValid(obj.SpecificationPressureUnitDropDown,item.unit);obj.SpecificationPressureField.Value=UnitConverterHelper.convertFromSI('Pressure',item.si,obj.SpecificationPressureUnitDropDown.Value);
+                end
+            end
+            obj.previewConnectedSpecifications();
+        end
+
+        function specs=buildConnectedSpecs(obj)
+            specs=struct();
+            if ~isempty(obj.SpecificationTotalFlowField.Value),specs.F=struct('si',UnitConverterHelper.convertToSI('MolarFlow',obj.SpecificationTotalFlowField.Value,obj.SpecificationTotalFlowUnitDropDown.Value),'unit',char(obj.SpecificationTotalFlowUnitDropDown.Value));end
+            data=obj.SpecificationTable.Data;for i=1:size(data,1),if isFiniteScalar(data{i,2}),name=['F' num2str(i)];specs.(name)=struct('si',UnitConverterHelper.convertToSI('MolarFlow',data{i,2},obj.SpecificationFlowUnitDropDown.Value),'unit',char(obj.SpecificationFlowUnitDropDown.Value));end;if isFiniteScalar(data{i,3}),name=['x' num2str(i)];specs.(name)=struct('si',data{i,3},'unit','1');end,end
+            if ~isempty(obj.SpecificationTemperatureField.Value),specs.T=struct('si',UnitConverterHelper.convertToSI('Temperature',obj.SpecificationTemperatureField.Value,obj.SpecificationTemperatureUnitDropDown.Value),'unit',char(obj.SpecificationTemperatureUnitDropDown.Value));end
+            if ~isempty(obj.SpecificationPressureField.Value),specs.P=struct('si',UnitConverterHelper.convertToSI('Pressure',obj.SpecificationPressureField.Value,obj.SpecificationPressureUnitDropDown.Value),'unit',char(obj.SpecificationPressureUnitDropDown.Value));end
+        end
+
+        function [valid,target,state]=previewConnectedSpecifications(obj)
+            valid=true;target=[];state=[];specs=obj.buildConnectedSpecs();obj.styleConnectedSpecifications([],specs);
+            if isempty(fieldnames(specs)),obj.StatusLabel.Text='No stream specifications.';return,end
+            try
+                target=nirp.dof.streamSpecificationTarget(obj.BlockPath,specs);
+                state=nirp.dof.producerState(target.ProducerPath,'OverrideStream',obj.BlockPath,'OverrideSpecifications',specs);
+                obj.styleConnectedSpecifications(state.Result,specs);
+                if strcmp(state.Result.status,'conflict'),valid=false;message="Conflict: "+strjoin(state.Result.messages,' ');status='conflict';
+                elseif strcmp(state.Result.status,'missing'),message="Producer needs more specifications: "+state.Result.messages(end);status='missing';
+                else,message="Fully specified by "+string(target.ProducerName);status='complete';end
+                nirp.flowsheet.internal.paintDofStatus(obj.StatusLabel,status,message);
+            catch exception
+                valid=false;obj.styleConnectedSpecifications([],specs,'conflict');nirp.flowsheet.internal.paintDofStatus(obj.StatusLabel,'conflict',exception.message);
+            end
+        end
+
+        function saved=saveConnectedSpecifications(obj)
+            specs=obj.buildConnectedSpecs();
+            if isempty(fieldnames(specs)),nirp.dof.writeSpecs(obj.BlockPath,specs);saved=true;obj.StatusLabel.Text='No stream specifications.';return,end
+            [saved,~,~]=obj.previewConnectedSpecifications();
+            if ~saved
+                warning('nirp:flowsheet:streamSpecificationNotSaved','%s',obj.StatusLabel.Text);return
+            end
+            nirp.dof.writeSpecs(obj.BlockPath,specs);
+        end
+
+        function styleConnectedSpecifications(obj,result,specs,forcedState)
+            if nargin<4,forcedState='specified';end
+            styleDofField(obj.SpecificationTotalFlowField,'empty');styleDofField(obj.SpecificationTemperatureField,'empty');styleDofField(obj.SpecificationPressureField,'empty');removeStyle(obj.SpecificationTable);
+            fields=fieldnames(specs);for i=1:numel(fields),name=fields{i};state=forcedState;
+                if ~isempty(result)
+                    try,target=nirp.dof.streamSpecificationTarget(obj.BlockPath,struct(name,specs.(name)));producerNames=fieldnames(target.Values);state=result.states.(producerNames{1});catch,end
+                end
+                token=regexp(name,'^(F|x)(\d+)$','tokens','once');
+                if ~isempty(token),row=str2double(token{2});column=2;if strcmp(token{1},'x'),column=3;end;addCellStateStyles(obj.SpecificationTable,column,setAt(strings(size(obj.SpecificationTable.Data,1),1),row,state));
+                elseif strcmp(name,'F'),styleDofField(obj.SpecificationTotalFlowField,state);elseif strcmp(name,'T'),styleDofField(obj.SpecificationTemperatureField,state);elseif strcmp(name,'P'),styleDofField(obj.SpecificationPressureField,state);end
+            end
+        end
+
+        function specificationUnitEdited(obj,category,source,event,target)
+            old=event.PreviousValue;new=event.Value;if strcmp(old,new),return,end
+            if isnumeric(target),data=obj.SpecificationTable.Data;values=nan(size(data,1),1);for i=1:numel(values),if isFiniteScalar(data{i,target}),values(i)=data{i,target};end,end;converted=UnitConverterHelper.convertFromSI(category,UnitConverterHelper.convertToSI(category,values,old),new);for i=1:numel(values),if isfinite(values(i)),data{i,target}=converted(i);end,end;obj.SpecificationTable.Data=data;
+            elseif ~isempty(target.Value),target.Value=UnitConverterHelper.convertFromSI(category,UnitConverterHelper.convertToSI(category,target.Value,old),new);end
+            source.Value=new;obj.previewConnectedSpecifications();
         end
 
         function roleEdited(obj)
@@ -446,6 +578,7 @@ classdef StreamDialog < handle
             obj.ConversionLabel.Visible=onOff(isProduct) ;
             obj.ReferenceFeedDropDown.Visible=onOff(isProduct) ;
             obj.KeyComponentDropDown.Visible=onOff(isProduct) ;
+            obj.SpecificationPanel.Visible=onOff(~isFeed) ;
             obj.OKButton.Visible='on';obj.ApplyButton.Visible='on';
             obj.CancelButton.Text='Cancel' ;obj.CancelButton.Layout.Column=3 ;obj.SaveButton=obj.ApplyButton ;
             obj.updatePortSources() ;
@@ -473,7 +606,7 @@ classdef StreamDialog < handle
                 obj.TSourceDropDown.Value=get_param(obj.BlockPath,'TSource') ;
                 obj.QSourceDropDown.Value=get_param(obj.BlockPath,'QSource') ;
             end
-            if obj.Role == "Feed", obj.loadFeed() ; obj.closeFeed() ; else, obj.loadCalculatedResult() ; end
+            if obj.Role == "Feed", obj.loadFeed() ; obj.closeFeed() ; else, obj.loadCalculatedResult();obj.loadConnectedSpecifications();end
             obj.captureModel() ;
         end
 
@@ -590,6 +723,7 @@ classdef StreamDialog < handle
                 obj.DataModel.TotalMassFlow=quantity(obj.TotalMassFlowField.Value,obj.TotalMassFlowUnitDropDown.Value,totalMOrigin);
             end
             obj.DataModel.Result=obj.LastResult;
+            if obj.Role~="Feed",obj.DataModel.Specifications=obj.buildConnectedSpecs();end
         end
 
         function valid=closeFeed(obj,highlight)
@@ -795,6 +929,9 @@ function value=toSIField(field,units,category),if isempty(field.Value),value=NaN
 function value=specifiedValue(value,origin),if string(origin)~="specified",value=NaN;end,end
 function setFromSI(field,units,category,value),if isnumeric(value)&&isscalar(value)&&isfinite(value),field.Value=UnitConverterHelper.convertFromSI(category,value,units.Value);else,field.Value=[];end,end
 function setUnitIfValid(dropdown,unit),if isempty(unit),return,end;if any(string(dropdown.Items)==string(unit)),dropdown.Value=unit;end,end
+function value=emptyValue(value),if isempty(value)||(isnumeric(value)&&isscalar(value)&&isnan(value)),value=[];end,end
+function flag=isFiniteScalar(value),flag=isnumeric(value)&&isscalar(value)&&isfinite(value);end
+function values=setAt(values,index,value),if index>=1&&index<=numel(values),values(index)=string(value);end,end
 function addCellStateStyles(tableHandle,column,states)
     definitions={"specified",[0.15 0.25 0.55],'normal';"calculated",[0.92 0.92 0.92],'italic';"empty",[1 0.90 0.90],'normal';"external",[0.88 0.88 0.88],'normal';"conflict",[1 0.72 0.72],'normal'};
     for i=1:size(definitions,1),rows=find(states==definitions{i,1});if isempty(rows),continue,end;style=uistyle('FontAngle',definitions{i,3});if definitions{i,1}=="specified",style.FontColor=definitions{i,2};else,style.BackgroundColor=definitions{i,2};end;addStyle(tableHandle,style,'cell',[rows repmat(column,numel(rows),1)]);end

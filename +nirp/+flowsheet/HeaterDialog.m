@@ -52,7 +52,7 @@ classdef HeaterDialog < handle
             applied=false;result=obj.closeDof();if ~strcmp(result.status,'complete'),return,end
             try
                 name=strtrim(obj.NameField.Value);if isempty(name),error('nirp:flowsheet:invalidName','Name cannot be empty.');end
-                specs=obj.specifications(result);nirp.dof.writeSpecs(obj.BlockPath,specs);
+                specs=obj.specifications(result);writeProducerSpecs(obj.BlockPath,specs);
                 legacyMode='Outlet T';if isfield(specs,'Q'),legacyMode='Duty';end
                 set_param(obj.BlockPath,'Mode',legacyMode,'Tout',number(obj.ToutField.Value), ...
                     'ToutUnit',obj.ToutUnitDropDown.Value,'Duty',number(obj.DutyField.Value), ...
@@ -99,11 +99,9 @@ classdef HeaterDialog < handle
             obj.CompatibilityMode='';obj.CompatibilityModeExplicit=false;obj.updateCompatibilityVisibility();obj.closeDof();
         end
         function result=closeDof(obj)
-            [inlet,source]=nirp.dof.knownInlet(obj.BlockPath);try,pkg=nirp.pkg.readDictionary(nirp.flowsheet.modelDictionary(bdroot(obj.BlockPath)));rs=nirp.pkg.toReactionSys(pkg);catch,rs=[];end
-            context=struct('inlet',inlet,'RS',rs);values=struct();origins=struct('T_in','external','P_in','external');if isempty(inlet),values.T_in=NaN;values.P_in=NaN;else,values.T_in=inlet.T;values.P_in=inlet.P;end
-            names={'T_out','dT','Q','dP','P_out'};for i=1:numel(names),if obj.Origins.(names{i})=="specified",values.(names{i})=obj.toSI(names{i});origins.(names{i})='specified';end,end
-            try,result=nirp.dof.solve(nirp.dof.catalog.heater(context),values,origins);catch exception,result=failure(names,exception.message);end
-            for i=1:numel(names),name=names{i};if isfield(result.values,name),obj.setCalculated(name,result.values.(name),result.origins.(name));styleField(obj.field(name),result.states.(name),strjoin(result.messages,' '));end,end
+            names={'T_out','dT','Q','dP','P_out'};specs=struct();for i=1:numel(names),if obj.Origins.(names{i})=="specified",specs.(names{i})=struct('si',obj.toSI(names{i}),'unit',char(obj.unitField(names{i}).Value));end,end
+            try,state=nirp.dof.producerState(obj.BlockPath,'InternalSpecifications',specs);result=state.Result;source=state.InletSource;catch exception,result=failure(names,exception.message);source="";state=struct('Output',struct('sources',struct()));end
+            for i=1:numel(names),name=names{i};if isfield(result.values,name),obj.setCalculated(name,result.values.(name),result.origins.(name));tip=strjoin(result.messages,' ');if isfield(state.Output.sources,name),tip=string(state.Output.sources.(name))+". "+tip;end;styleField(obj.field(name),result.states.(name),tip);end,end
             obj.DataModel=struct();for i=1:numel(names),name=names{i};obj.DataModel.(name)=struct('value',obj.field(name).Value,'unit',string(obj.unitField(name).Value),'origin',string(result.origins.(name)));end;obj.DataModel.Tout=obj.DataModel.T_out;obj.DataModel.Duty=obj.DataModel.Q;obj.DataModel.PressureDrop=obj.DataModel.dP;obj.DataModel.Result=result;
             if strcmp(result.status,'complete'),message="Fully specified";if strlength(source)>0,message=message+" - "+source;end;elseif strcmp(result.status,'conflict'),message="Conflict: "+strjoin(result.messages,' ');else,message=result.messages(end);end
             nirp.flowsheet.internal.paintDofStatus(obj.StatusLabel,result.status,message);
@@ -133,3 +131,4 @@ function result=failure(names,message),values=struct();origins=struct();states=s
 function value=number(x),if isempty(x),value='NaN';else,value=num2str(x,17);end,end
 function value=onoff(flag),if flag,value='on';else,value='off';end,end
 function value=label(names),if isempty(names),value='<missing>';else,value=char(strjoin(string(names),', '));end,end
+function writeProducerSpecs(block,specs),if isempty(fieldnames(specs)),set_param(block,'Specifications','{}');else,nirp.dof.writeSpecs(block,specs);end,end

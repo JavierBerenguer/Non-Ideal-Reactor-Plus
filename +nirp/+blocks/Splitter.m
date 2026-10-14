@@ -15,7 +15,7 @@ classdef Splitter < matlab.System
         Specifications = ''
     end
     properties (Access=private)
-        RS; LastInput; LastOutputs; HasCache=false; CalculationCount=0; Model; Block; ClosedFractions; Specs
+        RS; LastInput; LastOutputs; HasCache=false; CalculationCount=0; Model; Block; ClosedFractions; Specs; OutputSpecs; HasRecycle=false
     end
     methods (Access=protected)
         function setupImpl(obj)
@@ -23,7 +23,8 @@ classdef Splitter < matlab.System
             if ~isnumeric(obj.Fractions)||~isreal(obj.Fractions)||~isvector(obj.Fractions)
                 error('nirp:blocks:invalidFractions','Fractions must be a real numeric vector.');
             end
-            if isempty(strtrim(obj.Specifications))
+            obj.Block=get_param(gcb,'Name');obj.OutputSpecs=nirp.dof.connectedSpecifications(gcb);obj.HasRecycle=hasRecycle(bdroot(gcb));
+            if isempty(strtrim(obj.Specifications))&&isempty(fieldnames(obj.OutputSpecs.values))
                 [fractions,~,message]=nirp.flowsheet.closeSum(obj.Fractions,1);
                 if strlength(message)>0
                     error('nirp:blocks:invalidFractions','Splitter "%s": %s',get_param(gcb,'Name'),message);
@@ -37,11 +38,18 @@ classdef Splitter < matlab.System
                 obj.ClosedFractions=fractions;obj.Specs=struct();
             else
                 obj.Specs=nirp.dof.readSpecs(obj.Specifications);
-                result=solveSpecifications(numel(obj.Fractions),obj.Specs,NaN);
+                if isempty(fieldnames(obj.Specs))&&isempty(strtrim(obj.Specifications)),obj.Specs=legacySpecs(obj.Fractions);end
+                result=solveSpecifications(numel(obj.Fractions),obj.Specs,obj.OutputSpecs,NaN,obj.Block);
                 if ~strcmp(result.status,'complete'),throwResult(get_param(gcb,'Name'),result);end
-                obj.ClosedFractions=fractionVector(result,numel(obj.Fractions));
+                obj.ClosedFractions=legacyFractions(obj.Fractions);candidate=fractionVector(result,numel(obj.Fractions));if all(isfinite(candidate)),obj.ClosedFractions=candidate;end
             end
-            [obj.Model,~,obj.RS]=nirp.blocks.internal.modelPackage(); obj.Block=get_param(gcb,'Name');
+            if any(~isfinite(obj.ClosedFractions))
+                % Start-up estimate when no split was ever closed (e.g. only an outlet flow is
+                % specified and the inlet was unknown): equal split; the specification applies once
+                % the loop converges (Claude, T-155 review).
+                obj.ClosedFractions=repmat(1/numel(obj.Fractions),1,numel(obj.Fractions));
+            end
+            [obj.Model,~,obj.RS]=nirp.blocks.internal.modelPackage();
             obj.HasCache=false; obj.CalculationCount=0;
         end
         function varargout=stepImpl(obj,in)
@@ -49,10 +57,12 @@ classdef Splitter < matlab.System
             if obj.HasCache&&isequaln(in,obj.LastInput),out=obj.LastOutputs;
             else
                 fractions=obj.ClosedFractions;
-                if ~isempty(fieldnames(obj.Specs))
-                    result=solveSpecifications(numel(obj.Fractions),obj.Specs,sum(in.F));
-                    if ~strcmp(result.status,'complete'),throwResult(obj.Block,result);end
-                    fractions=fractionVector(result,numel(obj.Fractions));
+                if ~isempty(fieldnames(obj.Specs))||~isempty(fieldnames(obj.OutputSpecs.values))
+                    if ~(obj.HasRecycle&&~nirp.flowsheet.registry('allConverged',obj.Model))
+                        result=solveSpecifications(numel(obj.Fractions),obj.Specs,obj.OutputSpecs,sum(in.F),obj.Block);
+                        if ~strcmp(result.status,'complete'),throwResult(obj.Block,result);end
+                        fractions=fractionVector(result,numel(obj.Fractions));obj.ClosedFractions=fractions;
+                    end
                 end
                 out=nirp.units.splitter(struct('fractions',fractions),in,obj.RS);
                 obj.LastInput=in;obj.LastOutputs=out;obj.HasCache=true;obj.CalculationCount=obj.CalculationCount+1;
@@ -76,16 +86,9 @@ classdef Splitter < matlab.System
     end
 end
 
-function result=solveSpecifications(n,specs,inletFlow)
+function result=solveSpecifications(n,specs,output,inletFlow,block)
     model=nirp.dof.catalog.splitter(n);values=struct('F_in',inletFlow);origins=struct('F_in','external');
-    names=fieldnames(specs);
-    for i=1:numel(names)
-        if isempty(regexp(names{i},'^f\d+$','once'))||str2double(extractAfter(names{i},1))>n
-            error('nirp:blocks:invalidSpecifications','Unknown Splitter specification "%s".',names{i});
-        end
-        values.(names{i})=specs.(names{i}).si;origins.(names{i})='specified';
-    end
-    result=nirp.dof.solve(model,values,origins);
+    result=nirp.dof.resolveProducer(model,'Splitter',block,specs,output,values,origins);
 end
 function values=fractionVector(result,n)
     values=zeros(1,n);for i=1:n,values(i)=result.values.(sprintf('f%d',i));end
@@ -100,3 +103,6 @@ function throwResult(block,result)
         block,strjoin(result.conflicts,', '),strjoin(result.messages,' '));
 end
 function text=plural(n),if n==1,text='';else,text='s';end,end
+function specs=legacySpecs(values),specs=struct();for i=1:max(0,numel(values)-1),if isfinite(values(i)),specs.(['f' num2str(i)])=struct('si',values(i),'unit','1');end,end,end
+function values=legacyFractions(input),[values,~,message]=nirp.flowsheet.closeSum(input,1);if strlength(message)>0||any(~isfinite(values)),values=input;end,end
+function flag=hasRecycle(model),flag=~isempty(find_system(model,'LookUnderMasks','all','SearchDepth',1,'BlockType','MATLABSystem','System','nirp.blocks.Recycle'));end

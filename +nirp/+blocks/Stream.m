@@ -88,6 +88,13 @@ classdef Stream < matlab.System
                     result=solveFeed(obj.FeedModel,obj.Specs,obj.TSource,obj.QSource,NaN,NaN) ;
                     if ~strcmp(result.status,'complete'),throwFeedResult(obj.BlockName,result);end
                 end
+            else
+                obj.Specs=nirp.dof.readSpecs(obj.Specifications) ;
+                if ~isempty(fieldnames(obj.Specs))
+                    % Validate that the directly connected producer owns a
+                    % simple DOF relation capable of meeting these values.
+                    nirp.dof.streamSpecificationTarget(gcb,obj.Specs) ;
+                end
             end
             referenceName = strtrim(char(string(obj.ReferenceFeed))) ;
             if ~isempty(referenceName)

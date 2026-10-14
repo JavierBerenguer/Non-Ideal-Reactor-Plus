@@ -37,7 +37,7 @@ classdef SeparatorDialog < handle
             specs=struct();names=fieldnames(obj.LastResult.origins);
             for i=1:numel(names),key=names{i};if string(obj.LastResult.origins.(key))=="specified",specs.(key)=struct('si',obj.LastResult.values.(key),'unit',unitFor(key));end,end
             try
-                set_param(obj.BlockPath,'Recovery',mat2str(r,17));nirp.dof.writeSpecs(obj.BlockPath,specs);
+                set_param(obj.BlockPath,'Recovery',mat2str(r,17));writeProducerSpecs(obj.BlockPath,specs);
                 obj.StatusLabel.Text='Fully specified';obj.refreshConnections();applied=true;
             catch exception,obj.StatusLabel.Text=exception.message;obj.alertConflict();applied=false;end
         end
@@ -71,13 +71,13 @@ classdef SeparatorDialog < handle
             obj.close();obj.refreshConnections();
         end
         function valid=close(obj)
-            if obj.Updating,valid=false;return,end;obj.Updating=true;clean=onCleanup(@()obj.finishUpdate());n=numel(obj.ComponentNames);model=nirp.dof.catalog.separator(n);values=struct();origins=struct();prefixes={'r','F_top','F_bot','x_top','x_bot'};originKeys={'r','f_top','f_bot','x_top','x_bot'};
-            for column=1:5,for i=1:n,key=[prefixes{column} num2str(i)];values.(key)=obj.readCell(i,column+1);origins.(key)=char(obj.Origins.(originKeys{column})(i));end,end
-            [inlet,source]=nirp.dof.knownInlet(obj.BlockPath);for i=1:n,key=['F_in' num2str(i)];if isempty(inlet),values.(key)=NaN;else,values.(key)=inlet.F(i);end;origins.(key)='external';end
-            result=nirp.dof.solve(model,values,origins);obj.LastResult=result;unresolved=false;
+            if obj.Updating,valid=false;return,end;obj.Updating=true;clean=onCleanup(@()obj.finishUpdate());n=numel(obj.ComponentNames);prefixes={'r','F_top','F_bot','x_top','x_bot'};originKeys={'r','f_top','f_bot','x_top','x_bot'};specs=struct();
+            for column=1:5,for i=1:n,key=[prefixes{column} num2str(i)];if obj.Origins.(originKeys{column})(i)=="specified",value=obj.readCell(i,column+1);if isfinite(value),specs.(key)=struct('si',value,'unit',unitFor(key));end,end,end,end
+            try,state=nirp.dof.producerState(obj.BlockPath,'InternalSpecifications',specs);result=state.Result;inlet=state.Inlet;source=state.InletSource;catch exception,result=failure(prefixes,n,exception.message);inlet=[];source="";state=struct('Output',struct('sources',struct()));end
+            obj.LastResult=result;unresolved=false;
             for column=1:5,for i=1:n,key=[prefixes{column} num2str(i)];obj.setCell(i,column+1,result.values.(key));obj.Origins.(originKeys{column})(i)=string(result.origins.(key));end,end
             if strcmp(result.status,'complete'),for i=1:n,unresolved=unresolved||~isfinite(result.values.(['r' num2str(i)]));end,end
-            obj.captureModel();obj.showStates(result);
+            obj.captureModel();obj.showStates(result);sources=fieldnames(state.Output.sources);if isempty(sources),obj.RecoveryTable.Tooltip='';else,obj.RecoveryTable.Tooltip=char(strjoin(string(struct2cell(state.Output.sources)),'; '));end
             if strcmp(result.status,'conflict'),message="Conflict: "+strjoin(result.messages,' ');status='conflict';
             elseif strcmp(result.status,'missing'),message=result.messages(end);status='missing';
             elseif unresolved,message="Needs the other components";status='missing';
@@ -109,3 +109,5 @@ function origin=valueOrigin(value),if isempty(value)||(isnumeric(value)&&isscala
 function value=unitFor(key),if startsWith(key,'F_'),value='mol/s';else,value='1';end,end
 function addStates(tableHandle,column,states),defs={"specified",[0.15 0.25 0.55],'normal';"calculated",[0.92 0.92 0.92],'italic';"empty",[1 0.90 0.90],'normal';"external",[0.88 0.88 0.88],'normal';"conflict",[1 0.72 0.72],'normal'};for i=1:size(defs,1),rows=find(states==defs{i,1});if isempty(rows),continue,end;s=uistyle('FontAngle',defs{i,3});if defs{i,1}=="specified",s.FontColor=defs{i,2};else,s.BackgroundColor=defs{i,2};end;addStyle(tableHandle,s,'cell',[rows repmat(column,numel(rows),1)]);end,end
 function s=label(v),if isempty(v),s='<missing>';else,s=char(strjoin(string(v),', '));end,end
+function result=failure(prefixes,n,message),values=struct();origins=struct();states=struct();names=strings(0,1);for p=1:numel(prefixes),for i=1:n,name=[prefixes{p} num2str(i)];values.(name)=NaN;origins.(name)='empty';states.(name)='conflict';names(end+1)=string(name);end,end;result=struct('values',values,'origins',origins,'states',states,'messages',string(message),'status','conflict','missingCount',0,'missing',strings(0,1),'conflicts',names);end
+function writeProducerSpecs(block,specs),if isempty(fieldnames(specs)),set_param(block,'Specifications','{}');else,nirp.dof.writeSpecs(block,specs);end,end
