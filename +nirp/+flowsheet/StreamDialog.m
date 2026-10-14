@@ -570,7 +570,7 @@ classdef StreamDialog < handle
             isFeed = obj.Role == "Feed" ;
             isProduct = obj.Role == "Product" ;
             editable = onOff(isFeed) ;
-            obj.ComponentTable.ColumnEditable = [false repmat(isFeed,1,size(obj.ComponentTable.Data,2)-1)] ;
+            obj.ComponentTable.ColumnEditable = [false repmat(isFeed,1,numel(obj.ComponentTable.ColumnName)-1)] ; % from the columns, not the (possibly empty) data (Claude, T-157)
             obj.TSourceLabel.Visible=editable;obj.QSourceLabel.Visible=editable;
             obj.TSourceDropDown.Visible=editable;obj.QSourceDropDown.Visible=editable;
             obj.PhaseDropDown.Enable=editable;obj.PressureField.Editable=editable;
