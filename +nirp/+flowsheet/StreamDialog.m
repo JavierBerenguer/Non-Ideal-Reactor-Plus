@@ -299,10 +299,12 @@ classdef StreamDialog < handle
             if isempty(obj.LastResult)||~strcmp(obj.LastResult.status,'complete'),error('nirp:flowsheet:missingComposition','The feed is not fully specified.');end
             n=numel(obj.ComponentNames);valuesSI=zeros(1,n);for i=1:n,valuesSI(i)=obj.LastResult.values.(['F' num2str(i)]);end
             if any(~isfinite(valuesSI)),error('nirp:flowsheet:missingComposition','Molar flows must be closed before the feed can be saved.');end
-            basis='molarFlows';valuesUnit=obj.MolarFlowUnitDropDown.Value;values=UnitConverterHelper.convertFromSI('MolarFlow',valuesSI,valuesUnit);legacy=nirp.pkg.feedStream(obj.Package,name);
-            t=obj.LastResult.values.T;if ~isfinite(t),t=legacy.T;end
-            p=obj.LastResult.values.P;if ~isfinite(p),p=legacy.P;end
-            qSI=obj.LastResult.values.Q;if ~isfinite(qSI),qSI=legacy.Q;end
+            basis='molarFlows';valuesUnit=obj.MolarFlowUnitDropDown.Value;values=UnitConverterHelper.convertFromSI('MolarFlow',valuesSI,valuesUnit);% A new feed is not in the package yet: only an existing one supplies fallback T, P and Q (Claude, T-157).
+            legacy=[];if any(string({obj.Package.feeds.name})==string(name)),legacy=nirp.pkg.feedStream(obj.Package,name);end
+            t=obj.LastResult.values.T;if ~isfinite(t),if isempty(legacy),error('nirp:flowsheet:missingSpecification','Enter the feed temperature.');end;t=legacy.T;end
+            p=obj.LastResult.values.P;if ~isfinite(p),if isempty(legacy),error('nirp:flowsheet:missingSpecification','Enter the feed pressure.');end;p=legacy.P;end
+            qSI=obj.LastResult.values.Q;if ~isfinite(qSI)&&~isempty(legacy),qSI=legacy.Q;end
+            if ~isfinite(qSI)&&obj.PhaseDropDown.Value=='L',error('nirp:flowsheet:missingSpecification','Enter the volumetric flow of the liquid feed.');end
             tValue=UnitConverterHelper.convertFromSI('Temperature',t,obj.TemperatureUnitDropDown.Value);pValue=UnitConverterHelper.convertFromSI('Pressure',p,obj.PressureUnitDropDown.Value);
             if obj.PhaseDropDown.Value=='G',q=[];else,q=struct('value',UnitConverterHelper.convertFromSI('VolumetricFlow',qSI,obj.VolumetricFlowUnitDropDown.Value),'unit',obj.VolumetricFlowUnitDropDown.Value);end
             feed = struct('name',name,'phase',obj.PhaseDropDown.Value, ...
