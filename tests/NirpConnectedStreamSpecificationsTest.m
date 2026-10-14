@@ -84,6 +84,12 @@ classdef NirpConnectedStreamSpecificationsTest < matlab.unittest.TestCase
             createSplitterModel(testCase.Folder,'hidden_stream_specs');nirp.flowsheet.setupStreamBlock('hidden_stream_specs/Out 1');
             parameter=Simulink.Mask.get('hidden_stream_specs/Out 1').getParameter('Specifications');testCase.verifyEqual(parameter.Visible,'off');
         end
+        function emptyOptionalStreamSpecificationsStayNeutral(testCase)
+            createSplitterModel(testCase.Folder,'neutral_stream_specs');dialog=nirp.flowsheet.StreamDialog('neutral_stream_specs/Out 1','Visible','off');testCase.addTeardown(@()deleteValid(dialog));
+            testCase.verifyEqual(dialog.SpecificationTotalFlowField.BackgroundColor,[1 1 1],'AbsTol',1e-12);
+            testCase.verifyEqual(dialog.SpecificationTemperatureField.BackgroundColor,[1 1 1],'AbsTol',1e-12);
+            testCase.verifyEqual(dialog.SpecificationPressureField.BackgroundColor,[1 1 1],'AbsTol',1e-12);
+        end
     end
 end
 

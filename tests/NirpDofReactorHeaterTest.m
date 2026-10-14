@@ -79,6 +79,17 @@ classdef NirpDofReactorHeaterTest < matlab.unittest.TestCase
             heater.setValues('Tout',NaN,'dT',10,'dP',0);testCase.verifyEqual(string(heater.DutyField.Visible),"on");testCase.verifyTrue(heater.apply());specs=nirp.dof.readSpecs(get_param('dialog_specs/Heater','Specifications'));testCase.verifyEqual(sort(fieldnames(specs)),sort({'dP';'dT'}));
             jacket.setValues('U',NaN,'UA',1000,'A',5,'UtilityTin',300);testCase.verifyTrue(jacket.apply());specs=nirp.dof.readSpecs(get_param('dialog_specs/Jacket','Specifications'));testCase.verifyEqual(sort(fieldnames(specs)),sort({'A';'T_in_s';'UA'}));
         end
+        function cstrWithoutKnownInletShowsWaitingFieldsAndCombinedStatus(testCase)
+            createModel(testCase,'waiting_cstr');addSystem('waiting_cstr','CSTR','nirp.blocks.CSTR',[200 80 320 150]);
+            dialog=nirp.flowsheet.ReactorDialog('waiting_cstr/CSTR','Visible','off');testCase.addTeardown(@()deleteDialogs({dialog}));
+            dialog.setHeatMode('Isothermal');dialog.setValues('V',1e-5);
+            testCase.verifyEqual(dialog.TauField.BackgroundColor,[0.88 0.88 0.88],'AbsTol',1e-12);
+            testCase.verifyEqual(dialog.SpaceVelocityField.BackgroundColor,[0.88 0.88 0.88],'AbsTol',1e-12);
+            testCase.verifyEqual(string(dialog.TauField.Tooltip),"needs a run or a defined feed");
+            testCase.verifySubstring(string(dialog.StatusLabel.Text),"Fully specified");
+            testCase.verifySubstring(string(dialog.StatusLabel.Text),"Not calculated yet");
+            testCase.verifyEqual(string(dialog.VField.ValueDisplayFormat),"%.4g");
+        end
     end
 end
 

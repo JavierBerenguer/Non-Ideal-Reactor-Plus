@@ -11,7 +11,7 @@ classdef MixerDialog < handle
         function obj=MixerDialog(blockPath,varargin)
             p=inputParser;addParameter(p,'Visible','on');parse(p,varargin{:});obj.BlockPath=getfullname(blockPath);
             if string(get_param(obj.BlockPath,'System'))~="nirp.blocks.Mixer",error('nirp:flowsheet:invalidBlock','MixerDialog requires a Mixer block.');end
-            obj.build(char(string(p.Results.Visible)));obj.refreshConnections();obj.refreshResult();
+            obj.build(char(string(p.Results.Visible)));nirp.flowsheet.internal.formatNumericControls(obj.Figure);obj.refreshConnections();obj.refreshResult();
         end
         function delete(obj),if ~isempty(obj.Figure)&&isvalid(obj.Figure),delete(obj.Figure);end,end
         function setNumInputs(obj,count),if count<2||count>20||count~=fix(count),error('nirp:flowsheet:invalidPorts','A Mixer requires 2 to 20 inputs.');end;obj.DataModel.NumInputs.value=count;obj.rebuildRows(count);end

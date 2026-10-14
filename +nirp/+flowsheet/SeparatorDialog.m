@@ -14,7 +14,7 @@ classdef SeparatorDialog < handle
         function obj=SeparatorDialog(blockPath,varargin)
             p=inputParser;addParameter(p,'Visible','on');parse(p,varargin{:});obj.BlockPath=getfullname(blockPath);
             if string(get_param(obj.BlockPath,'System'))~="nirp.blocks.Separator",error('nirp:flowsheet:invalidBlock','SeparatorDialog requires a Separator block.');end
-            obj.build(char(string(p.Results.Visible)));obj.load();
+            obj.build(char(string(p.Results.Visible)));nirp.flowsheet.internal.formatNumericControls(obj.Figure);obj.load();
         end
         function delete(obj),if ~isempty(obj.Figure)&&isvalid(obj.Figure),delete(obj.Figure);end,end
         function setRecovery(obj,values)
@@ -77,12 +77,12 @@ classdef SeparatorDialog < handle
             obj.LastResult=result;unresolved=false;
             for column=1:5,for i=1:n,key=[prefixes{column} num2str(i)];obj.setCell(i,column+1,result.values.(key));obj.Origins.(originKeys{column})(i)=string(result.origins.(key));end,end
             if strcmp(result.status,'complete'),for i=1:n,unresolved=unresolved||~isfinite(result.values.(['r' num2str(i)]));end,end
-            obj.captureModel();obj.showStates(result);sources=fieldnames(state.Output.sources);if isempty(sources),obj.RecoveryTable.Tooltip='';else,obj.RecoveryTable.Tooltip=char(strjoin(string(struct2cell(state.Output.sources)),'; '));end
+            obj.captureModel();obj.showStates(result,isempty(inlet));sources=fieldnames(state.Output.sources);if isempty(inlet),obj.RecoveryTable.Tooltip='needs a run or a defined feed';elseif isempty(sources),obj.RecoveryTable.Tooltip='';else,obj.RecoveryTable.Tooltip=char(strjoin(string(struct2cell(state.Output.sources)),'; '));end
             if strcmp(result.status,'conflict'),message="Conflict: "+strjoin(result.messages,' ');status='conflict';
             elseif strcmp(result.status,'missing'),message=result.messages(end);status='missing';
             elseif unresolved,message="Needs the other components";status='missing';
             else,message="Fully specified";status='complete';if strlength(source)>0,message=message+" - "+source;elseif isempty(inlet),message=message+" - results need a run or a defined feed";end,end
-            nirp.flowsheet.internal.paintDofStatus(obj.StatusLabel,status,message);valid=strcmp(status,'complete');
+            [~,~,runLabel]=nirp.flowsheet.blockStatus(obj.BlockPath);message=message+" - "+runLabel;nirp.flowsheet.internal.paintDofStatus(obj.StatusLabel,status,message);valid=strcmp(status,'complete');
             if isempty(inlet),obj.RecoveryTable.ColumnEditable=[false true false false false false];else,obj.RecoveryTable.ColumnEditable=[false true true true true true];end
         end
         function cellEdited(obj,event)
@@ -91,12 +91,12 @@ classdef SeparatorDialog < handle
         function loadSpec(obj,key,value)
             token=regexp(key,'^(r|F_top|F_bot|x_top|x_bot)(\d+)$','tokens','once');if isempty(token),return,end;row=str2double(token{2});map=struct('r',2,'F_top',3,'F_bot',4,'x_top',5,'x_bot',6);if row<=numel(obj.ComponentNames),obj.setCell(row,map.(token{1}),value);obj.Origins.(lower(token{1}))(row)="specified";end
         end
-        function value=readCell(obj,row,column),value=obj.RecoveryTable.Data{row,column};if isempty(value)||~isnumeric(value)||~isscalar(value),value=NaN;end,end
-        function setCell(obj,row,column,value),d=obj.RecoveryTable.Data;if isnumeric(value)&&isscalar(value)&&isfinite(value),d{row,column}=value;else,d{row,column}=[];end;obj.RecoveryTable.Data=d;end
+        function value=readCell(obj,row,column),value=obj.RecoveryTable.Data{row,column};if ischar(value)||isstring(value),value=str2double(value);end;if isempty(value)||~isnumeric(value)||~isscalar(value),value=NaN;end,end
+        function setCell(obj,row,column,value),d=obj.RecoveryTable.Data;if isnumeric(value)&&isscalar(value)&&isfinite(value),d{row,column}=nirp.flowsheet.internal.formatTableNumber(value);else,d{row,column}=[];end;obj.RecoveryTable.Data=d;end
         function captureModel(obj)
             n=numel(obj.ComponentNames);names={'Recovery','TopFlow','BottomFlow','TopFraction','BottomFraction'};keys={'r','f_top','f_bot','x_top','x_bot'};units={'1','mol/s','mol/s','1','1'};data=struct();for c=1:5,v=nan(1,n);for i=1:n,v(i)=obj.readCell(i,c+1);end;data.(names{c})=struct('value',v,'unit',units{c},'origin',obj.Origins.(keys{c}));end;data.Result=obj.LastResult;obj.DataModel=data;
         end
-        function showStates(obj,result),removeStyle(obj.RecoveryTable);n=numel(obj.ComponentNames);prefixes={'r','F_top','F_bot','x_top','x_bot'};for c=1:5,s=strings(n,1);for i=1:n,s(i)=string(result.states.([prefixes{c} num2str(i)]));end;addStates(obj.RecoveryTable,c+1,s);end,end
+        function showStates(obj,result,waiting),removeStyle(obj.RecoveryTable);n=numel(obj.ComponentNames);prefixes={'r','F_top','F_bot','x_top','x_bot'};for c=1:5,s=strings(n,1);for i=1:n,s(i)=string(result.states.([prefixes{c} num2str(i)]));end;if waiting&&c>1,s(s=="empty")="external";end;addStates(obj.RecoveryTable,c+1,s);end,end
         function refreshConnections(obj)
             graph=nirp.flowsheet.topology(bdroot(obj.BlockPath));key=matlab.lang.makeValidName(get_param(obj.BlockPath,'Name'));data=cell(0,3);outputs={'Top','Bottom'};
             if isfield(graph.Units,key),x=graph.Units.(key);for i=1:numel(x.Inputs),data(end+1,:)={'Input',i,label(x.Inputs{i})};end;for i=1:numel(x.Outputs),data(end+1,:)={['Output (' outputs{min(i,2)} ')'],i,label(x.Outputs{i})};end,end;obj.ConnectionTable.Data=data;

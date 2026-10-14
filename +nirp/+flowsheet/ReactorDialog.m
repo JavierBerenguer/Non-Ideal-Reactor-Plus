@@ -34,8 +34,7 @@ classdef ReactorDialog < handle
             elseif cls=="nirp.blocks.PFR",obj.ReactorType="PFR";
             else,error('nirp:flowsheet:invalidBlock','ReactorDialog requires a CSTR or PFR block.');end
             try,mask=Simulink.Mask.get(obj.BlockPath);parameter=mask.getParameter('Specifications');if ~isempty(parameter),parameter.Visible='off';end,catch,end
-            obj.build(char(string(p.Results.Visible)));obj.load();obj.refreshConnections();
-            [~,~,label]=nirp.flowsheet.blockStatus(obj.BlockPath);obj.StatusLabel.Text=char(label);obj.showMissingStatus();
+            obj.build(char(string(p.Results.Visible)));nirp.flowsheet.internal.formatNumericControls(obj.Figure);obj.load();obj.refreshConnections();obj.showMissingStatus();
         end
         function delete(obj),if ~isempty(obj.Figure)&&isvalid(obj.Figure),delete(obj.Figure);end,end
         function setHeatMode(obj,mode)
@@ -69,7 +68,7 @@ classdef ReactorDialog < handle
             args=reshape([names;values],1,[]);set_param(obj.BlockPath,args{:});nirp.dof.writeSpecs(obj.BlockPath,obj.makeSpecs(result));
             newName=strtrim(obj.NameField.Value);if isempty(newName),error('nirp:flowsheet:invalidName','Name cannot be empty.');end
             if ~strcmp(newName,get_param(obj.BlockPath,'Name')),set_param(obj.BlockPath,'Name',newName);obj.BlockPath=getfullname([bdroot(obj.BlockPath) '/' newName]);end
-            obj.StatusLabel.Text='Applied.';obj.captureModel();obj.refreshConnections();applied=true;catch exception,obj.StatusLabel.Text=exception.message;end
+            obj.captureModel();obj.refreshConnections();obj.closeDof();applied=true;catch exception,obj.StatusLabel.Text=exception.message;end
         end
         function accept(obj),if obj.apply(),delete(obj);else,nirp.flowsheet.internal.showDialogError(obj.Figure,obj.StatusLabel.Text,char(obj.ReactorType));end,end
         function cancel(obj),delete(obj);end
@@ -189,10 +188,11 @@ classdef ReactorDialog < handle
             if obj.ReactorType=="PFR"
                 if strcmp(obj.PressureModeGroup.SelectedObject.Text,'Select...'),missing(end+1)="pressure mode";end
             end
-            if isempty(missing),return,end
+            if isempty(missing),obj.closeDof();return,end
             count=numel(missing);suffix='s';if count==1,suffix='';end
+            [~,~,runLabel]=nirp.flowsheet.blockStatus(obj.BlockPath);
             nirp.flowsheet.internal.paintDofStatus(obj.StatusLabel,'missing', ...
-                sprintf('%d specification%s missing: %s.',count,suffix,strjoin(missing,', ')));
+                sprintf('%d specification%s missing: %s - %s.',count,suffix,strjoin(missing,', '),runLabel));
         end
         function setOne(obj,name,value)
             key=lower(char(string(name)));
@@ -236,8 +236,8 @@ classdef ReactorDialog < handle
                 forbidden={'tau','SV','W'};selected=forbidden(cellfun(@(name)isfield(obj.DofOrigins,name)&&obj.DofOrigins.(name)=="specified",forbidden));
                 if ~isempty(selected),result.status='conflict';result.missingCount=0;result.missing=strings(0,1);result.conflicts=string(selected);result.messages="V from an input port conflicts with specifications for "+strjoin(string(selected),', ')+".";for i=1:numel(selected),result.states.(selected{i})='conflict';end;end
             end
-            for i=1:numel(names),name=names{i};if strcmp(name,'Q0'),continue,end;if isfield(obj.DofOrigins,name),obj.DofOrigins.(name)=string(result.origins.(name));obj.setDofCalculated(name,result.values.(name),result.origins.(name));field=obj.dofField(name);if ~isempty(field),styleDof(field,result.states.(name),strjoin(result.messages,' '));end,end,end
-            obj.captureModel();obj.DataModel.Result=result;if strcmp(result.status,'complete'),message="Fully specified";if strlength(source)>0,message=message+" - "+source;end;elseif strcmp(result.status,'conflict'),message="Conflict: "+strjoin(result.messages,' ');else,message=result.messages(end);end;nirp.flowsheet.internal.paintDofStatus(obj.StatusLabel,result.status,message);
+            for i=1:numel(names),name=names{i};if strcmp(name,'Q0'),continue,end;if isfield(obj.DofOrigins,name),obj.DofOrigins.(name)=string(result.origins.(name));obj.setDofCalculated(name,result.values.(name),result.origins.(name));field=obj.dofField(name);if ~isempty(field),state=result.states.(name);tip=strjoin(result.messages,' ');if isempty(inlet)&&obj.ReactorType=="CSTR"&&any(strcmp(name,{'tau','SV'}))&&obj.DofOrigins.(name)~="specified",state='external';tip='needs a run or a defined feed';end;styleDof(field,state,tip);end,end,end
+            obj.captureModel();obj.DataModel.Result=result;if strcmp(result.status,'complete'),message="Fully specified";if strlength(source)>0,message=message+" - "+source;end;elseif strcmp(result.status,'conflict'),message="Conflict: "+strjoin(result.messages,' ');else,message=result.messages(end);end;[~,~,runLabel]=nirp.flowsheet.blockStatus(obj.BlockPath);message=message+" - "+runLabel;if isempty(inlet)&&obj.ReactorType=="CSTR",message=message+"; inlet-dependent values need a run or a defined feed";end;nirp.flowsheet.internal.paintDofStatus(obj.StatusLabel,result.status,message);
         end
         function specs=makeSpecs(obj,result),specs=struct();names=fieldnames(result.values);for i=1:numel(names),name=names{i};if isfield(obj.DofOrigins,name)&&obj.DofOrigins.(name)=="specified",unit=obj.dofUnit(name);specs.(name)=struct('si',result.values.(name),'unit',unit);end,end,end
         function value=dofToSI(obj,name),field=obj.dofField(name);value=field.Value;unit=obj.dofUnit(name);switch name,case 'V',value=UnitConverterHelper.convertToSI('Volume',value,unit);case 'L',value=UnitConverterHelper.convertToSI('Length',value,unit);case 'D',value=UnitConverterHelper.convertToSI('Length',value,unit);case 'tau',value=UnitConverterHelper.convertToSI('Time',value,unit);case 'SV',value=UnitConverterHelper.convertToSI('TimeInverse',value,unit);case 'u',if strcmp(unit,'cm/s'),value=value/100;end;case 'W',if strcmp(unit,'g'),value=value/1000;end;case 'particleDiameter',value=UnitConverterHelper.convertToSI('Length',value,unit);case 'density',value=UnitConverterHelper.convertToSI('Density',value,unit);case 'viscosity',value=UnitConverterHelper.convertToSI('Viscosity',value,unit);end,end

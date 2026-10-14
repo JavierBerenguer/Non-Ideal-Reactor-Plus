@@ -22,7 +22,7 @@ classdef AdjustDialog < handle
                 error('nirp:flowsheet:invalidBlock', ...
                     'AdjustDialog requires an Adjust block.');
             end
-            obj.build(char(string(p.Results.Visible)));obj.load();obj.refreshTargets();obj.validateLive();
+            obj.build(char(string(p.Results.Visible)));nirp.flowsheet.internal.formatNumericControls(obj.Figure);obj.load();obj.refreshTargets();obj.validateLive();
         end
         function delete(obj)
             if ~isempty(obj.Figure)&&isvalid(obj.Figure),delete(obj.Figure);end

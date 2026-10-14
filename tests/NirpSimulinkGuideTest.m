@@ -20,8 +20,9 @@ classdef NirpSimulinkGuideTest < matlab.unittest.TestCase
             testCase.verifyTrue(isfile(guide)) ;
             html = fileread(guide) ;
             required = ["Overview","Creating a flowsheet","Reactive System", ...
-                "Blocks","Recycles and Adjust","Results","Examples", ...
-                "Troubleshooting"] ;
+                "Specifications and degrees of freedom","Blocks", ...
+                "Recycles and Adjust","Guided example: three-outlet Splitter", ...
+                "Results","Examples","Troubleshooting"] ;
             for heading = required
                 testCase.verifySubstring(string(html),heading) ;
             end
@@ -39,6 +40,11 @@ classdef NirpSimulinkGuideTest < matlab.unittest.TestCase
                     sprintf('Guide contains forbidden code identifier: %s',token)) ;
             end
             testCase.verifyEmpty(regexp(html,'<code(?:\s|>)','once')) ;
+            testCase.verifyFalse(contains(lower(string(html)),"auto-run")) ;
+            testCase.verifySubstring(lower(string(html)),"run or a defined feed") ;
+            testCase.verifySubstring(lower(string(html)),"specified values are blue") ;
+            testCase.verifySubstring(string(html),"loop converges for the first time") ;
+            testCase.verifySubstring(lower(string(html)),"specify the outlet fractions") ;
             testCase.verifySubstring(string(html), ...
                 "basic chemical-process flowsheet") ;
 
@@ -54,7 +60,7 @@ classdef NirpSimulinkGuideTest < matlab.unittest.TestCase
             end
 
             imageTokens = regexp(html,'<img[^>]+src="([^"]+)"','tokens') ;
-            testCase.verifyNumElements(imageTokens,21) ;
+            testCase.verifyNumElements(imageTokens,22) ;
             imageBytes = zeros(1,numel(imageTokens)) ;
             for index = 1:numel(imageTokens)
                 relative = string(imageTokens{index}{1}) ;

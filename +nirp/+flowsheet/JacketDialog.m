@@ -23,7 +23,7 @@ classdef JacketDialog < handle
                 error('nirp:flowsheet:invalidBlock','JacketDialog requires a Jacket block.');
             end
             try,mask=Simulink.Mask.get(obj.BlockPath);parameter=mask.getParameter('Specifications');if ~isempty(parameter),parameter.Visible='off';end,catch,end
-            obj.build(char(string(p.Results.Visible)));obj.load();obj.refreshConnections();
+            obj.build(char(string(p.Results.Visible)));nirp.flowsheet.internal.formatNumericControls(obj.Figure);obj.load();obj.refreshConnections();
             [~,~,label]=nirp.flowsheet.blockStatus(obj.BlockPath);obj.StatusLabel.Text=char(label);
         end
         function delete(obj),if ~isempty(obj.Figure)&&isvalid(obj.Figure),delete(obj.Figure);end,end

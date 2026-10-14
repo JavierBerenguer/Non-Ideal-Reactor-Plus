@@ -66,6 +66,7 @@ classdef NirpDofClosureTest < matlab.unittest.TestCase
                 [0.5 0.25 0.25],'AbsTol',1e-15);
             testCase.verifyEqual(values.Fractions.origin, ...
                 ["specified" "specified" "calculated"]);
+            testCase.verifyClass(dialog.FractionTable.Data{1,2},'char');
             data=dialog.FractionTable.Data;
             data{3,2}=0.25;
             dialog.FractionTable.Data=data;

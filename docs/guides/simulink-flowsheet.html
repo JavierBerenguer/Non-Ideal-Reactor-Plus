@@ -63,7 +63,27 @@
       </figure>
 
       <h3>Run settings and help</h3>
-      <p>The bottom row is available from every tab. <strong>Maximum iterations</strong> limits stationary iterations, including Recycle and Adjust convergence. <strong>Show results after run</strong> opens the results window after a successful run. <strong>Auto-run when a dialog is accepted</strong> reruns a complete model after a block dialog is accepted. <strong>Help</strong> opens this guide. When editing an existing model, <strong>Show results</strong> opens the latest results without rerunning.</p>
+      <p>The bottom row is available from every tab. <strong>Maximum iterations</strong> limits stationary iterations, including Recycle and Adjust convergence. <strong>Show results after run</strong> opens the results window after a successful run. <strong>Help</strong> opens this guide. When editing an existing model, <strong>Show results</strong> opens the latest results without rerunning.</p>
+      <p>In a block window, <strong>Apply</strong> checks and saves the visible specifications while leaving the window open, <strong>OK</strong> does the same and closes it, and <strong>Cancel</strong> discards changes. These buttons never calculate the whole flowsheet. Press <strong>Run</strong> in the model when you are ready to calculate it.</p>
+    </section>
+
+    <section class="section" id="specifications">
+      <h2>Specifications and degrees of freedom</h2>
+      <p>Enter the independent information you know and leave the value that should be deduced empty. The window recalculates simple relations immediately after each edit. A value from a directly connected, defined Feed is used first; otherwise the latest successful Run is used. If neither is available, inlet-dependent results wait for a Run or a defined Feed.</p>
+      <table>
+        <tr><th>Appearance</th><th>Meaning</th><th>What to do</th></tr>
+        <tr><td>Pink, empty</td><td>A required user specification is missing.</td><td>Enter one independent value.</td></tr>
+        <tr><td>Dark blue text</td><td>You specified this value.</td><td>It is kept and takes priority during every Run.</td></tr>
+        <tr><td>Light gray, italic</td><td>The value was calculated from other entries.</td><td>Clear one of the blue entries if you want to specify this one instead.</td></tr>
+        <tr><td>Neutral gray</td><td>The value comes from a connection or needs an inlet from a Run or a defined Feed.</td><td>Define or connect the source; the tooltip explains what is needed.</td></tr>
+        <tr><td>Red</td><td>The specifications conflict, are out of range, or provide too many independent values.</td><td>Clear one of the implicated specifications before applying or running.</td></tr>
+      </table>
+      <p>The status line reports both specification closure and the latest simulation state. It distinguishes missing, complete, and conflicting specifications, then says whether the block has been calculated. Small values use significant digits, so a nonzero value is not hidden by fixed decimal places.</p>
+      <figure class="figure-card">
+        <img src="../assets/simulink/cstr-reactor-dialog.png" alt="CSTR window showing specified calculated waiting and status appearances">
+        <figcaption>Specified values are blue, calculated values are italic, and inlet-dependent values remain neutral until the inlet is known.</figcaption>
+      </figure>
+      <p>Specifications remain in force during Run, including while a recycle is converging. For example, if residence time is specified in a CSTR, its volume is recalculated from the changing inlet flow at every recycle iteration. To specify the total flow of an outlet, open that outlet Stream, enter the value in <strong>Specifications</strong>, and apply it; the producing Splitter or Separator then uses it.</p>
     </section>
 
     <section class="section" id="blocks">
@@ -72,6 +92,7 @@
 
       <h3>Stream</h3>
       <p>A <strong>Feed</strong> has no material input and one output. Enter its phase, component flow or concentration, pressure, temperature, and volumetric flow. An intermediate Stream has one input and one output. A <strong>Product</strong> has one input and no output; after a successful run it displays calculated conditions and can report conversion using <strong>Reference feed</strong> and <strong>Key component</strong>.</p>
+      <table><tr><th>Variables</th><th>Relations used</th></tr><tr><td>Component and total molar flows, concentrations, mole fractions, mass flows and fractions when molecular weights are available, volumetric flow, temperature, and pressure</td><td>Component totals and fractions are consistent with the total flow; concentration and molar flow are linked by volumetric flow. Gas volumetric flow also follows temperature and pressure.</td></tr></table>
       <figure class="figure-card">
         <img src="../assets/simulink/stream-feed-dialog.png" alt="Stream dialog configured as a Feed">
         <figcaption>A Feed Stream contains the inlet composition and operating conditions.</figcaption>
@@ -83,6 +104,7 @@
 
       <h3>CSTR</h3>
       <p>Connect <strong>Feed</strong> to <strong>Product</strong>. Specify <strong>Volume</strong>, choose the thermal mode, and enter catalyst data only when the reactor is catalytic. <strong>Isothermal</strong> uses the inlet temperature, <strong>Adiabatic</strong> sets heat exchange to zero, and <strong>Heat exchange</strong> requires a connected Jacket. The optional heat output reports duty.</p>
+      <table><tr><th>Variables</th><th>Relations used</th></tr><tr><td>Volume, residence time, space velocity, and inlet volumetric flow</td><td>Volume equals residence time multiplied by inlet volumetric flow; space velocity is the inverse of residence time.</td></tr><tr><td>Catalytic option: catalyst mass, density, and porosity</td><td>Catalyst mass follows occupied catalyst volume, density, and porosity.</td></tr></table>
       <figure class="figure-card">
         <img src="../assets/simulink/cstr-reactor-dialog.png" alt="CSTR Reactor tab with volume and thermal modes">
         <figcaption>The CSTR Reactor tab groups volume, thermal mode, and catalyst settings.</figcaption>
@@ -94,6 +116,7 @@
 
       <h3>PFR</h3>
       <p>Connect <strong>Feed</strong> to <strong>Product</strong>. Define geometry by <strong>Volume</strong> or <strong>Length</strong>; one of volume, length, diameter, and number of tubes is calculated from the other three. Choose constant pressure or provide the extra fluid and particle data requested for pressure drop. Thermal modes, catalyst settings, reaction selection, Jacket connection, and heat output work as in the CSTR.</p>
+      <table><tr><th>Variables</th><th>Relations used</th></tr><tr><td>Volume, length, diameter, number of tubes, residence time, space velocity, superficial velocity, and inlet volumetric flow</td><td>Tube geometry determines volume; volume and inlet flow determine residence time; space velocity is its inverse; flow and tube area determine superficial velocity.</td></tr><tr><td>Catalytic and pressure-drop data when selected</td><td>Catalyst mass follows occupied catalyst volume. Non-constant pressure also uses the selected pressure-loss data.</td></tr></table>
       <figure class="figure-card">
         <img src="../assets/simulink/pfr-reactor-dialog.png" alt="PFR Reactor tab with geometry pressure and thermal controls">
         <figcaption>The PFR Reactor tab closes one geometry value automatically.</figcaption>
@@ -105,13 +128,15 @@
 
       <h3>Jacket</h3>
       <p>Connect the Jacket output to a reactor in <strong>Heat exchange</strong> mode. <strong>Utility (U*A)</strong> uses the heat-transfer coefficient, area, and utility inlet temperature; utility outlet temperature, heat capacity, condensation, and latent heat are available when needed. The other modes are <strong>Specified reactor T</strong> and <strong>Specified Q</strong>. Area and utility inlet temperature may also come from scalar input ports.</p>
+      <table><tr><th>Variables</th><th>Relations used</th></tr><tr><td>Heat-transfer coefficient, area, their product, utility temperatures, heat capacity or latent heat, service flow, and reactor duty</td><td>The coefficient multiplied by area gives conductance. After a Run, duty and the utility temperature change or latent heat determine service flow.</td></tr><tr><td>Specified reactor temperature or specified duty</td><td>The selected mode needs one corresponding specification.</td></tr></table>
       <figure class="figure-card">
         <img src="../assets/simulink/jacket-dialog.png" alt="Jacket dialog in Utility mode with heat-transfer and utility data">
         <figcaption>Utility mode exposes heat-transfer and utility-stream data; the other two modes expose reactor temperature or duty.</figcaption>
       </figure>
 
       <h3>Heater / Cooler</h3>
-      <p>Connect <strong>Feed</strong> to <strong>Product</strong>. Select <strong>Outlet T</strong> or <strong>Duty</strong>; the energy balance calculates the other value. Enter pressure drop as a loss. Positive duty heats the stream, and thermodynamic data are required.</p>
+      <p>Connect <strong>Feed</strong> to <strong>Product</strong>. Enter any one of outlet temperature, temperature change, or duty; the energy balance calculates the others. Enter either pressure drop or outlet pressure. Positive duty heats the stream, and thermodynamic data are required.</p>
+      <table><tr><th>Variables</th><th>Relations used</th></tr><tr><td>Inlet and outlet temperature, temperature change, and duty</td><td>Temperature change links the two temperatures; the energy balance links outlet temperature and duty.</td></tr><tr><td>Inlet pressure, pressure drop, and outlet pressure</td><td>Outlet pressure equals inlet pressure minus pressure drop.</td></tr></table>
       <figure class="figure-card">
         <img src="../assets/simulink/heater-dialog.png" alt="Heater Cooler dialog in Outlet T mode">
         <figcaption>Heater/Cooler accepts either an outlet temperature or a duty.</figcaption>
@@ -119,6 +144,7 @@
 
       <h3>Mixer</h3>
       <p>Connect two or more inlet Streams and one outlet Stream. <strong>Add inlet</strong> and <strong>Remove</strong> change the number of material inputs. The outlet follows the combined material and energy balance.</p>
+      <table><tr><th>Variables</th><th>Relations used</th></tr><tr><td>Outlet component flows, temperature, pressure, and volumetric flow</td><td>Known inlets determine the outlet by the material and energy balances; the Mixer needs no independent specification.</td></tr></table>
       <figure class="figure-card">
         <img src="../assets/simulink/mixer-dialog.png" alt="Mixer dialog listing two inlet streams and one outlet">
         <figcaption>The Mixer dialog lists each connected inlet and the product Stream.</figcaption>
@@ -126,13 +152,15 @@
 
       <h3>Splitter</h3>
       <p>Connect one inlet Stream and two or more outlet Streams. Enter outlet fractions; one missing fraction is calculated automatically so the fractions sum to one. Every outlet retains the inlet state and composition.</p>
+      <table><tr><th>Variables</th><th>Relations used</th></tr><tr><td>One fraction and total molar flow for each outlet, plus inlet total molar flow</td><td>Fractions sum to one; each outlet flow equals its fraction multiplied by inlet flow. A Splitter with three outlets therefore needs two independent specifications.</td></tr></table>
       <figure class="figure-card">
-        <img src="../assets/simulink/splitter-dialog.png" alt="Splitter dialog with two outlet fractions">
+        <img src="../assets/simulink/splitter-dialog.png" alt="Splitter dialog with three outlet fractions">
         <figcaption>Split fractions are assigned to the named outlet Streams.</figcaption>
       </figure>
 
       <h3>Separator</h3>
       <p>Connect one <strong>Feed</strong>, a <strong>Top</strong> Stream, and a <strong>Bottom</strong> Stream. Enter each component's <strong>Recovery to Top</strong>; the Bottom receives the remainder. This block is a component splitter, not an equilibrium flash.</p>
+      <table><tr><th>Variables</th><th>Relations used</th></tr><tr><td>Recovery, Top and Bottom component flows, and Top and Bottom mole fractions for each component</td><td>Recovery divides each inlet component between Top and Bottom; each outlet composition follows its component flows. One independent value is needed per component.</td></tr></table>
       <figure class="figure-card">
         <img src="../assets/simulink/separator-dialog.png" alt="Separator dialog with component recoveries to the Top stream">
         <figcaption>Separator sends a specified fraction of each component to Top.</figcaption>
@@ -140,6 +168,7 @@
 
       <h3>Recycle</h3>
       <p>Connect the calculated tear Stream to <strong>Calculated</strong> and the return Stream to <strong>Estimate</strong>. Choose <strong>Direct</strong> or <strong>Wegstein</strong>, enter the relative tolerance, and choose an initial estimate. Wegstein also uses <strong>QMin</strong>, <strong>QMax</strong>, and <strong>Accelerate every N iterations</strong>.</p>
+      <table><tr><th>Variables</th><th>Checks used</th></tr><tr><td>Method, tolerance, initial estimate, and Wegstein limits and interval when selected</td><td>Tolerance must be positive, limits must be ordered, and the initial estimate must lie inside them.</td></tr></table>
       <figure class="figure-card">
         <img src="../assets/simulink/recycle-dialog.png" alt="Recycle dialog using Wegstein acceleration">
         <figcaption>Recycle identifies both tear Streams and exposes convergence controls.</figcaption>
@@ -147,6 +176,7 @@
 
       <h3>Adjust</h3>
       <p>Connect the measured Stream to the Adjust input and its <strong>Parameter (SI)</strong> output to a supported scalar port, such as reactor volume, feed temperature or flow, or Jacket area. Choose the target variable and value, parameter bounds, damping, tolerance, and strategy. <strong>Connect</strong> identifies an available downstream parameter port.</p>
+      <table><tr><th>Variables</th><th>Checks used</th></tr><tr><td>Measured target, target value, varied parameter, bounds, initial value, damping, tolerance, and strategy</td><td>Tolerance is positive, bounds are ordered, and the initial value lies within them. The connected parameter is varied during Run.</td></tr></table>
       <figure class="figure-card">
         <img src="../assets/simulink/adjust-dialog.png" alt="Adjust dialog targeting conversion through CSTR volume">
         <figcaption>Adjust varies the connected parameter until the selected target is met.</figcaption>
@@ -157,7 +187,19 @@
       <h2>Recycles and Adjust</h2>
       <p>A material recycle creates an algebraic loop. Insert one Recycle block at the tear Stream. <strong>Direct</strong> substitutes the calculated Stream on every iteration; <strong>Wegstein</strong> accelerates the update within its displayed bounds. Convergence requires the relative Stream error to remain below <strong>Tolerance</strong>.</p>
       <p>When Adjust and Recycle share a model, <strong>Simultaneous</strong> updates both during the same iteration. <strong>Nested</strong> waits for every Recycle to converge before the next Adjust step. The solved example <strong>Separator recycle loop with adjusted CSTR volume</strong> demonstrates Nested operation.</p>
+      <p>An outlet-flow specification inside a recycle is applied when the loop converges for the first time; until then, the previous split is used to obtain a stable first solution. If the loop conserves total moles, specifying an absolute purge flow does not uniquely determine the purge fraction. Specify the outlet fractions in that case.</p>
       <p>If a loop does not converge, inspect <strong>Recycle</strong> and <strong>Messages</strong> in Show results. Check topology and specifications before increasing <strong>Maximum iterations</strong>; then improve the initial estimate or try Wegstein with conservative bounds.</p>
+    </section>
+
+    <section class="section" id="splitter-example">
+      <h2>Guided example: three-outlet Splitter</h2>
+      <ol>
+        <li>Place a Splitter, add a third outlet, and connect a named Stream to each outlet.</li>
+        <li>Open the Splitter. Enter <strong>0.2</strong> for the first fraction and <strong>0.3</strong> for the second; leave the third empty. It is calculated as <strong>0.5</strong>. Apply the change.</li>
+        <li>Open the Stream on the first outlet. In <strong>Specifications</strong>, enter its total molar flow and apply. Reopen the Splitter: the corresponding fraction is now calculated from that flow and the known inlet flow.</li>
+        <li>If the new outlet-flow specification conflicts with the two fraction specifications, clear one fraction. The status line must say that the Splitter is fully specified before Run.</li>
+        <li>Press <strong>Run</strong>, then inspect the three Stream tabs in <strong>Show results</strong>. Their flows add up to the inlet flow.</li>
+      </ol>
     </section>
 
     <section class="section" id="results">

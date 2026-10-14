@@ -8,7 +8,7 @@ classdef SplitterDialog < handle
         BlockPath;Figure;NameField;FractionTable;ConnectionTable;StatusLabel;DataModel
     end
     methods
-        function obj=SplitterDialog(blockPath,varargin),p=inputParser;addParameter(p,'Visible','on');parse(p,varargin{:});obj.BlockPath=getfullname(blockPath);if string(get_param(obj.BlockPath,'System'))~="nirp.blocks.Splitter",error('nirp:flowsheet:invalidBlock','SplitterDialog requires a Splitter block.');end;obj.build(char(string(p.Results.Visible)));obj.load();end
+        function obj=SplitterDialog(blockPath,varargin),p=inputParser;addParameter(p,'Visible','on');parse(p,varargin{:});obj.BlockPath=getfullname(blockPath);if string(get_param(obj.BlockPath,'System'))~="nirp.blocks.Splitter",error('nirp:flowsheet:invalidBlock','SplitterDialog requires a Splitter block.');end;obj.build(char(string(p.Results.Visible)));nirp.flowsheet.internal.formatNumericControls(obj.Figure);obj.load();end
         function delete(obj),if ~isempty(obj.Figure)&&isvalid(obj.Figure),delete(obj.Figure);end,end
         function addOutlet(obj,fraction),if nargin<2,fraction=NaN;end;if size(obj.FractionTable.Data,1)>=20,error('nirp:flowsheet:portLimit','At most 20 outlets are supported.');end;d=obj.FractionTable.Data;d(end+1,:)={sprintf('<missing>'),fraction,[]};obj.FractionTable.Data=d;origin=obj.DataModel.Fractions.origin;origin(end+1)="empty";if isfinite(fraction),origin(end)="specified";end;obj.closeFractions(origin);end
         function removeOutlet(obj),d=obj.FractionTable.Data;if size(d,1)<=2,error('nirp:flowsheet:invalidPorts','A Splitter requires at least two outlets.');end;d(end,:)=[];obj.FractionTable.Data=d;origin=obj.DataModel.Fractions.origin;origin(end)=[];obj.closeFractions(origin);end
@@ -28,22 +28,30 @@ classdef SplitterDialog < handle
             values=obj.readFractions();n=numel(values);if numel(origin)~=n,origin=repmat("empty",1,n);end
             specs=struct();for i=1:n,if origin(i)=="specified"&&isfinite(values(i)),name=sprintf('f%d',i);specs.(name)=struct('si',values(i),'unit','1');end,end
             try
-                state=nirp.dof.producerState(obj.BlockPath,'InternalSpecifications',specs);result=state.Result;
+                state=previewState(obj.BlockPath,n,specs);result=state.Result;
             catch exception
                 result=failure(n,exception.message);state=struct('InletSource',"",'Output',struct('sources',struct()));
             end
             newOrigin=repmat("empty",1,n);flows=nan(1,n);
             for i=1:n,name=sprintf('f%d',i);values(i)=result.values.(name);newOrigin(i)=string(result.origins.(name));out=sprintf('F_out%d',i);if isfield(result.values,out),flows(i)=result.values.(out);end,end
-            obj.writeFractions(values,flows);obj.DataModel=struct('Fractions',struct('value',values,'unit',"1",'origin',newOrigin),'Outflows',flows,'Result',result);obj.showOrigins(newOrigin,result,state.Output);valid=strcmp(result.status,'complete');
-            if strcmp(result.status,'conflict'),message='Conflict: '+strjoin(result.messages,' ');elseif strcmp(result.status,'missing'),message=result.messages(end);else,message="Fully specified";if strlength(state.InletSource)>0,message=message+" - "+state.InletSource;end;end
+            obj.writeFractions(values,flows);obj.DataModel=struct('Fractions',struct('value',values,'unit',"1",'origin',newOrigin),'Outflows',flows,'Result',result);obj.showOrigins(newOrigin,result,state.Output,isempty(state.Inlet));valid=strcmp(result.status,'complete');
+            if strcmp(result.status,'conflict'),message='Conflict: '+strjoin(result.messages,' ');elseif strcmp(result.status,'missing'),message=result.messages(end);else,message="Fully specified";if strlength(state.InletSource)>0,message=message+" - "+state.InletSource;end;end;[~,~,runLabel]=nirp.flowsheet.blockStatus(obj.BlockPath);message=message+" - "+runLabel;if isempty(state.Inlet),message=message+"; outlet flows need a run or a defined feed";end
             nirp.flowsheet.internal.paintDofStatus(obj.StatusLabel,result.status,message);
         end
         function values=readFractions(obj),d=obj.FractionTable.Data;values=NaN(1,size(d,1));for i=1:size(d,1),v=d{i,2};if isnumeric(v)&&isscalar(v)&&~isempty(v),values(i)=v;elseif ischar(v)||isstring(v),parsed=str2double(v);if isscalar(parsed),values(i)=parsed;end,end,end,end
-        function writeFractions(obj,values,flows),if nargin<3,flows=nan(size(values));end;d=obj.FractionTable.Data;for i=1:numel(values),if isnan(values(i)),d{i,2}=[];else,d{i,2}=values(i);end;if isnan(flows(i)),d{i,3}=[];else,d{i,3}=flows(i);end;end;obj.FractionTable.Data=d;end
-        function showOrigins(obj,origin,result,output),states=origin;states(ismember("f"+string(1:numel(origin)),result.conflicts))="conflict";nirp.flowsheet.internal.styleDofTable(obj.FractionTable,2,states);flowStates=strings(1,numel(origin));for i=1:numel(origin),flowStates(i)=string(result.states.(sprintf('F_out%d',i)));end;nirp.flowsheet.internal.styleDofTable(obj.FractionTable,3,flowStates);sources=fieldnames(output.sources);if isempty(sources),obj.FractionTable.Tooltip='';else,obj.FractionTable.Tooltip=char(strjoin(string(struct2cell(output.sources)),'; '));end,end
+        function writeFractions(obj,values,flows),if nargin<3,flows=nan(size(values));end;d=obj.FractionTable.Data;for i=1:numel(values),if isnan(values(i)),d{i,2}=[];else,d{i,2}=nirp.flowsheet.internal.formatTableNumber(values(i));end;if isnan(flows(i)),d{i,3}=[];else,d{i,3}=nirp.flowsheet.internal.formatTableNumber(flows(i));end;end;obj.FractionTable.Data=d;end
+        function showOrigins(obj,origin,result,output,waiting),states=origin;states(ismember("f"+string(1:numel(origin)),result.conflicts))="conflict";nirp.flowsheet.internal.styleDofTable(obj.FractionTable,2,states);flowStates=strings(1,numel(origin));for i=1:numel(origin),flowStates(i)=string(result.states.(sprintf('F_out%d',i)));end;if waiting,flowStates(flowStates=="empty")="external";end;nirp.flowsheet.internal.styleDofTable(obj.FractionTable,3,flowStates);sources=fieldnames(output.sources);if waiting,obj.FractionTable.Tooltip='needs a run or a defined feed';elseif isempty(sources),obj.FractionTable.Tooltip='';else,obj.FractionTable.Tooltip=char(strjoin(string(struct2cell(output.sources)),'; '));end,end
         function alertConflict(obj),if isvalid(obj.Figure)&&strcmp(obj.Figure.Visible,'on'),uialert(obj.Figure,obj.StatusLabel.Text,'Splitter','Icon','error');end,end
     end
 end
 function s=label(v),if isempty(v),s='<missing>';else,s=char(strjoin(string(v),', '));end,end
 function result=failure(n,message),values=struct();origins=struct();states=struct();names=strings(0,1);for i=1:n,for prefix={'f','F_out'},name=sprintf('%s%d',prefix{1},i);values.(name)=NaN;origins.(name)='empty';states.(name)='conflict';names(end+1)=string(name);end,end;result=struct('values',values,'origins',origins,'states',states,'messages',string(message),'status','conflict','missingCount',0,'missing',strings(0,1),'conflicts',names);end
 function writeProducerSpecs(block,specs),if isempty(fieldnames(specs)),set_param(block,'Specifications','{}');else,nirp.dof.writeSpecs(block,specs);end,end
+function state=previewState(block,n,specs)
+    stored=str2num(get_param(block,'Fractions')); %#ok<ST2NM>
+    if numel(stored)==n,state=nirp.dof.producerState(block,'InternalSpecifications',specs);return,end
+    [inlet,source]=nirp.dof.knownInlet(block);output=nirp.dof.connectedSpecifications(block);model=nirp.dof.catalog.splitter(n);
+    if isempty(inlet),flow=NaN;else,flow=sum(inlet.F);end
+    result=nirp.dof.resolveProducer(model,'Splitter',get_param(block,'Name'),specs,output,struct('F_in',flow),struct('F_in','external'));
+    state=struct('Result',result,'Output',output,'Inlet',inlet,'InletSource',source);
+end

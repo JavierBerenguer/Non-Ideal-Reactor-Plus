@@ -82,6 +82,7 @@ classdef ReactiveSystemDialog < handle
                     'Mode must be "new" or "edit".') ;
             end
             obj.buildUi(char(string(parser.Results.Visible))) ;
+            nirp.flowsheet.internal.formatNumericControls(obj.Figure) ;
             if obj.Mode == "edit" && strlength(obj.Model) > 0
                 obj.setPackage(nirp.pkg.readDictionary(obj.dictionaryPath())) ;
             else

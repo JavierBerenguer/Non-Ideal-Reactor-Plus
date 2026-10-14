@@ -95,6 +95,7 @@ classdef StreamDialog < handle
             weights={obj.Package.components.Mw};
             obj.HasMw=all(cellfun(@(x)isnumeric(x)&&isscalar(x)&&isfinite(x)&&x>0,weights)) ;
             obj.build(char(string(parser.Results.Visible))) ;
+            nirp.flowsheet.internal.formatNumericControls(obj.Figure) ;
             obj.loadData() ;
             if obj.Role~="Feed"&&isempty(fieldnames(nirp.dof.readSpecs(obj.BlockPath)))
                 [~,~,label] = nirp.flowsheet.blockStatus(obj.BlockPath) ;
@@ -522,7 +523,7 @@ classdef StreamDialog < handle
 
         function styleConnectedSpecifications(obj,result,specs,forcedState)
             if nargin<4,forcedState='specified';end
-            styleDofField(obj.SpecificationTotalFlowField,'empty');styleDofField(obj.SpecificationTemperatureField,'empty');styleDofField(obj.SpecificationPressureField,'empty');removeStyle(obj.SpecificationTable);
+            styleDofField(obj.SpecificationTotalFlowField,'optional');styleDofField(obj.SpecificationTemperatureField,'optional');styleDofField(obj.SpecificationPressureField,'optional');removeStyle(obj.SpecificationTable);
             fields=fieldnames(specs);for i=1:numel(fields),name=fields{i};state=forcedState;
                 if ~isempty(result)
                     try,target=nirp.dof.streamSpecificationTarget(obj.BlockPath,struct(name,specs.(name)));producerNames=fieldnames(target.Values);state=result.states.(producerNames{1});catch,end
@@ -895,11 +896,11 @@ classdef StreamDialog < handle
         function setComponentColumn(obj,column,value)
             value=value(:);if numel(value)~=numel(obj.ComponentNames)
                 error('nirp:flowsheet:invalidComposition','Expected %d component values.',numel(obj.ComponentNames));end
-            data=obj.ComponentTable.Data;for i=1:numel(value),data{i,column}=value(i);end;obj.ComponentTable.Data=data;
+            data=obj.ComponentTable.Data;for i=1:numel(value),data{i,column}=nirp.flowsheet.internal.formatTableNumber(value(i));end;obj.ComponentTable.Data=data;
         end
         function value=componentColumn(obj,column)
             data=obj.ComponentTable.Data;value=nan(size(data,1),1);
-            for i=1:size(data,1),if isnumeric(data{i,column})&&isscalar(data{i,column}),value(i)=data{i,column};end,end
+            for i=1:size(data,1),item=data{i,column};if ischar(item)||isstring(item),item=str2double(item);end;if isnumeric(item)&&isscalar(item),value(i)=item;end,end
         end
     end
 end

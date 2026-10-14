@@ -21,7 +21,7 @@ classdef HeaterDialog < handle
             p=inputParser;addParameter(p,'Visible','on');parse(p,varargin{:});obj.BlockPath=getfullname(blockPath);
             if string(get_param(obj.BlockPath,'System'))~="nirp.blocks.Heater",error('nirp:flowsheet:invalidBlock','HeaterDialog requires a Heater block.');end
             try,mask=Simulink.Mask.get(obj.BlockPath);parameter=mask.getParameter('Specifications');if ~isempty(parameter),parameter.Visible='off';end,catch,end
-            obj.build(char(string(p.Results.Visible)));obj.load();obj.refreshConnections();
+            obj.build(char(string(p.Results.Visible)));nirp.flowsheet.internal.formatNumericControls(obj.Figure);obj.load();obj.refreshConnections();
         end
         function delete(obj),if ~isempty(obj.Figure)&&isvalid(obj.Figure),delete(obj.Figure);end,end
         function setMode(obj,mode)
@@ -101,10 +101,10 @@ classdef HeaterDialog < handle
         function result=closeDof(obj)
             names={'T_out','dT','Q','dP','P_out'};specs=struct();for i=1:numel(names),if obj.Origins.(names{i})=="specified",specs.(names{i})=struct('si',obj.toSI(names{i}),'unit',char(obj.unitField(names{i}).Value));end,end
             try,state=nirp.dof.producerState(obj.BlockPath,'InternalSpecifications',specs);result=state.Result;source=state.InletSource;catch exception,result=failure(names,exception.message);source="";state=struct('Output',struct('sources',struct()));end
-            for i=1:numel(names),name=names{i};if isfield(result.values,name),obj.setCalculated(name,result.values.(name),result.origins.(name));tip=strjoin(result.messages,' ');if isfield(state.Output.sources,name),tip=string(state.Output.sources.(name))+". "+tip;end;styleField(obj.field(name),result.states.(name),tip);end,end
+            waiting=~isfield(state,'Inlet')||isempty(state.Inlet);for i=1:numel(names),name=names{i};if isfield(result.values,name),obj.setCalculated(name,result.values.(name),result.origins.(name));tip=strjoin(result.messages,' ');if isfield(state.Output.sources,name),tip=string(state.Output.sources.(name))+". "+tip;end;fieldState=result.states.(name);if waiting&&strcmp(result.status,'complete')&&strcmp(fieldState,'empty'),fieldState='external';tip='needs a run or a defined feed';end;styleField(obj.field(name),fieldState,tip);end,end
             obj.DataModel=struct();for i=1:numel(names),name=names{i};obj.DataModel.(name)=struct('value',obj.field(name).Value,'unit',string(obj.unitField(name).Value),'origin',string(result.origins.(name)));end;obj.DataModel.Tout=obj.DataModel.T_out;obj.DataModel.Duty=obj.DataModel.Q;obj.DataModel.PressureDrop=obj.DataModel.dP;obj.DataModel.Result=result;
             if strcmp(result.status,'complete'),message="Fully specified";if strlength(source)>0,message=message+" - "+source;end;elseif strcmp(result.status,'conflict'),message="Conflict: "+strjoin(result.messages,' ');else,message=result.messages(end);end
-            nirp.flowsheet.internal.paintDofStatus(obj.StatusLabel,result.status,message);
+            [~,~,runLabel]=nirp.flowsheet.blockStatus(obj.BlockPath);message=message+" - "+runLabel;if waiting,message=message+"; inlet-dependent values need a run or a defined feed";end;nirp.flowsheet.internal.paintDofStatus(obj.StatusLabel,result.status,message);
         end
         function specs=specifications(obj,result)
             specs=struct();names={'T_out','dT','Q','dP','P_out'};for i=1:numel(names),name=names{i};if obj.Origins.(name)=="specified",specs.(name)=struct('si',result.values.(name),'unit',char(obj.unitField(name).Value));end,end

@@ -63,7 +63,8 @@ classdef NirpJacketTest < matlab.unittest.TestCase
             ports=get_param('legacy_dialog/CSTR','PortHandles');testCase.verifyNumElements(ports.Inport,2);
             dialog=nirp.flowsheet.ReactorDialog('legacy_dialog/CSTR','Visible','off');testCase.addTeardown(@() deleteValid(dialog));
             testCase.verifyEqual(dialog.HeatModeGroup.SelectedObject.Text,'Heat exchange');
-            testCase.verifyEqual(dialog.StatusLabel.Text,'Not calculated yet');
+            testCase.verifySubstring(dialog.StatusLabel.Text,'Fully specified');
+            testCase.verifySubstring(dialog.StatusLabel.Text,'Not calculated yet');
             dialog.setHeatMode('Adiabatic');
             testCase.verifyTrue(dialog.apply());
             testCase.verifyEqual(get_param('legacy_dialog/CSTR','HeatMode'),'Adiabatic');

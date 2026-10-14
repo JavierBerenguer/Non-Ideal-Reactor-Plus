@@ -18,7 +18,7 @@ classdef RecycleDialog < handle
             if string(get_param(obj.BlockPath,'System'))~="nirp.blocks.Recycle"
                 error('nirp:flowsheet:invalidBlock','RecycleDialog requires a Recycle block.');
             end
-            obj.build(char(string(p.Results.Visible)));obj.load();obj.validateLive();
+            obj.build(char(string(p.Results.Visible)));nirp.flowsheet.internal.formatNumericControls(obj.Figure);obj.load();obj.validateLive();
         end
         function delete(obj),if ~isempty(obj.Figure)&&isvalid(obj.Figure),delete(obj.Figure);end,end
         function setValues(obj,varargin)
