@@ -284,6 +284,11 @@ classdef NonIdealReactorApp < handle
             app.TabGroup = uitabgroup(app.UIFigure, ...
                 'Position', [0 22 1200 728]) ;
 
+            % Resize callback from the start: it only moves the tab group and the status bar, which
+            % exist now. Connected after building the tabs, a resize during start-up (e.g. the
+            % window being maximised) was missed and the layout froze (Claude, 2026-10-15).
+            app.UIFigure.SizeChangedFcn = @(~,~) app.onFigureResize() ;
+
             % Build tabs
             app.createRTDTab() ;
             app.ConvolutionHelper = ConvolutionTabHelper(app.TabGroup, ...
@@ -296,11 +301,15 @@ classdef NonIdealReactorApp < handle
             app.RTD_updateFQuery() ;
             app.Pred_inputMethodChanged() ;
 
-            % Assign resize callback AFTER all UI components exist
-            app.UIFigure.SizeChangedFcn = @(~,~) app.onFigureResize() ;
+            % Panels whose content has fixed heights scroll when the window is smaller than them
+            app.makePanelGridsScrollable() ;
 
-            % Show figure
+            % Show figure, size it to the window it really has and force one full relayout so
+            % every axes is placed even if the window changed size while it was being built
             app.UIFigure.Visible = 'on' ;
+            drawnow ;
+            app.onFigureResize() ;
+            app.refreshLayout() ;
         end
 
         function saveSessionToFile(app, fullPath, sessionName)
@@ -343,6 +352,35 @@ classdef NonIdealReactorApp < handle
 
             % Status bar stretches full width at bottom
             app.StatusBar.Position = [0 0 w 22] ;
+        end
+
+        function makePanelGridsScrollable(app)
+            % A grid that fills a panel or a tab and has fixed or fit rows gets a scroll bar
+            % instead of clipping its content when the window is smaller (Claude, 2026-10-15).
+            grids = findall(app.UIFigure, 'Type', 'uigridlayout') ;
+            for i = 1:numel(grids)
+                g = grids(i) ;
+                rows = g.RowHeight ;
+                hasFixedRows = any(cellfun(@(r) isnumeric(r) || strcmp(r, 'fit'), rows)) ;
+                fillsContainer = isa(g.Parent, 'matlab.ui.container.Panel') || ...
+                    isa(g.Parent, 'matlab.ui.container.Tab') ;
+                if fillsContainer && numel(rows) >= 3 && hasFixedRows
+                    g.Scrollable = 'on' ;
+                end
+            end
+        end
+
+        function refreshLayout(app)
+            % Nudge every grid so the web view recomputes positions after the first display
+            grids = findall(app.UIFigure, 'Type', 'uigridlayout') ;
+            for i = 1:numel(grids)
+                grids(i).Padding = grids(i).Padding + [0 0 0 1] ;
+            end
+            drawnow ;
+            for i = 1:numel(grids)
+                grids(i).Padding = grids(i).Padding - [0 0 0 1] ;
+            end
+            drawnow ;
         end
 
         function restartApp(app)
