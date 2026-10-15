@@ -60,7 +60,7 @@ classdef JacketDialog < handle
                     'LatentHeat',obj.LatentHeatField.Value);
                 nirp.dof.writeSpecs(obj.BlockPath,obj.makeSpecs(result));
                 if ~strcmp(name,get_param(obj.BlockPath,'Name')),set_param(obj.BlockPath,'Name',name);obj.BlockPath=[bdroot(obj.BlockPath) '/' name];end
-                obj.StatusLabel.Text='Applied.';obj.captureModel();obj.refreshConnections();applied=true;
+                obj.StatusLabel.Text='Applied.';obj.captureModel();obj.refreshConnections();nirp.flowsheet.afterApply(bdroot(obj.BlockPath),obj.StatusLabel);applied=true;
             catch exception,obj.StatusLabel.Text=exception.message;end
         end
         function accept(obj),if obj.apply(),delete(obj);else,nirp.flowsheet.internal.showDialogError(obj.Figure,obj.StatusLabel.Text,'Jacket');end,end

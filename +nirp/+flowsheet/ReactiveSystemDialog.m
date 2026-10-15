@@ -813,7 +813,7 @@ classdef ReactiveSystemDialog < handle
                     obj.showError(char(message));
                     return
                 end
-                if obj.Mode=="edit",obj.saveToModel();end
+                if obj.Mode=="edit",obj.saveToModel();nirp.flowsheet.afterApply(obj.Model,obj.StatusLabel);end
                 applied=true;
             catch exception
                 obj.showError(exception.message);

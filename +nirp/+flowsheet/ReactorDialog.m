@@ -68,7 +68,7 @@ classdef ReactorDialog < handle
             args=reshape([names;values],1,[]);set_param(obj.BlockPath,args{:});nirp.dof.writeSpecs(obj.BlockPath,obj.makeSpecs(result));
             newName=strtrim(obj.NameField.Value);if isempty(newName),error('nirp:flowsheet:invalidName','Name cannot be empty.');end
             if ~strcmp(newName,get_param(obj.BlockPath,'Name')),set_param(obj.BlockPath,'Name',newName);obj.BlockPath=getfullname([bdroot(obj.BlockPath) '/' newName]);end
-            obj.captureModel();obj.refreshConnections();obj.closeDof();applied=true;catch exception,obj.StatusLabel.Text=exception.message;end
+            obj.captureModel();obj.refreshConnections();nirp.flowsheet.afterApply(bdroot(obj.BlockPath),obj.StatusLabel);obj.closeDof();applied=true;catch exception,obj.StatusLabel.Text=exception.message;end
         end
         function accept(obj),if obj.apply(),delete(obj);else,nirp.flowsheet.internal.showDialogError(obj.Figure,obj.StatusLabel.Text,char(obj.ReactorType));end,end
         function cancel(obj),delete(obj);end

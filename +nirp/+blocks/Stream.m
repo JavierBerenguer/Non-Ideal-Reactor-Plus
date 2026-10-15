@@ -2,7 +2,7 @@ classdef Stream < matlab.System
     % Stream represents a named stream whose role may follow connectivity.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 2, 2026. Last update: October 9, 2026
+    % Created: October 2, 2026. Last update: October 15, 2026
     % =========================================================================
 
     properties (Nontunable)
@@ -47,6 +47,7 @@ classdef Stream < matlab.System
     properties (Access = private)
         Package
         ReactionSystem
+        Model
         BlockName
         FeedStream
         Reference
@@ -61,7 +62,7 @@ classdef Stream < matlab.System
             if strcmp(obj.Role,'Select...')
                 nirp.blocks.internal.requireSpecifications('Stream',get_param(gcb,'Name'),'Role');
             end
-            [~,obj.Package,obj.ReactionSystem] = nirp.blocks.internal.modelPackage() ;
+            [obj.Model,obj.Package,obj.ReactionSystem] = nirp.blocks.internal.modelPackage() ;
             obj.BlockName = get_param(gcb,'Name') ;
             obj.RunRole = obj.runtimeRole() ;
             if strcmp(obj.Role,'Auto')
@@ -117,54 +118,15 @@ classdef Stream < matlab.System
         function varargout = stepImpl(obj,varargin)
             role = obj.RunRole ;
             if role == "Feed"
-                stream = obj.FeedStream ;
-                if strcmp(obj.TSource,'Input port')
-                    temperature = varargin{1} ;
-                elseif isnan(obj.T)
-                    temperature = stream.T ;
-                else
-                    temperature = UnitConverterHelper.convertToSI( ...
-                        'Temperature',obj.T,char(obj.TUnit)) ;
-                end
-                if ~isnumeric(temperature) || ~isscalar(temperature) || ...
-                        ~isfinite(temperature) || temperature <= 0
-                    error('nirp:blocks:invalidParameterPort', ...
-                        'Feed-stream T must be positive K.') ;
-                end
-                stream.T = temperature ;
-                stream = nirp.stream.refresh(stream) ;
-                if strcmp(obj.QSource,'Input port')
-                    index = 1+strcmp(obj.TSource,'Input port') ;
-                    flow = varargin{index} ;
-                    if ~isnumeric(flow) || ~isscalar(flow) || ...
-                            ~isfinite(flow) || flow <= 0
-                        error('nirp:blocks:invalidParameterPort', ...
-                            'Feed-stream Q input must be positive m^3/s.') ;
-                    end
-                    if stream.phase == 0
-                        concentration = nirp.stream.concentration(obj.FeedStream) ;
-                        stream.Q = flow ;
-                        stream.F = concentration*flow ;
-                    else
-                        stream.F = stream.F*(flow/obj.FeedStream.Q) ;
-                    end
-                    stream = nirp.stream.refresh(stream) ;
-                end
-                if ~isempty(fieldnames(obj.Specs))
-                    externalT=NaN;externalQ=NaN ;
-                    if strcmp(obj.TSource,'Input port'),externalT=temperature;end
-                    if strcmp(obj.QSource,'Input port'),externalQ=flow;end
-                    result=solveFeed(obj.FeedModel,obj.Specs,obj.TSource,obj.QSource,externalT,externalQ) ;
-                    if ~strcmp(result.status,'complete'),throwFeedResult(obj.BlockName,result);end
-                    flows=zeros(obj.ReactionSystem.nComponents,1) ;
-                    for i=1:numel(flows),flows(i)=result.values.(['F' num2str(i)]);end
-                    stream=nirp.stream.create(flows,result.values.T,result.values.P, ...
-                        obj.FeedStream.phase,result.values.Q) ;
-                end
+                materialInputs = {} ; signals = varargin ;
             else
-                stream = varargin{1} ;
-                nirp.stream.validate(stream,obj.ReactionSystem.nComponents) ;
+                materialInputs = varargin(1) ; signals = {} ;
+                nirp.stream.validate(materialInputs{1},obj.ReactionSystem.nComponents) ;
             end
+            outputs = nirp.blocks.internal.evaluate([obj.Model '/' obj.BlockName], ...
+                materialInputs,'Signals',signals,'Package',obj.Package, ...
+                'ReactionSystem',obj.ReactionSystem) ;
+            stream = outputs{1} ;
             obj.publish(stream) ;
             if role ~= "Product" || strcmp(obj.Role,'Auto')
                 varargout{1} = stream ;

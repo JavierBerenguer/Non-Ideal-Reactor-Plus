@@ -171,30 +171,13 @@ classdef PFR < matlab.System
         end
         function varargout=stepImpl(obj,in,varargin)
             nirp.stream.validate(in,obj.RS.nComponents);
-            params=obj.Params;
-            if strcmp(obj.VSource,'Input port')
-                value=varargin{1};
-                if ~isnumeric(value)||~isscalar(value)||~isfinite(value)||value<=0,error('nirp:blocks:invalidParameterPort','PFR V input must be positive m^3.');end
-                params.V=value;
-            end
-            if ~isempty(fieldnames(obj.Specs))
-                externalV=NaN;if strcmp(obj.VSource,'Input port'),externalV=params.V;end
-                result=solveDof(obj,in.Q,externalV);requireDof(obj.Block,result);validateTubeCount(result.values.N_tubes);
-                params.V=result.values.V;params.L=result.values.L;params.D=result.values.D;params.nTubes=round(result.values.N_tubes);
-                if obj.Catalytic,params.catalystDensity=result.values.rho_cat;params.catalystPorosity=result.values.epsilon;end
-                if isfield(result.values,'density'),params.density=result.values.density;end
-                if isfield(result.values,'viscosity'),params.viscosity=result.values.viscosity;end
-                if isfield(result.values,'particleDiameter'),params.particleDiameter=result.values.particleDiameter;end
-            end
-            index=1+strcmp(obj.VSource,'Input port');
-            if obj.hasJacket()
-                params=nirp.blocks.internal.applyJacket(params,varargin{index},'PFR');
-            end
-            if ~isfield(params,'V'),params.V=pi/4*params.D^2*params.nTubes*params.L;end
             cacheInput={in,varargin{:}};
             if obj.HasCache && isequaln(cacheInput,obj.LastInput), out=obj.LastOutput; info=obj.LastInfo;
             else
-                [out,info]=nirp.units.pfr(params,in,obj.RS); info.V=params.V; obj.LastInput=cacheInput; obj.LastOutput=out; obj.LastInfo=info;
+                evaluated=[obj.Model '/' obj.Block];
+                [unitOutputs,info,details]=nirp.blocks.internal.evaluate(evaluated,{in}, ...
+                    'Signals',varargin,'ReactionSystem',obj.RS);
+                out=unitOutputs{1};info.V=details.Parameters.V;obj.LastInput=cacheInput;obj.LastOutput=out;obj.LastInfo=info;
                 obj.HasCache=true; obj.CalculationCount=obj.CalculationCount+1;
                 nirp.blocks.internal.diagnostic(obj.Model,obj.Block,obj.CalculationCount,out,info);
             end

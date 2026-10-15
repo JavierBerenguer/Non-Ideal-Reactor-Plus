@@ -25,7 +25,9 @@ classdef Mixer < matlab.System
             for i=1:numel(varargin), nirp.stream.validate(varargin{i},obj.RS.nComponents); end
             if obj.HasCache && isequaln(varargin,obj.LastInputs), out=obj.LastOutput;
             else
-                out=nirp.units.mixer([],varargin,obj.RS); obj.LastInputs=varargin; obj.LastOutput=out;
+                evaluated=[obj.Model '/' obj.Block];
+                unitOutputs=nirp.blocks.internal.evaluate(evaluated,varargin,'ReactionSystem',obj.RS);
+                out=unitOutputs{1};obj.LastInputs=varargin;obj.LastOutput=out;
                 obj.HasCache=true; obj.CalculationCount=obj.CalculationCount+1;
                 nirp.blocks.internal.diagnostic(obj.Model,obj.Block,obj.CalculationCount,out);
             end

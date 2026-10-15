@@ -46,7 +46,7 @@ classdef RecycleDialog < handle
                     'InitialP',n(obj.InitialPField.Value),'InitialPUnit',obj.InitialPUnitDropDown.Value};
                 if ~isempty(obj.FeedDropDown.Items),args=[args {'InitialFeedName',obj.FeedDropDown.Value}];end
                 set_param(obj.BlockPath,args{:});
-                obj.StatusLabel.Text='Applied.';obj.captureModel();applied=true;
+                obj.StatusLabel.Text='Applied.';obj.captureModel();nirp.flowsheet.afterApply(bdroot(obj.BlockPath),obj.StatusLabel);applied=true;
             catch exception,obj.StatusLabel.Text=exception.message;end
         end
         function accept(obj),if obj.apply(),delete(obj);else,nirp.flowsheet.internal.showDialogError(obj.Figure,obj.StatusLabel.Text,'Recycle');end,end

@@ -38,7 +38,7 @@ classdef SeparatorDialog < handle
             for i=1:numel(names),key=names{i};if string(obj.LastResult.origins.(key))=="specified",specs.(key)=struct('si',obj.LastResult.values.(key),'unit',unitFor(key));end,end
             try
                 set_param(obj.BlockPath,'Recovery',mat2str(r,17));writeProducerSpecs(obj.BlockPath,specs);
-                obj.StatusLabel.Text='Fully specified';obj.refreshConnections();applied=true;
+                obj.StatusLabel.Text='Fully specified';obj.refreshConnections();nirp.flowsheet.afterApply(bdroot(obj.BlockPath),obj.StatusLabel);applied=true;
             catch exception,obj.StatusLabel.Text=exception.message;obj.alertConflict();applied=false;end
         end
         function accept(obj),if obj.apply(),delete(obj);end,end

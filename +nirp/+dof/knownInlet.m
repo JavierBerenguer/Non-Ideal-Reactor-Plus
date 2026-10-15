@@ -1,11 +1,11 @@
 function [stream,source] = knownInlet(blockPath)
-%KNOWNINLET Return a dialog-time inlet from a direct feed or the last run.
+%KNOWNINLET Return a dialog-time inlet from feed, preview, or the last run.
 %   STREAM is an SI nirp.stream structure. SOURCE is empty when no inlet is
 %   available, so inlet-dependent results remain external rather than user
 %   specifications.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 14, 2026. Last update: October 14, 2026
+% Created: October 14, 2026. Last update: October 15, 2026
 % =========================================================================
 
     blockPath=getfullname(blockPath);model=bdroot(blockPath);stream=[];source="";
@@ -19,6 +19,14 @@ function [stream,source] = knownInlet(blockPath)
             pkg=nirp.pkg.readDictionary(nirp.flowsheet.modelDictionary(model));
             stream=nirp.pkg.feedStream(pkg,name);source="inlet from feed "+name;return
         catch
+        end
+    end
+    preview=nirp.flowsheet.preview('get',model);
+    if isstruct(preview)&&isfield(preview,'Streams')&&isfield(preview.Streams,streamKey)
+        item=preview.Streams.(streamKey);
+        if isfield(item,'status')&&strcmp(item.status,'calculated')&& ...
+                isfield(item,'streamSI')&&~isempty(item.streamSI)
+            stream=item.streamSI;source="inlet calculated before run";return
         end
     end
     if evalin('base','exist(''nirpResults'',''var'')')

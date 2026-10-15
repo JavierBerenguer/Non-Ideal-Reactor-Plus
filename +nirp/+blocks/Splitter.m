@@ -64,7 +64,13 @@ classdef Splitter < matlab.System
                         fractions=fractionVector(result,numel(obj.Fractions));obj.ClosedFractions=fractions;
                     end
                 end
-                out=nirp.units.splitter(struct('fractions',fractions),in,obj.RS);
+                evaluated=[obj.Model '/' obj.Block];
+                if obj.HasRecycle
+                    out=nirp.blocks.internal.evaluate(evaluated,{in},'ReactionSystem',obj.RS, ...
+                        'PreparedParameters',struct('fractions',fractions));
+                else
+                    out=nirp.blocks.internal.evaluate(evaluated,{in},'ReactionSystem',obj.RS);
+                end
                 obj.LastInput=in;obj.LastOutputs=out;obj.HasCache=true;obj.CalculationCount=obj.CalculationCount+1;
                 nirp.blocks.internal.diagnostic(obj.Model,obj.Block,obj.CalculationCount,out);
             end

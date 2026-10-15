@@ -72,7 +72,7 @@ classdef AdjustDialog < handle
                     obj.BlockPath=[model '/' name];
                 end
                 obj.StatusLabel.Text='Applied.';obj.captureModel();
-                obj.refreshTargets();obj.validateLive();applied=true;
+                obj.refreshTargets();obj.validateLive();nirp.flowsheet.afterApply(bdroot(obj.BlockPath),obj.StatusLabel);applied=true;
             catch exception
                 obj.StatusLabel.Text=exception.message;
             end

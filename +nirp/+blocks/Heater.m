@@ -75,13 +75,10 @@ classdef Heater < matlab.System
             if obj.HasCache && isequaln(in,obj.LastInput)
                 out = obj.LastOutput ; info = obj.LastInfo ;
             else
-                params=obj.Params;
-                if ~isempty(fieldnames(obj.Specs))||~isempty(fieldnames(obj.OutputSpecs.values))
-                    result=solveDof(obj,in,[],obj.RS);requireDof(obj.Block,result);
-                    params.dP=result.values.dP;
-                    if isfield(obj.Specs,'Q')&&~isfield(obj.OutputSpecs.values,'T_out'),params.mode='Duty';params.Q=result.values.Q;else,params.mode='Outlet T';params.Tout=result.values.T_out;end
-                end
-                [out,info] = nirp.units.heater(params,in,obj.RS) ;
+                evaluated = [obj.Model '/' obj.Block] ;
+                [unitOutputs,info] = nirp.blocks.internal.evaluate(evaluated,{in}, ...
+                    'ReactionSystem',obj.RS) ;
+                out = unitOutputs{1} ;
                 obj.LastInput = in ; obj.LastOutput = out ; obj.LastInfo = info ;
                 obj.HasCache = true ; obj.CalculationCount = obj.CalculationCount+1 ;
                 nirp.blocks.internal.diagnostic(obj.Model,obj.Block,obj.CalculationCount,out,info) ;

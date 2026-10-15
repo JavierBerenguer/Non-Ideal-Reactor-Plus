@@ -50,7 +50,13 @@ classdef Separator < matlab.System
                         recovery=zeros(1,obj.RS.nComponents);for i=1:numel(recovery),recovery(i)=result.values.(['r' num2str(i)]);end;obj.ClosedRecovery=recovery;
                     end
                 end
-                [out,info]=nirp.units.separator(struct('recovery',recovery),in,obj.RS);
+                evaluated=[obj.Model '/' obj.Block];
+                if obj.HasRecycle
+                    [out,info]=nirp.blocks.internal.evaluate(evaluated,{in},'ReactionSystem',obj.RS, ...
+                        'PreparedParameters',struct('recovery',recovery));
+                else
+                    [out,info]=nirp.blocks.internal.evaluate(evaluated,{in},'ReactionSystem',obj.RS);
+                end
                 obj.LastInput=in;obj.LastOutputs=out;obj.HasCache=true;obj.CalculationCount=obj.CalculationCount+1;
                 nirp.blocks.internal.diagnostic(obj.Model,obj.Block,obj.CalculationCount,out,info);
             end

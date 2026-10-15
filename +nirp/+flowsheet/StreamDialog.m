@@ -98,7 +98,9 @@ classdef StreamDialog < handle
             obj.build(char(string(parser.Results.Visible))) ;
             nirp.flowsheet.internal.formatNumericControls(obj.Figure) ;
             obj.loadData() ;
-            if obj.Role~="Feed"&&isempty(fieldnames(nirp.dof.readSpecs(obj.BlockPath)))
+            if obj.Role~="Feed"&&isempty(fieldnames(nirp.dof.readSpecs(obj.BlockPath)))&& ...
+                    ~startsWith(obj.StatusLabel.Text,'Calculated before run')&& ...
+                    ~startsWith(obj.StatusLabel.Text,'Waiting for:')
                 [~,~,label] = nirp.flowsheet.blockStatus(obj.BlockPath) ;
                 obj.StatusLabel.Text = char(label) ;
             end
@@ -259,10 +261,10 @@ classdef StreamDialog < handle
                         set_param(obj.BlockPath,'ReferenceFeed',obj.ReferenceFeedDropDown.Value, ...
                             'KeyComponent',obj.KeyComponentDropDown.Value);
                     end
-                    obj.Committed=true;applied=true;return
+                    nirp.flowsheet.afterApply(bdroot(obj.BlockPath),obj.StatusLabel);obj.loadCalculatedResult();obj.Committed=true;applied=true;return
                 end
                 if ~obj.closeFeed(true), return, end
-                obj.saveFeed() ; obj.Committed=true;applied=true ;
+                obj.saveFeed() ; nirp.flowsheet.afterApply(bdroot(obj.BlockPath),obj.StatusLabel);obj.Committed=true;applied=true ;
             catch exception
                 obj.StatusLabel.Text=exception.message ;
             end
@@ -609,7 +611,15 @@ classdef StreamDialog < handle
                 obj.TSourceDropDown.Value=get_param(obj.BlockPath,'TSource') ;
                 obj.QSourceDropDown.Value=get_param(obj.BlockPath,'QSource') ;
             end
-            if obj.Role == "Feed", obj.loadFeed() ; obj.closeFeed() ; else, obj.loadCalculatedResult();obj.loadConnectedSpecifications();end
+            if obj.Role == "Feed"
+                obj.loadFeed() ; obj.closeFeed() ;
+            else
+                obj.loadCalculatedResult();previewStatus=obj.StatusLabel.Text;obj.loadConnectedSpecifications();
+                if isempty(fieldnames(nirp.dof.readSpecs(obj.BlockPath)))&& ...
+                        (startsWith(previewStatus,'Calculated before run')||startsWith(previewStatus,'Waiting for:'))
+                    obj.StatusLabel.Text=previewStatus;
+                end
+            end
             obj.captureModel() ;
         end
 
@@ -652,10 +662,19 @@ classdef StreamDialog < handle
 
         function loadCalculatedResult(obj)
             obj.StatusLabel.Text='Not calculated yet' ;
-            if ~evalin('base','exist(''nirpResults'',''var'')'), return, end
-            results=evalin('base','nirpResults') ; field=matlab.lang.makeValidName(get_param(obj.BlockPath,'Name')) ;
-            if ~isstruct(results)||~isfield(results,'Streams')||~isfield(results.Streams,field),return,end
-            item=results.Streams.(field); stream=item.streamSI ;
+            field=matlab.lang.makeValidName(get_param(obj.BlockPath,'Name')) ;
+            preview=nirp.flowsheet.preview('get',bdroot(obj.BlockPath));fromPreview=false;
+            if isstruct(preview)&&isfield(preview,'Streams')&&isfield(preview.Streams,field)
+                item=preview.Streams.(field);
+                if strcmp(item.status,'waiting'),obj.StatusLabel.Text=['Waiting for: ' stripWaiting(item.reason)];return,end
+                stream=item.streamSI;fromPreview=true;
+            elseif evalin('base','exist(''nirpResults'',''var'')')
+                results=evalin('base','nirpResults');
+                if ~isstruct(results)||~isfield(results,'Streams')||~isfield(results.Streams,field),return,end
+                item=results.Streams.(field);stream=item.streamSI;
+            else
+                return
+            end
             obj.setComponentColumn(2,UnitConverterHelper.convertFromSI( ...
                 'MolarFlow',stream.F,obj.MolarFlowUnitDropDown.Value)) ;
             if stream.Q>0, c=nirp.stream.concentration(stream);else,c=nan(size(stream.F));end
@@ -677,7 +696,7 @@ classdef StreamDialog < handle
             obj.VolumetricFlowField.Value=UnitConverterHelper.convertFromSI( ...
                 'VolumetricFlow',stream.Q,obj.VolumetricFlowUnitDropDown.Value) ;
             phases={'L','G'};obj.PhaseDropDown.Value=phases{stream.phase+1} ;
-            if stream.status<0,obj.StatusLabel.Text='Not converged';else,obj.StatusLabel.Text='Calculated';end
+            if stream.status<0,obj.StatusLabel.Text='Not converged';elseif fromPreview,obj.StatusLabel.Text='Calculated before run';else,obj.StatusLabel.Text='Calculated';end
             obj.updateConversion() ;
         end
 
@@ -934,6 +953,7 @@ function setFromSI(field,units,category,value),if isnumeric(value)&&isscalar(val
 function setUnitIfValid(dropdown,unit),if isempty(unit),return,end;if any(string(dropdown.Items)==string(unit)),dropdown.Value=unit;end,end
 function value=emptyValue(value),if isempty(value)||(isnumeric(value)&&isscalar(value)&&isnan(value)),value=[];end,end
 function flag=isFiniteScalar(value),flag=isnumeric(value)&&isscalar(value)&&isfinite(value);end
+function value=stripWaiting(value),value=char(string(value));value=regexprep(value,'^Waiting for:\s*','');end
 function values=setAt(values,index,value),if index>=1&&index<=numel(values),values(index)=string(value);end,end
 function addCellStateStyles(tableHandle,column,states)
     definitions={"specified",[0.15 0.25 0.55],'normal';"calculated",[0.92 0.92 0.92],'italic';"empty",[1 0.90 0.90],'normal';"external",[0.88 0.88 0.88],'normal';"conflict",[1 0.72 0.72],'normal'};

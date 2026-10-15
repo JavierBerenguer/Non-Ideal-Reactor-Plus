@@ -59,7 +59,7 @@ classdef HeaterDialog < handle
                     'DutyUnit',obj.DutyUnitDropDown.Value,'PressureDrop',number(obj.PressureDropField.Value), ...
                     'PressureDropUnit',obj.PressureDropUnitDropDown.Value,'ShowHeatPort',onoff(obj.HeatPortCheckBox.Value));
                 if ~strcmp(name,get_param(obj.BlockPath,'Name')),set_param(obj.BlockPath,'Name',name);obj.BlockPath=getfullname([bdroot(obj.BlockPath) '/' name]);end
-                obj.refreshConnections();applied=true;
+                obj.refreshConnections();nirp.flowsheet.afterApply(bdroot(obj.BlockPath),obj.StatusLabel);applied=true;
             catch exception,obj.StatusLabel.Text=exception.message;end
         end
         function accept(obj),if obj.apply(),delete(obj);else,nirp.flowsheet.internal.showDialogError(obj.Figure,obj.StatusLabel.Text,'Heater / Cooler');end,end
