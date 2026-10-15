@@ -232,10 +232,13 @@ classdef NonIdealReactorApp < handle
         function app = NonIdealReactorApp()
 
             % Create main figure
+            % Hidden while the tabs are built: a resize during construction (e.g. Windows restoring a
+            % maximised window) would otherwise be missed and freeze the layout (Claude, 2026-10-15).
             app.UIFigure = uifigure('Name', 'Non-Ideal Reactor Analysis', ...
                 'Position', [100 100 1200 750], ...
                 'Resize', 'on', ...
-                'AutoResizeChildren', 'off') ;
+                'AutoResizeChildren', 'off', ...
+                'Visible', 'off') ;
 
             % Menu bar
             mFile = uimenu(app.UIFigure, 'Text', 'File') ;
@@ -272,17 +275,24 @@ classdef NonIdealReactorApp < handle
                 'Separator', 'on', ...
                 'MenuSelectedFcn', @(~,~) app.hardRestartDebug()) ;
 
+            % Root grid: the tab group fills the window above a 22-px status bar. MATLAB resizes
+            % both itself, so no resize callback can be missed (Claude, 2026-10-15: the layout
+            % froze when the window changed size while the tabs were still being built).
+            rootGrid = uigridlayout(app.UIFigure, [2 1], ...
+                'RowHeight', {'1x', 22}, 'ColumnWidth', {'1x'}, ...
+                'Padding', [0 0 0 0], 'RowSpacing', 0) ;
+
+            % Create tab group (above status bar)
+            app.TabGroup = uitabgroup(rootGrid) ;
+            app.TabGroup.Layout.Row = 1 ;
+
             % Status bar at bottom
-            app.StatusBar = uilabel(app.UIFigure, ...
+            app.StatusBar = uilabel(rootGrid, ...
                 'Text', '  Ready', ...
-                'Position', [0 0 1200 22], ...
                 'BackgroundColor', [0.94 0.94 0.94], ...
                 'FontSize', 11, ...
                 'FontColor', [0.3 0.3 0.3]) ;
-
-            % Create tab group (above status bar)
-            app.TabGroup = uitabgroup(app.UIFigure, ...
-                'Position', [0 22 1200 728]) ;
+            app.StatusBar.Layout.Row = 2 ;
 
             % Build tabs
             app.createRTDTab() ;
@@ -296,10 +306,7 @@ classdef NonIdealReactorApp < handle
             app.RTD_updateFQuery() ;
             app.Pred_inputMethodChanged() ;
 
-            % Assign resize callback AFTER all UI components exist
-            app.UIFigure.SizeChangedFcn = @(~,~) app.onFigureResize() ;
-
-            % Show figure
+            % Show figure (the root grid lays it out for whatever size it has)
             app.UIFigure.Visible = 'on' ;
         end
 
@@ -334,16 +341,6 @@ classdef NonIdealReactorApp < handle
 
         %% ============== RESPONSIVE RESIZE (T6) ==============
 
-        function onFigureResize(app)
-            pos = app.UIFigure.Position ;
-            w = pos(3) ; h = pos(4) ;
-
-            % Tab group fills figure above status bar
-            app.TabGroup.Position = [0 22 w h - 22] ;
-
-            % Status bar stretches full width at bottom
-            app.StatusBar.Position = [0 0 w 22] ;
-        end
 
         function restartApp(app)
             app.requestAppRestart(false) ;
