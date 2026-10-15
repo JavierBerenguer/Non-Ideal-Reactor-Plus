@@ -7,7 +7,7 @@ function formatNumericControls(parent)
     controls=findall(parent);
     for index=1:numel(controls)
         if isprop(controls(index),'ValueDisplayFormat')
-            controls(index).ValueDisplayFormat='%.4g';
+            controls(index).ValueDisplayFormat='%.6g';
         end
     end
 end

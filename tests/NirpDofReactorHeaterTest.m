@@ -89,7 +89,7 @@ classdef NirpDofReactorHeaterTest < matlab.unittest.TestCase
             testCase.verifyEqual(string(dialog.TauField.Tooltip),"needs a run or a defined feed");
             testCase.verifySubstring(string(dialog.StatusLabel.Text),"Fully specified");
             testCase.verifySubstring(string(dialog.StatusLabel.Text),"Not calculated yet");
-            testCase.verifyEqual(string(dialog.VField.ValueDisplayFormat),"%.4g");
+            testCase.verifyEqual(string(dialog.VField.ValueDisplayFormat),"%.6g");
         end
     end
 end

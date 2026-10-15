@@ -70,6 +70,7 @@ classdef StreamDialog < handle
         Committed = false
         HasMw = false
         LastResult
+        SpecifiedSI = struct()
     end
 
     methods
@@ -159,7 +160,7 @@ classdef StreamDialog < handle
                 otherwise
                     error('nirp:flowsheet:unknownMagnitude','Unknown stream magnitude "%s".',name) ;
             end
-            if ~(any(strcmp(key,{'q','volumetricflow'}))&&isnumeric(value)&&isscalar(value)&&isnan(value)),obj.markSpecified(key);end
+            if ~(any(strcmp(key,{'q','volumetricflow'}))&&isnumeric(value)&&isscalar(value)&&isnan(value)),obj.markSpecified(key);obj.rememberSetValue(key,value);end
             obj.closeFeed() ; obj.captureModel() ;
         end
 
@@ -591,6 +592,7 @@ classdef StreamDialog < handle
 
         function loadData(obj)
             n=numel(obj.ComponentNames);empty=repmat("empty",n,1);
+            obj.SpecifiedSI=struct();
             obj.Origins=struct('F',empty,'C',empty,'x',empty,'mdot',empty,'w',empty, ...
                 'F_total',"empty",'C_tot',"empty",'mdot_total',"empty", ...
                 'T',"empty",'P',"empty",'Q',"empty") ;
@@ -657,6 +659,18 @@ classdef StreamDialog < handle
             end
             if strcmp(obj.TSourceDropDown.Value,'Input port'),obj.Origins.T="external";end
             if strcmp(obj.QSourceDropDown.Value,'Input port'),obj.Origins.Q="external";end
+            for i=1:numel(obj.ComponentNames)
+                obj.SpecifiedSI.(['F' num2str(i)])=stream.F(i);
+                obj.SpecifiedSI.(['C' num2str(i)])=c(i);
+                obj.SpecifiedSI.(['x' num2str(i)])=stream.F(i)/total;
+                if obj.HasMw
+                    obj.SpecifiedSI.(['mdot' num2str(i)])=mass(i);
+                    obj.SpecifiedSI.(['w' num2str(i)])=mass(i)/massTotal;
+                end
+            end
+            obj.SpecifiedSI.F=total;obj.SpecifiedSI.C_tot=sum(c);
+            if obj.HasMw,obj.SpecifiedSI.mdot=massTotal;end
+            obj.SpecifiedSI.T=stream.T;obj.SpecifiedSI.P=stream.P;obj.SpecifiedSI.Q=stream.Q;
             obj.StatusLabel.Text='Specified' ;
         end
 
@@ -696,6 +710,17 @@ classdef StreamDialog < handle
             obj.VolumetricFlowField.Value=UnitConverterHelper.convertFromSI( ...
                 'VolumetricFlow',stream.Q,obj.VolumetricFlowUnitDropDown.Value) ;
             phases={'L','G'};obj.PhaseDropDown.Value=phases{stream.phase+1} ;
+            removeStyle(obj.ComponentTable) ;
+            calculated=repmat("calculated",numel(obj.ComponentNames),1) ;
+            for column=2:size(obj.ComponentTable.Data,2)
+                addCellStateStyles(obj.ComponentTable,column,calculated) ;
+            end
+            styleDofField(obj.TotalMolarFlowField,'calculated') ;
+            styleDofField(obj.TotalConcentrationField,'calculated') ;
+            if obj.HasMw,styleDofField(obj.TotalMassFlowField,'calculated');end
+            styleDofField(obj.VolumetricFlowField,'calculated') ;
+            styleDofField(obj.TemperatureField,'calculated') ;
+            styleDofField(obj.PressureField,'calculated') ;
             if stream.status<0,obj.StatusLabel.Text='Not converged';elseif fromPreview,obj.StatusLabel.Text='Calculated before run';else,obj.StatusLabel.Text='Calculated';end
             obj.updateConversion() ;
         end
@@ -785,10 +810,32 @@ classdef StreamDialog < handle
         function componentEdited(obj,event)
             if obj.Updating||obj.Role~="Feed",return,end
             row=event.Indices(1);column=event.Indices(2);keys={'','F','C','x','mdot','w'};key=keys{column};
-            value=event.NewData;if isempty(value)||(isnumeric(value)&&isscalar(value)&&isnan(value)),obj.Origins.(key)(row)="empty";else,obj.Origins.(key)(row)="specified";end
+            value=event.NewData;catalogName=[key num2str(row)];
+            if isempty(value)||(isnumeric(value)&&isscalar(value)&&isnan(value)),obj.Origins.(key)(row)="empty";obj.SpecifiedSI.(catalogName)=NaN;
+            else
+                obj.Origins.(key)(row)="specified";
+                if strcmp(key,'F'),value=UnitConverterHelper.convertToSI('MolarFlow',value,obj.MolarFlowUnitDropDown.Value);
+                elseif strcmp(key,'C'),value=UnitConverterHelper.convertToSI('Concentration',value,obj.ConcentrationUnitDropDown.Value);
+                elseif strcmp(key,'mdot'),value=UnitConverterHelper.convertToSI('MassFlow',value,obj.MassFlowUnitDropDown.Value);end
+                obj.SpecifiedSI.(catalogName)=value;
+            end
             obj.closeFeed();
         end
-        function scalarEdited(obj,name),if obj.Updating,return,end;field=obj.scalarField(name);if isempty(field.Value),obj.Origins.(name)="empty";else,obj.Origins.(name)="specified";end;obj.closeFeed();end
+        function scalarEdited(obj,name)
+            if obj.Updating,return,end
+            field=obj.scalarField(name);catalogName=name;category='';unit='1';
+            switch name
+                case 'F_total',catalogName='F';category='MolarFlow';unit=obj.TotalMolarFlowUnitDropDown.Value;
+                case 'C_tot',category='Concentration';unit=obj.TotalConcentrationUnitDropDown.Value;
+                case 'mdot_total',catalogName='mdot';category='MassFlow';unit=obj.TotalMassFlowUnitDropDown.Value;
+                case 'Q',category='VolumetricFlow';unit=obj.VolumetricFlowUnitDropDown.Value;
+                case 'T',category='Temperature';unit=obj.TemperatureUnitDropDown.Value;
+                case 'P',category='Pressure';unit=obj.PressureUnitDropDown.Value;
+            end
+            if isempty(field.Value),obj.Origins.(name)="empty";obj.SpecifiedSI.(catalogName)=NaN;
+            else,obj.Origins.(name)="specified";value=field.Value;if ~isempty(category),value=UnitConverterHelper.convertToSI(category,value,unit);end;obj.SpecifiedSI.(catalogName)=value;end
+            obj.closeFeed();
+        end
         function phaseEdited(obj),if obj.Updating,return,end;obj.closeFeed();end
         function markSpecified(obj,key)
             if any(strcmp(key,{'f','molarflow','molarflows'})),obj.Origins.F(:)="specified";
@@ -802,6 +849,25 @@ classdef StreamDialog < handle
             elseif strcmp(key,'t')||strcmp(key,'temperature'),obj.Origins.T="specified";
             elseif strcmp(key,'p')||strcmp(key,'pressure'),obj.Origins.P="specified";
             elseif strcmp(key,'q')||strcmp(key,'volumetricflow'),obj.Origins.Q="specified";end
+        end
+        function rememberSetValue(obj,key,value)
+            if any(strcmp(key,{'f','molarflow','molarflows'})),prefix='F';value=UnitConverterHelper.convertToSI('MolarFlow',value,obj.MolarFlowUnitDropDown.Value);
+            elseif any(strcmp(key,{'c','concentration','concentrations'})),prefix='C';value=UnitConverterHelper.convertToSI('Concentration',value,obj.ConcentrationUnitDropDown.Value);
+            elseif any(strcmp(key,{'x','molefraction','molefractions'})),prefix='x';
+            elseif any(strcmp(key,{'mdot','massflow','massflows'})),prefix='mdot';value=UnitConverterHelper.convertToSI('MassFlow',value,obj.MassFlowUnitDropDown.Value);
+            elseif any(strcmp(key,{'w','massfraction','massfractions'})),prefix='w';
+            else
+                switch key
+                    case {'totalf','totalmolarflow'},name='F';category='MolarFlow';unit=obj.TotalMolarFlowUnitDropDown.Value;
+                    case {'ctot','totalconcentration'},name='C_tot';category='Concentration';unit=obj.TotalConcentrationUnitDropDown.Value;
+                    case {'totalmass','totalmassflow'},name='mdot';category='MassFlow';unit=obj.TotalMassFlowUnitDropDown.Value;
+                    case {'t','temperature'},name='T';category='Temperature';unit=obj.TemperatureUnitDropDown.Value;
+                    case {'p','pressure'},name='P';category='Pressure';unit=obj.PressureUnitDropDown.Value;
+                    otherwise,name='Q';category='VolumetricFlow';unit=obj.VolumetricFlowUnitDropDown.Value;
+                end
+                obj.SpecifiedSI.(name)=UnitConverterHelper.convertToSI(category,value,unit);return
+            end
+            for i=1:numel(value),obj.SpecifiedSI.([prefix num2str(i)])=value(i);end
         end
         function [model,values,origins]=feedDofInput(obj)
             context=struct('nComponents',numel(obj.ComponentNames),'phase',obj.PhaseDropDown.Value,'components',obj.Package.components);
@@ -827,6 +893,7 @@ classdef StreamDialog < handle
             for i=1:numel(scalarNames),values.(scalarNames{i})=specifiedValue(values.(scalarNames{i}),obj.Origins.(originNames{i}));end
             if strcmp(obj.TSourceDropDown.Value,'Input port'),values.T=toSIField(obj.TemperatureField,obj.TemperatureUnitDropDown,'Temperature');origins.T='external';end
             if strcmp(obj.QSourceDropDown.Value,'Input port'),values.Q=toSIField(obj.VolumetricFlowField,obj.VolumetricFlowUnitDropDown,'VolumetricFlow');origins.Q='external';end
+            names=fieldnames(values);for i=1:numel(names),name=names{i};if string(origins.(name))=="specified"&&isfield(obj.SpecifiedSI,name)&&isfinite(obj.SpecifiedSI.(name)),values.(name)=obj.SpecifiedSI.(name);end,end
         end
         function writeFeedResult(obj,result)
             n=numel(obj.ComponentNames);f=nan(n,1);c=f;x=f;
@@ -882,6 +949,7 @@ classdef StreamDialog < handle
         end
         function loadSpecification(obj,key,item)
             unit=char(string(item.unit));value=item.si;
+            obj.SpecifiedSI.(key)=value;
             token=regexp(key,'^(F|C|x|mdot|w)(\d+)$','tokens','once');
             if ~isempty(token)
                 row=str2double(token{2});prefix=token{1};map=struct('F',2,'C',3,'x',4,'mdot',5,'w',6);column=map.(prefix);

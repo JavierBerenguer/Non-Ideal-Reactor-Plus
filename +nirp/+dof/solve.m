@@ -79,6 +79,15 @@ function result = solve(model,values,origins)
         conflict(isSpecified|isExternal)=true ;
         messages(end+1)="Over-specified model." ;
     end
+    unresolved=arrayfun(@(i)model.variables(i).specifiable && ~model.variables(i).optional && ...
+        string(originStruct.(names{i}))=="empty",1:n) ;
+    unknownExternal=any(isExternal & arrayfun(@(i)~isKnown(valueStruct.(names{i})),1:n)) ;
+    if remaining==0 && any(unresolved) && ~unknownExternal
+        % A local propagation model can have zero formal DOF yet still need
+        % a simultaneous solve for a particular (mathematically valid)
+        % specification set. Never report such an unresolved set as complete.
+        remaining=1 ;
+    end
     missingCount=max(0,remaining) ;
     candidates=find(arrayfun(@(i)model.variables(i).specifiable && ~model.variables(i).optional && ...
         string(originStruct.(names{i}))=="empty",1:n)) ;

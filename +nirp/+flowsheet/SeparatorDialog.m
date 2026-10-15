@@ -54,7 +54,7 @@ classdef SeparatorDialog < handle
             uilabel(g,'Text','Specify one independent value per component; calculated cells are refreshed immediately.','FontAngle','italic');
             obj.RecoveryTable=uitable(g,'ColumnName',{'Component','Recovery','Top F (mol/s)','Bottom F (mol/s)','Top x','Bottom x'}, ...
                 'ColumnEditable',[false true true true true true],'ColumnFormat',{'char','numeric','numeric','numeric','numeric','numeric'},'RowName',{},'CellEditCallback',@(~,event)obj.cellEdited(event));
-            cg=uigridlayout(connections,[2 1],'RowHeight',{30,'1x'});uilabel(cg,'Text','Connected material streams (read only)','FontWeight','bold');obj.ConnectionTable=uitable(cg,'ColumnName',{'Direction','Port','Stream'});
+            cg=uigridlayout(connections,[2 1],'RowHeight',{30,'1x'});uilabel(cg,'Text','Connected material streams (read only)','FontWeight','bold');obj.ConnectionTable=uitable(cg,'ColumnName',{'Direction','Port','Stream'},'ColumnEditable',[false false false]);
             obj.StatusLabel=uilabel(main,'Text','Ready.','FontAngle','italic');b=uigridlayout(main,[1 4],'ColumnWidth',{'1x',90,90,90});uilabel(b,'Text','');uibutton(b,'Text','OK','ButtonPushedFcn',@(~,~)obj.accept());uibutton(b,'Text','Cancel','ButtonPushedFcn',@(~,~)obj.cancel());uibutton(b,'Text','Apply','ButtonPushedFcn',@(~,~)obj.apply());
         end
         function load(obj)

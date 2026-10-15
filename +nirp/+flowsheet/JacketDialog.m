@@ -92,7 +92,7 @@ classdef JacketDialog < handle
             obj.ServiceFlowField=textfield(grid,9,'Service flow (kg/s)');obj.ServiceFlowField.Editable='off';
             obj.ASourceDropDown=drop(grid,1,'Area source',{'Dialog','Input port'});obj.UtilityTinSourceDropDown=drop(grid,2,'Utility inlet T source',{'Dialog','Input port'});obj.ASourceDropDown.ValueChangedFcn=@(~,~) obj.configurationChanged();obj.UtilityTinSourceDropDown.ValueChangedFcn=@(~,~) obj.configurationChanged();
             fields={obj.UField,'U';obj.AField,'A';obj.UtilityTinField,'T_in_s';obj.UtilityToutField,'T_out_s';obj.UtilityCpField,'Cp_s';obj.LatentHeatField,'lambda';obj.UAField,'UA';obj.SpecifiedTField,'T_reactor';obj.SpecifiedQField,'Q'};for i=1:size(fields,1),fields{i,1}.ValueChangedFcn=@(~,event)obj.fieldEdited(fields{i,2},event);end
-            cgrid=uigridlayout(connections,[2 1],'RowHeight',{30,'1x'});uilabel(cgrid,'Text','Connected signals (read only)','FontWeight','bold');obj.ConnectionTable=uitable(cgrid,'ColumnName',{'Direction','Port','Signal'},'ColumnEditable',false);
+            cgrid=uigridlayout(connections,[2 1],'RowHeight',{30,'1x'});uilabel(cgrid,'Text','Connected signals (read only)','FontWeight','bold');obj.ConnectionTable=uitable(cgrid,'ColumnName',{'Direction','Port','Signal'},'ColumnEditable',[false false false]);
             obj.StatusLabel=uilabel(main,'Text','Ready.','FontAngle','italic');buttons=uigridlayout(main,[1 4],'ColumnWidth',{'1x',90,90,90});uilabel(buttons,'Text','');uibutton(buttons,'Text','OK','ButtonPushedFcn',@(~,~) obj.accept());uibutton(buttons,'Text','Cancel','ButtonPushedFcn',@(~,~) obj.cancel());uibutton(buttons,'Text','Apply','ButtonPushedFcn',@(~,~) obj.apply());
         end
         function load(obj)
@@ -140,7 +140,7 @@ classdef JacketDialog < handle
         function markSetValues(obj,varargin)
             for i=1:2:numel(varargin),key=lower(char(string(varargin{i})));map=struct('u','U','a','A','ua','UA','utilitytin','T_in_s','utilitytout','T_out_s','utilitycp','Cp_s','latentheat','lambda','specifiedt','T_reactor','specifiedq','Q');if isfield(map,key),value=varargin{i+1};if isempty(value)||(isnumeric(value)&&isscalar(value)&&isnan(value)),obj.Origins.(map.(key))="empty";else,obj.Origins.(map.(key))="specified";end,end,end
         end
-        function fieldEdited(obj,name,event),value=event.NewData;if isempty(value)||(isnumeric(value)&&isscalar(value)&&isnan(value))||((ischar(value)||isstring(value))&&~isfinite(str2double(value))),obj.Origins.(name)="empty";else,obj.Origins.(name)="specified";end;obj.closeDof();end
+        function fieldEdited(obj,name,event),value=changedValue(event);if isempty(value)||(isnumeric(value)&&isscalar(value)&&isnan(value))||((ischar(value)||isstring(value))&&~isfinite(str2double(value))),obj.Origins.(name)="empty";else,obj.Origins.(name)="specified";end;obj.closeDof();end
         function configurationChanged(obj),obj.updateVisibility();if ~isempty(obj.Origins),obj.closeDof();end,end
         function loadLegacyOrigins(obj)
             mode=obj.ModeDropDown.Value;if strcmp(mode,'Specified T'),obj.Origins.T_reactor="specified";elseif strcmp(mode,'Specified Q'),obj.Origins.Q="specified";elseif strcmp(mode,'Utility'),obj.Origins.U="specified";if strcmp(obj.ASourceDropDown.Value,'Input port'),obj.Origins.A="external";else,obj.Origins.A="specified";end;if strcmp(obj.UtilityTinSourceDropDown.Value,'Input port'),obj.Origins.T_in_s="external";else,obj.Origins.T_in_s="specified";end;if isfinite(str2double(obj.UtilityToutField.Value)),obj.Origins.T_out_s="specified";end;if isfinite(str2double(obj.UtilityCpField.Value)),obj.Origins.Cp_s="specified";end;if isfinite(str2double(obj.LatentHeatField.Value)),obj.Origins.lambda="specified";end;end
@@ -170,6 +170,7 @@ function label=portLabel(grid,row),label=uilabel(grid,'Text','From input port','
 function value=onoff(flag),if flag,value='on';else,value='off';end,end
 function flag=ison(value),if islogical(value)||isnumeric(value),flag=logical(value);else,flag=strcmp(value,'on')||strcmp(value,'1');end,end
 function value=n(x),if isempty(x),value='NaN';else,value=num2str(x,17);end,end
+function value=changedValue(event),if (isstruct(event)&&isfield(event,'NewData'))||(~isstruct(event)&&isprop(event,'NewData')),value=event.NewData;else,value=event.Value;end,end
 function value=signalName(port),value='<missing>';line=get_param(port,'Line');if line==-1,return,end;source=get_param(line,'SrcBlockHandle');if source~=-1,value=get_param(source,'Name');end,end
 function value=signalDestinations(port),value='<missing>';line=get_param(port,'Line');if line==-1,return,end;dest=get_param(line,'DstBlockHandle');dest=dest(dest~=-1);if ~isempty(dest),value=char(strjoin(string(arrayfun(@(h)get_param(h,'Name'),dest,'UniformOutput',false)),', '));end,end
 function result=emptyResult(),result=struct('values',struct(),'origins',struct(),'states',struct(),'messages',"Mode is required.",'status','missing','missingCount',1,'missing',"mode",'conflicts',strings(0,1));end

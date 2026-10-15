@@ -80,22 +80,25 @@ classdef HeaterDialog < handle
             obj.HeatPortCheckBox=uicheckbox(g,'Text','Show heat port');obj.HeatPortCheckBox.Layout.Row=7;obj.HeatPortCheckBox.Layout.Column=[2 3];
             obj.ModeGroup=uibuttongroup(g,'Title','Legacy mode','Visible','off');obj.ModeGroup.Layout.Row=8;obj.ModeGroup.Layout.Column=[1 3];uiradiobutton(obj.ModeGroup,'Text','Select...');uiradiobutton(obj.ModeGroup,'Text','Outlet T');uiradiobutton(obj.ModeGroup,'Text','Duty');
             fields={obj.ToutField,'T_out';obj.TemperatureChangeField,'dT';obj.DutyField,'Q';obj.PressureDropField,'dP';obj.OutletPressureField,'P_out'};for i=1:size(fields,1),fields{i,1}.ValueChangedFcn=@(~,event)obj.edited(fields{i,2},event);end
-            cg=uigridlayout(connections,[2 1],'RowHeight',{30,'1x'});uilabel(cg,'Text','Connected material streams (read only)','FontWeight','bold');obj.ConnectionTable=uitable(cg,'ColumnName',{'Direction','Port','Stream'},'ColumnEditable',false);
+            cg=uigridlayout(connections,[2 1],'RowHeight',{30,'1x'});uilabel(cg,'Text','Connected material streams (read only)','FontWeight','bold');obj.ConnectionTable=uitable(cg,'ColumnName',{'Direction','Port','Stream'},'ColumnEditable',[false false false]);
             obj.StatusLabel=uilabel(main,'Text','Ready.','FontAngle','italic');buttons=uigridlayout(main,[1 4],'ColumnWidth',{'1x',90,90,90});uilabel(buttons,'Text','');uibutton(buttons,'Text','OK','ButtonPushedFcn',@(~,~)obj.accept());uibutton(buttons,'Text','Cancel','ButtonPushedFcn',@(~,~)obj.cancel());uibutton(buttons,'Text','Apply','ButtonPushedFcn',@(~,~)obj.apply());
         end
         function load(obj)
             obj.NameField.Value=get_param(obj.BlockPath,'Name');obj.ToutUnitDropDown.Value=get_param(obj.BlockPath,'ToutUnit');obj.DutyUnitDropDown.Value=get_param(obj.BlockPath,'DutyUnit');obj.PressureDropUnitDropDown.Value=get_param(obj.BlockPath,'PressureDropUnit');obj.OutletPressureUnitDropDown.Value=get_param(obj.BlockPath,'PressureDropUnit');obj.HeatPortCheckBox.Value=strcmp(get_param(obj.BlockPath,'ShowHeatPort'),'on');
             obj.Origins=struct('T_out',"empty",'dT',"empty",'Q',"empty",'dP',"empty",'P_out',"empty");specText=get_param(obj.BlockPath,'Specifications');
             if isempty(strtrim(specText))
-                mode=get_param(obj.BlockPath,'Mode');if strcmp(mode,'Duty'),setNumeric(obj.DutyField,get_param(obj.BlockPath,'Duty'));obj.Origins.Q="specified";else,setNumeric(obj.ToutField,get_param(obj.BlockPath,'Tout'));obj.Origins.T_out="specified";end
-                setNumeric(obj.PressureDropField,get_param(obj.BlockPath,'PressureDrop'));obj.Origins.dP="specified";obj.CompatibilityMode=mode;obj.CompatibilityModeExplicit=false;selectMode(obj.ModeGroup,mode);
+                mode=get_param(obj.BlockPath,'Mode');
+                if strcmp(mode,'Duty')&&isfinite(str2double(get_param(obj.BlockPath,'Duty'))),setNumeric(obj.DutyField,get_param(obj.BlockPath,'Duty'));obj.Origins.Q="specified";
+                elseif strcmp(mode,'Outlet T')&&isfinite(str2double(get_param(obj.BlockPath,'Tout'))),setNumeric(obj.ToutField,get_param(obj.BlockPath,'Tout'));obj.Origins.T_out="specified";end
+                if isfinite(str2double(get_param(obj.BlockPath,'PressureDrop'))),setNumeric(obj.PressureDropField,get_param(obj.BlockPath,'PressureDrop'));obj.Origins.dP="specified";end
+                obj.CompatibilityMode=mode;obj.CompatibilityModeExplicit=false;selectMode(obj.ModeGroup,mode);
             else
                 specs=nirp.dof.readSpecs(specText);names=fieldnames(specs);for i=1:numel(names),obj.setFromSI(names{i},specs.(names{i}).si,specs.(names{i}).unit);obj.Origins.(names{i})="specified";end
             end
             obj.updateCompatibilityVisibility();obj.closeDof();
         end
         function edited(obj,name,event)
-            value=event.NewData;if isempty(value)||(isnumeric(value)&&isscalar(value)&&isnan(value)),obj.Origins.(name)="empty";else,obj.Origins.(name)="specified";end
+            value=changedValue(event);if isempty(value)||(isnumeric(value)&&isscalar(value)&&isnan(value)),obj.Origins.(name)="empty";else,obj.Origins.(name)="specified";end
             obj.CompatibilityMode='';obj.CompatibilityModeExplicit=false;obj.updateCompatibilityVisibility();obj.closeDof();
         end
         function result=closeDof(obj)
@@ -125,6 +128,7 @@ end
 function [f,u]=qrow(g,row,labelText,category),t=uilabel(g,'Text',labelText,'HorizontalAlignment','right');t.Layout.Row=row;t.Layout.Column=1;f=uieditfield(g,'numeric','AllowEmpty','on','Value',[]);f.Layout.Row=row;f.Layout.Column=2;u=uidropdown(g,'Items',UnitConverterHelper.getUnits(category));u.Layout.Row=row;u.Layout.Column=3;end
 function [f,u]=simpleRow(g,row,labelText,items),t=uilabel(g,'Text',labelText,'HorizontalAlignment','right');t.Layout.Row=row;t.Layout.Column=1;f=uieditfield(g,'numeric','AllowEmpty','on','Value',[]);f.Layout.Row=row;f.Layout.Column=2;u=uidropdown(g,'Items',items);u.Layout.Row=row;u.Layout.Column=3;end
 function setNumeric(field,text),value=str2double(text);if isfinite(value),field.Value=value;else,field.Value=[];end,end
+function value=changedValue(event),if (isstruct(event)&&isfield(event,'NewData'))||(~isstruct(event)&&isprop(event,'NewData')),value=event.NewData;else,value=event.Value;end,end
 function selectMode(group,value),buttons=group.Children;index=find(strcmp({buttons.Text},value),1);if ~isempty(index),group.SelectedObject=buttons(index);end,end
 function styleField(field,state,message),field.BackgroundColor=[1 1 1];field.FontColor=[0 0 0];field.FontAngle='normal';field.Tooltip=char(message);switch char(state),case 'specified',field.FontColor=[0.15 0.25 0.55];case 'calculated',field.BackgroundColor=[0.92 0.92 0.92];field.FontAngle='italic';case 'empty',field.BackgroundColor=[1 0.90 0.90];case 'external',field.BackgroundColor=[0.88 0.88 0.88];case 'conflict',field.BackgroundColor=[1 0.72 0.72];end,end
 function result=failure(names,message),values=struct();origins=struct();states=struct();for i=1:numel(names),values.(names{i})=NaN;origins.(names{i})='empty';states.(names{i})='conflict';end;result=struct('values',values,'origins',origins,'states',states,'messages',string(message),'status','conflict','missingCount',0,'missing',strings(0,1),'conflicts',string(names));end

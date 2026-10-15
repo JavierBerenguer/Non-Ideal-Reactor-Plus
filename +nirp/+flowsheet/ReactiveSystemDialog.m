@@ -63,6 +63,7 @@ classdef ReactiveSystemDialog < handle
         ComponentTab
         ReactionTab
         FeedTab
+        InitialFeedTab
         KineticDetailGrid
         SelectedReaction = 1
         UpdatingKinetics = false
@@ -384,6 +385,7 @@ classdef ReactiveSystemDialog < handle
             obj.ComponentTab = uitab(tabs,'Title','General') ;
             obj.ReactionTab = uitab(tabs,'Title','Kinetics') ;
             obj.FeedTab = uitab(tabs,'Title','Thermodynamics') ;
+            obj.InitialFeedTab = uitab(tabs,'Title','Initial feed') ;
             obj.buildComponents() ; obj.buildReactions() ; obj.buildFeeds() ;
             settings=uigridlayout(main,[1 5],'ColumnWidth',{135,90,170,110,'1x'});
             uilabel(settings,'Text','Maximum iterations');
@@ -526,7 +528,22 @@ classdef ReactiveSystemDialog < handle
                 'CellEditCallback',@(~,event) obj.thermoReactionEdited(event));
             obj.NoThermoNote=uilabel(layout,'Text','Feed conditions are edited in Feed Stream dialogs.', ...
                 'FontAngle','italic','WordWrap','on');
-            obj.FeedTable = uitable(obj.Figure,'Visible','off') ;
+            feedLayout=uigridlayout(obj.InitialFeedTab,[3 1], ...
+                'RowHeight',{46,'1x',34},'Padding',[10 8 10 8]);
+            uilabel(feedLayout,'Text',['Define the initial feed used when the flowsheet is created. ' ...
+                'Additional feeds are added later with Stream blocks.'],'WordWrap','on', ...
+                'FontAngle','italic');
+            obj.FeedTable=uitable(feedLayout,'ColumnName',{'Name','Phase','T','T unit', ...
+                'P','P unit','Basis','Values','Values unit','Q','Q unit'}, ...
+                'ColumnEditable',true(1,11),'RowName',{}, ...
+                'ColumnFormat',{'char',{'Select...','L','G'},'numeric',{'K',[char(176) 'C']}, ...
+                'numeric',UnitConverterHelper.getUnits('Pressure'), ...
+                {'Select...','molarFlows','concentrations','totalAndFractions'}, ...
+                'char','char','numeric',UnitConverterHelper.getUnits('VolumetricFlow')}, ...
+                'CellEditCallback',@(~,event)obj.feedEdited(event));
+            buttons=uigridlayout(feedLayout,[1 3],'ColumnWidth',{100,100,'1x'},'Padding',[0 0 0 0]);
+            uibutton(buttons,'Text','Add feed','ButtonPushedFcn',@(~,~)obj.addFeed());
+            uibutton(buttons,'Text','Remove feed','ButtonPushedFcn',@(~,~)obj.removeLast('feed'));
         end
 
         function stoichEdited(obj,event)
@@ -680,6 +697,7 @@ classdef ReactiveSystemDialog < handle
             components=obj.ComponentTable.Data;nComp=size(components,1);
             reactions=obj.ReactionTable.Data;nReactions=size(reactions,1);
             obj.StoichTable.ColumnName=components(:,1)';
+            obj.StoichTable.ColumnEditable=true(1,nComp);
             obj.StoichTable.Data=reactions(:,1:nComp);
             obj.GeneralComponentTable.Data=components(:,1:2);
             thermo=cell(nComp,4);
