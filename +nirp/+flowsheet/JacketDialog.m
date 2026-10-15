@@ -46,8 +46,7 @@ classdef JacketDialog < handle
             applied=false;
             try
                 name=strtrim(obj.NameField.Value);if isempty(name),error('nirp:flowsheet:invalidName','Name cannot be empty.');end
-                if strcmp(obj.ModeDropDown.Value,'Select...'),error('nirp:flowsheet:missingSpecification','Jacket mode must be selected.');end
-                result=obj.closeDof();if ~strcmp(result.status,'complete'),return,end
+                result=obj.closeDof();if strcmp(result.status,'conflict'),return,end
                 set_param(obj.BlockPath,'Mode',obj.ModeDropDown.Value, ...
                     'SpecifiedT',n(obj.SpecifiedTField.Value),'SpecifiedTUnit',obj.SpecifiedTUnitDropDown.Value, ...
                     'SpecifiedQ',n(obj.SpecifiedQField.Value),'SpecifiedQUnit',obj.SpecifiedQUnitDropDown.Value);

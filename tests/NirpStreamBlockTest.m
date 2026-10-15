@@ -80,6 +80,36 @@ classdef (SharedTestFixtures={nirptest.ExamplesFixture}) ...
             testCase.verifyFalse(contains(dialog.getValue('status'),'F1'));
         end
 
+        function feedSpecificationsKeepFullPrecisionAcrossReopen(testCase)
+            [~,dictionary]=nirp.flowsheet.new('precise_feed', ...
+                nirp.pkg.examples.firstOrderLiquid(),testCase.Folder,'OpenModel',false);
+            preciseFlow=0.1234567891;preciseQ=0.0001234567891;
+            dialog=nirp.flowsheet.StreamDialog('precise_feed/F1','Visible','off');
+            testCase.addTeardown(@()deleteValid(dialog));
+            dialog.setUnits('MolarFlow','mol/s','T','K','P','Pa','Q','m^3/s');
+            dialog.setValues('MolarFlow',[preciseFlow;0],'T',300,'P',101325, ...
+                'Q',preciseQ,'Phase','L');
+            testCase.verifyTrue(dialog.apply());
+            specs=nirp.dof.readSpecs(get_param('precise_feed/F1','Specifications'));
+            testCase.verifyEqual(specs.F1.si,preciseFlow,'AbsTol',1e-12);
+            testCase.verifyEqual(specs.Q.si,preciseQ,'AbsTol',1e-12);
+            stream=nirp.pkg.feedStream(nirp.pkg.readDictionary(dictionary),'F1');
+            testCase.verifyEqual(stream.F(1),preciseFlow,'AbsTol',1e-12);
+            testCase.verifyEqual(stream.Q,preciseQ,'AbsTol',1e-12);
+
+            delete(dialog);
+            reopened=nirp.flowsheet.StreamDialog('precise_feed/F1','Visible','off');
+            testCase.addTeardown(@()deleteValid(reopened));
+            values=reopened.getValues();
+            testCase.verifyEqual(values.Result.values.F1,preciseFlow,'AbsTol',1e-12);
+            testCase.verifyEqual(values.Result.values.Q,preciseQ,'AbsTol',1e-12);
+            testCase.verifyTrue(reopened.apply());
+            reopenedSpecs=nirp.dof.readSpecs( ...
+                get_param('precise_feed/F1','Specifications'));
+            testCase.verifyEqual(reopenedSpecs.F1.si,preciseFlow,'AbsTol',1e-12);
+            testCase.verifyEqual(reopenedSpecs.Q.si,preciseQ,'AbsTol',1e-12);
+        end
+
         function massBasisUsesRealTableCallbacksAndPersistsOrigins(testCase)
             [~,dictionary]=nirp.flowsheet.new('mass_feed',nirp.pkg.examples.problem17AdiabaticGas(),testCase.Folder,'OpenModel',false);
             dialog=nirp.flowsheet.StreamDialog('mass_feed/F1','Visible','off');testCase.addTeardown(@()deleteValid(dialog));

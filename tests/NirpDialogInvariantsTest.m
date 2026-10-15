@@ -107,6 +107,30 @@ classdef NirpDialogInvariantsTest < matlab.unittest.TestCase
             dialog.setFractions([0.4 NaN]);testCase.verifySubstring(dialog.StatusLabel.Text,'Fully specified');
         end
 
+        function incompleteDialogsApplyWithoutConflict(testCase)
+            createDialogModel(testCase,'incomplete_apply');
+            dialogs={nirp.flowsheet.ReactorDialog('incomplete_apply/CSTR','Visible','off'), ...
+                nirp.flowsheet.SplitterDialog('incomplete_apply/Splitter','Visible','off'), ...
+                nirp.flowsheet.SeparatorDialog('incomplete_apply/Separator','Visible','off'), ...
+                nirp.flowsheet.HeaterDialog('incomplete_apply/Heater','Visible','off'), ...
+                nirp.flowsheet.JacketDialog('incomplete_apply/Jacket','Visible','off')};
+            testCase.addTeardown(@()deleteDialogs(dialogs));
+            dialogs{1}.setValues('V',NaN,'tau',NaN,'spaceVelocity',NaN);
+            dialogs{2}.setFractions([0.4 NaN NaN]);
+            dialogs{3}.setRecovery([0.4 NaN]);
+            dialogs{4}.setValues('Tout',NaN,'dT',NaN,'Q',NaN,'dP',NaN,'Pout',NaN);
+            dialogs{5}.ModeDropDown.Value='Utility';
+            feval(dialogs{5}.ModeDropDown.ValueChangedFcn,dialogs{5}.ModeDropDown, ...
+                struct('PreviousValue','Select...','Value','Utility'));
+            dialogs{5}.setValues('U',NaN,'A',NaN,'UtilityTin',NaN);
+            for i=1:numel(dialogs)
+                testCase.verifySubstring(dialogs{i}.StatusLabel.Text,'missing', ...
+                    sprintf('%s did not start incomplete.',class(dialogs{i})));
+                testCase.verifyTrue(dialogs{i}.apply(), ...
+                    sprintf('%s rejected a non-conflicting incomplete state.',class(dialogs{i})));
+            end
+        end
+
         function calculatedPreviewUsesCalculatedReadOnlyStyle(testCase)
             createPreviewModel(testCase,'preview_style');
             nirp.flowsheet.propagate('preview_style');

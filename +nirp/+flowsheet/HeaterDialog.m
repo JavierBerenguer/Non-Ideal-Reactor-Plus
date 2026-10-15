@@ -49,7 +49,7 @@ classdef HeaterDialog < handle
         end
         function values=getValues(obj),obj.closeDof();values=obj.DataModel;end
         function applied=apply(obj)
-            applied=false;result=obj.closeDof();if ~strcmp(result.status,'complete'),return,end
+            applied=false;result=obj.closeDof();if strcmp(result.status,'conflict'),return,end
             try
                 name=strtrim(obj.NameField.Value);if isempty(name),error('nirp:flowsheet:invalidName','Name cannot be empty.');end
                 specs=obj.specifications(result);writeProducerSpecs(obj.BlockPath,specs);

@@ -89,11 +89,12 @@ classdef NirpDofClosureTest < matlab.unittest.TestCase
             testCase.addTeardown(@() deleteValid(dialog));
             dialog.setFractions([0.5 NaN NaN]);
             dialog.accept();
-            testCase.verifyTrue(isvalid(dialog));
-            testCase.verifySubstring(dialog.StatusLabel.Text,'1 specification missing');
+            testCase.verifyFalse(isvalid(dialog));
             testCase.verifyEqual( ...
                 str2num(get_param('dialog_dof/Splitter','Fractions')), ... %#ok<ST2NM>
-                [0.5 0.25 0.25]);
+                [0.5 NaN NaN]);
+            specs=nirp.dof.readSpecs(get_param('dialog_dof/Splitter','Specifications'));
+            testCase.verifyEqual(string(fieldnames(specs)),"f1");
         end
 
         function splitterBlockClosesNaNAndConservesFlow(testCase)
@@ -165,16 +166,67 @@ classdef NirpDofClosureTest < matlab.unittest.TestCase
             testCase.verifySubstring(dialog.getValue('status'),'inconsistent');
         end
 
-        function gasFeedCalculatesReadOnlyVolumetricFlow(testCase)
+        function gasFeedCalculatesEditableVolumetricFlow(testCase)
             createModel(testCase,'gas_dof');
             dialog=nirp.flowsheet.StreamDialog('gas_dof/F1','Visible','off');
             testCase.addTeardown(@() deleteValid(dialog));
             dialog.setUnits('F','mol/s','T','K','P','Pa','Q','m^3/s');
-            dialog.setValues('phase','G','F',[1 2],'T',300,'P',101325);
+            dialog.setValues('phase','G','Q',NaN,'F',[1 2],'T',300,'P',101325);
             expected=3*8.314*300/101325;
             testCase.verifyEqual(dialog.getValue('Q'),expected,'RelTol',1e-12);
             testCase.verifyEqual(dialog.getValues().Q.origin,'calculated');
-            testCase.verifyEqual(string(dialog.VolumetricFlowField.Editable),"off");
+            testCase.verifyEqual(string(dialog.VolumetricFlowField.Editable),"on");
+        end
+
+        function tablePresentationDoesNotRoundSavedPrecision(testCase)
+            createModel(testCase,'precision_dof');
+            addSystem('precision_dof','Splitter','nirp.blocks.Splitter', ...
+                [200 70 320 140]);
+            addSystem('precision_dof','Separator','nirp.blocks.Separator', ...
+                [200 180 320 250]);
+            precise=0.1234567891;
+
+            splitter=nirp.flowsheet.SplitterDialog( ...
+                'precision_dof/Splitter','Visible','off');
+            testCase.addTeardown(@()deleteValid(splitter));
+            splitter.setFractions([precise 0.2 NaN]);
+            testCase.verifyTrue(splitter.apply());
+            fractions=str2num(get_param('precision_dof/Splitter','Fractions')); %#ok<ST2NM>
+            specs=nirp.dof.readSpecs( ...
+                get_param('precision_dof/Splitter','Specifications'));
+            testCase.verifyEqual(fractions(1),precise,'AbsTol',1e-12);
+            testCase.verifyEqual(specs.f1.si,precise,'AbsTol',1e-12);
+            delete(splitter);
+            reopened=nirp.flowsheet.SplitterDialog( ...
+                'precision_dof/Splitter','Visible','off');
+            testCase.addTeardown(@()deleteValid(reopened));
+            testCase.verifyEqual(reopened.getValues().Fractions.value(1), ...
+                precise,'AbsTol',1e-12);
+            testCase.verifyTrue(reopened.apply());
+            specs=nirp.dof.readSpecs( ...
+                get_param('precision_dof/Splitter','Specifications'));
+            testCase.verifyEqual(specs.f1.si,precise,'AbsTol',1e-12);
+
+            separator=nirp.flowsheet.SeparatorDialog( ...
+                'precision_dof/Separator','Visible','off');
+            testCase.addTeardown(@()deleteValid(separator));
+            separator.setRecovery([precise 0.4]);
+            testCase.verifyTrue(separator.apply());
+            recovery=str2num(get_param('precision_dof/Separator','Recovery')); %#ok<ST2NM>
+            specs=nirp.dof.readSpecs( ...
+                get_param('precision_dof/Separator','Specifications'));
+            testCase.verifyEqual(recovery(1),precise,'AbsTol',1e-12);
+            testCase.verifyEqual(specs.r1.si,precise,'AbsTol',1e-12);
+            delete(separator);
+            reopenedSeparator=nirp.flowsheet.SeparatorDialog( ...
+                'precision_dof/Separator','Visible','off');
+            testCase.addTeardown(@()deleteValid(reopenedSeparator));
+            testCase.verifyEqual(reopenedSeparator.getValues().Recovery.value(1), ...
+                precise,'AbsTol',1e-12);
+            testCase.verifyTrue(reopenedSeparator.apply());
+            specs=nirp.dof.readSpecs( ...
+                get_param('precision_dof/Separator','Specifications'));
+            testCase.verifyEqual(specs.r1.si,precise,'AbsTol',1e-12);
         end
 
         function pfrGeometryClosesAndPersistsOrigin(testCase)
@@ -208,7 +260,7 @@ classdef NirpDofClosureTest < matlab.unittest.TestCase
             testCase.verifySubstring(string(reopened.StatusLabel.Text),'Conflict');
         end
 
-        function dialogActionsAreUniformAndInvalidOkStaysOpen(testCase)
+        function dialogActionsAreUniformAndOnlyConflictKeepsOkOpen(testCase)
             createModel(testCase,'buttons_dof');
             addSystem('buttons_dof','CSTR','nirp.blocks.CSTR',[200 70 320 130]);
             addSystem('buttons_dof','Heater','nirp.blocks.Heater',[200 160 320 220]);
@@ -226,8 +278,16 @@ classdef NirpDofClosureTest < matlab.unittest.TestCase
             editor=nirp.flowsheet.ReactiveSystemDialog('Mode','edit','Model','buttons_dof','Visible','off');testCase.addTeardown(@() deleteValid(editor));verifyActions(testCase,editor.Figure,["OK" "Cancel" "Apply"]);
             fresh=nirp.flowsheet.ReactiveSystemDialog('Visible','off');testCase.addTeardown(@() deleteValid(fresh));verifyActions(testCase,fresh.Figure,["Create flowsheet..." "Cancel"]);
 
-            invalid=dialogs{4};invalid.setFractions([0.5 NaN NaN]);invalid.accept();
-            testCase.verifyTrue(isvalid(invalid));testCase.verifySubstring(invalid.StatusLabel.Text,'1 specification missing');
+            incomplete=dialogs{4};incomplete.setFractions([0.5 NaN NaN]);incomplete.accept();
+            testCase.verifyFalse(isvalid(incomplete));
+            specs=nirp.dof.readSpecs(get_param('buttons_dof/Splitter','Specifications'));
+            testCase.verifyEqual(string(fieldnames(specs)),"f1");
+
+            conflict=nirp.flowsheet.SplitterDialog('buttons_dof/Splitter','Visible','off');
+            testCase.addTeardown(@() deleteValid(conflict));
+            conflict.setFractions([0.8 0.8]);conflict.accept();
+            testCase.verifyTrue(isvalid(conflict));
+            testCase.verifySubstring(conflict.StatusLabel.Text,'Conflict');
         end
     end
 end

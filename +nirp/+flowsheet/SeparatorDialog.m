@@ -8,7 +8,7 @@ classdef SeparatorDialog < handle
         BlockPath;Figure;NameField;RecoveryTable;ConnectionTable;StatusLabel;DataModel
     end
     properties (Access=private)
-        Origins;ComponentNames;LastResult;Updating=false
+        Origins;ComponentNames;LastResult;SpecifiedValues;Updating=false
     end
     methods
         function obj=SeparatorDialog(blockPath,varargin)
@@ -20,25 +20,24 @@ classdef SeparatorDialog < handle
         function setRecovery(obj,values)
             if isscalar(values),values=repmat(values,1,numel(obj.ComponentNames));end
             if numel(values)~=numel(obj.ComponentNames),error('nirp:flowsheet:invalidRecovery','Give one recovery per component.');end
-            for i=1:numel(values),obj.setCell(i,2,values(i));obj.Origins.r(i)=valueOrigin(values(i));end;obj.close();
+            for i=1:numel(values),obj.setCell(i,2,values(i));obj.Origins.r(i)=valueOrigin(values(i));obj.SpecifiedValues.r(i)=values(i);end;obj.close();
         end
         function setSpecification(obj,name,values)
             map=struct('r',2,'f_top',3,'f_bot',4,'x_top',5,'x_bot',6);key=lower(char(string(name)));
             if ~isfield(map,key),error('nirp:flowsheet:unknownMagnitude','Unknown Separator magnitude "%s".',name);end
             if isscalar(values),values=repmat(values,1,numel(obj.ComponentNames));end
             if numel(values)~=numel(obj.ComponentNames),error('nirp:flowsheet:invalidSpecification','Give one value per component.');end
-            for i=1:numel(values),obj.setCell(i,map.(key),values(i));obj.Origins.(key)(i)=valueOrigin(values(i));end;obj.close();
+            for i=1:numel(values),obj.setCell(i,map.(key),values(i));obj.Origins.(key)(i)=valueOrigin(values(i));obj.SpecifiedValues.(key)(i)=values(i);end;obj.close();
         end
         function values=getValues(obj),obj.captureModel();values=obj.DataModel;end
         function applied=apply(obj)
-            applied=obj.close();if ~applied,obj.alertConflict();return,end
+            obj.close();applied=false;if strcmp(obj.LastResult.status,'conflict'),obj.alertConflict();return,end
             r=zeros(1,numel(obj.ComponentNames));for i=1:numel(r),r(i)=obj.LastResult.values.(['r' num2str(i)]);end
-            if any(~isfinite(r)),obj.StatusLabel.Text='Results need a run or the other components.';obj.alertConflict();applied=false;return,end
             specs=struct();names=fieldnames(obj.LastResult.origins);
             for i=1:numel(names),key=names{i};if string(obj.LastResult.origins.(key))=="specified",specs.(key)=struct('si',obj.LastResult.values.(key),'unit',unitFor(key));end,end
             try
                 set_param(obj.BlockPath,'Recovery',mat2str(r,17));writeProducerSpecs(obj.BlockPath,specs);
-                obj.StatusLabel.Text='Fully specified';obj.refreshConnections();nirp.flowsheet.afterApply(bdroot(obj.BlockPath),obj.StatusLabel);applied=true;
+                obj.refreshConnections();nirp.flowsheet.afterApply(bdroot(obj.BlockPath),obj.StatusLabel);obj.close();applied=true;
             catch exception,obj.StatusLabel.Text=exception.message;obj.alertConflict();applied=false;end
         end
         function accept(obj),if obj.apply(),delete(obj);end,end
@@ -59,12 +58,12 @@ classdef SeparatorDialog < handle
         end
         function load(obj)
             obj.NameField.Value=get_param(obj.BlockPath,'Name');pkg=nirp.pkg.readDictionary(nirp.flowsheet.modelDictionary(bdroot(obj.BlockPath)));obj.ComponentNames=string({pkg.components.name});n=numel(obj.ComponentNames);
-            obj.RecoveryTable.Data=[cellstr(obj.ComponentNames(:)) repmat({[]},n,5)];empty=repmat("empty",n,1);obj.Origins=struct('r',empty,'f_top',empty,'f_bot',empty,'x_top',empty,'x_bot',empty);
+            obj.RecoveryTable.Data=[cellstr(obj.ComponentNames(:)) repmat({[]},n,5)];empty=repmat("empty",n,1);missing=nan(n,1);obj.Origins=struct('r',empty,'f_top',empty,'f_bot',empty,'x_top',empty,'x_bot',empty);obj.SpecifiedValues=struct('r',missing,'f_top',missing,'f_bot',missing,'x_top',missing,'x_bot',missing);
             text=get_param(obj.BlockPath,'Specifications');
             if isempty(strtrim(text))
                 r=str2num(get_param(obj.BlockPath,'Recovery')); %#ok<ST2NM>
                 if isscalar(r),r=repmat(r,1,n);end
-                if numel(r)==n,for i=1:n,if isfinite(r(i)),obj.setCell(i,2,r(i));obj.Origins.r(i)="specified";end,end,end
+                if numel(r)==n,for i=1:n,if isfinite(r(i)),obj.setCell(i,2,r(i));obj.Origins.r(i)="specified";obj.SpecifiedValues.r(i)=r(i);end,end,end
             else
                 specs=nirp.dof.readSpecs(text);names=fieldnames(specs);for i=1:numel(names),obj.loadSpec(names{i},specs.(names{i}).si);end
             end
@@ -72,7 +71,7 @@ classdef SeparatorDialog < handle
         end
         function valid=close(obj)
             if obj.Updating,valid=false;return,end;obj.Updating=true;clean=onCleanup(@()obj.finishUpdate());n=numel(obj.ComponentNames);prefixes={'r','F_top','F_bot','x_top','x_bot'};originKeys={'r','f_top','f_bot','x_top','x_bot'};specs=struct();
-            for column=1:5,for i=1:n,key=[prefixes{column} num2str(i)];if obj.Origins.(originKeys{column})(i)=="specified",value=obj.readCell(i,column+1);if isfinite(value),specs.(key)=struct('si',value,'unit',unitFor(key));end,end,end,end
+            for column=1:5,for i=1:n,key=[prefixes{column} num2str(i)];if obj.Origins.(originKeys{column})(i)=="specified",value=obj.SpecifiedValues.(originKeys{column})(i);if isfinite(value),specs.(key)=struct('si',value,'unit',unitFor(key));end;else,obj.SpecifiedValues.(originKeys{column})(i)=NaN;end,end,end
             try,state=nirp.dof.producerState(obj.BlockPath,'InternalSpecifications',specs);result=state.Result;inlet=state.Inlet;source=state.InletSource;catch exception,result=failure(prefixes,n,exception.message);inlet=[];source="";state=struct('Output',struct('sources',struct()));end
             obj.LastResult=result;unresolved=false;
             for column=1:5,for i=1:n,key=[prefixes{column} num2str(i)];obj.setCell(i,column+1,result.values.(key));obj.Origins.(originKeys{column})(i)=string(result.origins.(key));end,end
@@ -86,15 +85,15 @@ classdef SeparatorDialog < handle
             obj.RecoveryTable.ColumnEditable=[false true true true true true];
         end
         function cellEdited(obj,event)
-            if obj.Updating,return,end;row=event.Indices(1);column=event.Indices(2);keys={'','r','f_top','f_bot','x_top','x_bot'};obj.Origins.(keys{column})(row)=valueOrigin(event.NewData);obj.close();
+            if obj.Updating,return,end;row=event.Indices(1);column=event.Indices(2);keys={'','r','f_top','f_bot','x_top','x_bot'};key=keys{column};value=event.NewData;if ischar(value)||isstring(value),value=str2double(value);end;obj.Origins.(key)(row)=valueOrigin(value);if isempty(value)||~isfinite(value),obj.SpecifiedValues.(key)(row)=NaN;else,obj.SpecifiedValues.(key)(row)=value;end;obj.close();
         end
         function loadSpec(obj,key,value)
-            token=regexp(key,'^(r|F_top|F_bot|x_top|x_bot)(\d+)$','tokens','once');if isempty(token),return,end;row=str2double(token{2});map=struct('r',2,'F_top',3,'F_bot',4,'x_top',5,'x_bot',6);if row<=numel(obj.ComponentNames),obj.setCell(row,map.(token{1}),value);obj.Origins.(lower(token{1}))(row)="specified";end
+            token=regexp(key,'^(r|F_top|F_bot|x_top|x_bot)(\d+)$','tokens','once');if isempty(token),return,end;row=str2double(token{2});map=struct('r',2,'F_top',3,'F_bot',4,'x_top',5,'x_bot',6);if row<=numel(obj.ComponentNames),originKey=lower(token{1});obj.setCell(row,map.(token{1}),value);obj.Origins.(originKey)(row)="specified";obj.SpecifiedValues.(originKey)(row)=value;end
         end
         function value=readCell(obj,row,column),value=obj.RecoveryTable.Data{row,column};if ischar(value)||isstring(value),value=str2double(value);end;if isempty(value)||~isnumeric(value)||~isscalar(value),value=NaN;end,end
         function setCell(obj,row,column,value),d=obj.RecoveryTable.Data;if isnumeric(value)&&isscalar(value)&&isfinite(value),d{row,column}=nirp.flowsheet.internal.formatTableNumber(value);else,d{row,column}=[];end;obj.RecoveryTable.Data=d;end
         function captureModel(obj)
-            n=numel(obj.ComponentNames);names={'Recovery','TopFlow','BottomFlow','TopFraction','BottomFraction'};keys={'r','f_top','f_bot','x_top','x_bot'};units={'1','mol/s','mol/s','1','1'};data=struct();for c=1:5,v=nan(1,n);for i=1:n,v(i)=obj.readCell(i,c+1);end;data.(names{c})=struct('value',v,'unit',units{c},'origin',obj.Origins.(keys{c}));end;data.Result=obj.LastResult;obj.DataModel=data;
+            n=numel(obj.ComponentNames);names={'Recovery','TopFlow','BottomFlow','TopFraction','BottomFraction'};keys={'r','f_top','f_bot','x_top','x_bot'};prefixes={'r','F_top','F_bot','x_top','x_bot'};units={'1','mol/s','mol/s','1','1'};data=struct();for c=1:5,v=nan(1,n);for i=1:n,key=[prefixes{c} num2str(i)];if ~isempty(obj.LastResult)&&isfield(obj.LastResult.values,key),v(i)=obj.LastResult.values.(key);else,v(i)=obj.readCell(i,c+1);end,end;data.(names{c})=struct('value',v,'unit',units{c},'origin',obj.Origins.(keys{c}));end;data.Result=obj.LastResult;obj.DataModel=data;
         end
         function showStates(obj,result,waiting),removeStyle(obj.RecoveryTable);n=numel(obj.ComponentNames);prefixes={'r','F_top','F_bot','x_top','x_bot'};for c=1:5,s=strings(n,1);for i=1:n,s(i)=string(result.states.([prefixes{c} num2str(i)]));end;if waiting&&c>1,s(s=="empty")="external";end;addStates(obj.RecoveryTable,c+1,s);end,end
         function refreshConnections(obj)

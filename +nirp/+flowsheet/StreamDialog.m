@@ -856,7 +856,9 @@ classdef StreamDialog < handle
             elseif any(strcmp(key,{'x','molefraction','molefractions'})),prefix='x';
             elseif any(strcmp(key,{'mdot','massflow','massflows'})),prefix='mdot';value=UnitConverterHelper.convertToSI('MassFlow',value,obj.MassFlowUnitDropDown.Value);
             elseif any(strcmp(key,{'w','massfraction','massfractions'})),prefix='w';
-            else
+            elseif any(strcmp(key,{'totalf','totalmolarflow','ctot','totalconcentration', ...
+                    'totalmass','totalmassflow','t','temperature','p','pressure', ...
+                    'q','volumetricflow'}))
                 switch key
                     case {'totalf','totalmolarflow'},name='F';category='MolarFlow';unit=obj.TotalMolarFlowUnitDropDown.Value;
                     case {'ctot','totalconcentration'},name='C_tot';category='Concentration';unit=obj.TotalConcentrationUnitDropDown.Value;
@@ -865,7 +867,14 @@ classdef StreamDialog < handle
                     case {'p','pressure'},name='P';category='Pressure';unit=obj.PressureUnitDropDown.Value;
                     otherwise,name='Q';category='VolumetricFlow';unit=obj.VolumetricFlowUnitDropDown.Value;
                 end
-                obj.SpecifiedSI.(name)=UnitConverterHelper.convertToSI(category,value,unit);return
+                if isempty(value)||(isnumeric(value)&&isscalar(value)&&isnan(value))
+                    obj.SpecifiedSI.(name)=NaN;
+                else
+                    obj.SpecifiedSI.(name)=UnitConverterHelper.convertToSI(category,value,unit);
+                end
+                return
+            else
+                return
             end
             for i=1:numel(value),obj.SpecifiedSI.([prefix num2str(i)])=value(i);end
         end

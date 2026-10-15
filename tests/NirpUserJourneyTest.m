@@ -134,19 +134,27 @@ classdef NirpUserJourneyTest < matlab.uitest.TestCase
             add_line('journey_splitter','Splitter/2','Out 2/1');add_line('journey_splitter','Splitter/3','Out 3/1');
             splitter=nirp.flowsheet.SplitterDialog('journey_splitter/Splitter','Visible','on');drawnow;
             capture(splitter.Figure,'j5_splitter');
-            editCell(splitter.FractionTable,1,2,[]);pressButton(testCase,splitter.Figure,'Apply');delete(splitter);
+            editCell(splitter.FractionTable,1,2,[]);
+            pressButton(testCase,splitter.Figure,'Apply');
+            testCase.verifyTrue(isvalid(splitter));
+            testCase.verifySubstring(splitter.StatusLabel.Text,'1 specification missing');
+            storedFractions=str2num(get_param( ...
+                'journey_splitter/Splitter','Fractions')); %#ok<ST2NM>
+            testCase.verifyTrue(isnan(storedFractions(1)));
+            testCase.verifyEqual(storedFractions(2),0.3,'AbsTol',1e-12);
+            testCase.verifyTrue(isnan(storedFractions(3)));
+            delete(splitter);
             feed=nirp.pkg.feedStream(nirp.pkg.examples.firstOrderLiquid(),"F1");
             stream=nirp.flowsheet.StreamDialog('journey_splitter/Out 1','Visible','on');drawnow;
             typeValue(testCase,stream.SpecificationTotalFlowField,0.2*sum(feed.F));
-            testCase.verifySubstring(stream.StatusLabel.Text,'Fully specified');testCase.press(stream.ApplyButton);
+            testCase.verifySubstring(stream.StatusLabel.Text,'Fully specified');
+            testCase.press(stream.OKButton);testCase.verifyFalse(isvalid(stream));
             producer=nirp.flowsheet.SplitterDialog('journey_splitter/Splitter','Visible','on');drawnow;
             testCase.verifyEqual(producer.DataModel.Fractions.value(1),0.2,'RelTol',1e-12);
-            editCell(producer.FractionTable,1,2,0.25);
-            testCase.verifySubstring(producer.StatusLabel.Text,'Conflict');
-            delete(producer);stream.SpecificationTotalFlowField.Value=[];feval(stream.SpecificationTotalFlowField.ValueChangedFcn,stream.SpecificationTotalFlowField,[]);testCase.press(stream.ApplyButton);delete(stream);
-            producer=nirp.flowsheet.SplitterDialog('journey_splitter/Splitter','Visible','on');editCell(producer.FractionTable,1,2,0.25);pressButton(testCase,producer.Figure,'Apply');delete(producer);
-            stream=nirp.flowsheet.StreamDialog('journey_splitter/Out 1','Visible','on');typeValue(testCase,stream.SpecificationTotalFlowField,0.2*sum(feed.F));
-            testCase.verifySubstring(stream.StatusLabel.Text,'Conflict');delete(stream);
+            testCase.verifyEqual(producer.DataModel.Fractions.origin(1),"calculated");
+            testCase.verifyEqual(producer.DataModel.Fractions.value(3),0.5,'RelTol',1e-12);
+            testCase.verifySubstring(producer.StatusLabel.Text,'Fully specified');
+            delete(producer);
         end
 
         function j6SeparatorMixesRecoveryAndTopFlowSpecifications(testCase)

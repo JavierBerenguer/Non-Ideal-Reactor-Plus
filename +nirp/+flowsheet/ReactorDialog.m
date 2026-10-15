@@ -53,10 +53,7 @@ classdef ReactorDialog < handle
         function connections=getConnections(obj),connections=obj.ConnectionTable.Data;end
         function applied=apply(obj)
             applied=false;try
-            if strcmp(obj.HeatModeGroup.SelectedObject.Text,'Select...'),error('nirp:flowsheet:missingSpecification','Thermal mode must be selected.');end
-            if obj.ReactorType=="PFR"&&strcmp(obj.PressureModeGroup.SelectedObject.Text,'Select...'),error('nirp:flowsheet:missingSpecification','Pressure mode must be selected.');end
-            if obj.ReactorType=="PFR"&&strcmp(obj.PressureModeGroup.SelectedObject.Text,'Non constant')&&strcmp(obj.PressureEquationGroup.SelectedObject.Text,'Select...'),error('nirp:flowsheet:missingSpecification','Pressure-drop equation must be selected.');end
-            result=obj.closeDof();if ~strcmp(result.status,'complete'),return,end
+            result=obj.closeDof();if strcmp(result.status,'conflict'),return,end
             % T-131 (D-057): no bypass and no specified T/Q in flowsheet reactors.
             names={'V','VUnit','VSource','HeatMode','InitialTGuess','InitialTGuessUnit','ShowJacketPort','ShowHeatPort','CatalystDensity','CatalystPorosity','Catalytic','Tau','TauUnit','SpaceVelocity','SpaceVelocityUnit','CatalystMass','CatalystMassUnit'};
             values={n(obj.VField.Value),obj.VUnitDropDown.Value,obj.VSourceDropDown.Value,obj.HeatModeGroup.SelectedObject.Text,n(optionalValue(obj.InitialTField)),obj.InitialTUnitDropDown.Value,'off',onoff(obj.HeatPortCheckBox.Value),n(obj.CatalystDensityField.Value),n(obj.CatalystPorosityField.Value),onoff(obj.CatalyticCheckBox.Value),n(obj.TauField.Value),obj.TauUnitDropDown.Value,n(obj.SpaceVelocityField.Value),obj.SpaceVelocityUnitDropDown.Value,n(obj.CatalystMassField.Value),obj.CatalystMassUnitDropDown.Value};

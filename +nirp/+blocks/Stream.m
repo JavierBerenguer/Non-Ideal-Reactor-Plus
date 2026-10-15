@@ -119,6 +119,12 @@ classdef Stream < matlab.System
             role = obj.RunRole ;
             if role == "Feed"
                 materialInputs = {} ; signals = varargin ;
+                if strcmp(obj.Role,'Auto')
+                    % Legacy Auto blocks always expose one compatibility
+                    % material port.  For an inferred Feed it is not a
+                    % parameter signal and must not reach the evaluator.
+                    signals = {} ;
+                end
             else
                 materialInputs = varargin(1) ; signals = {} ;
                 nirp.stream.validate(materialInputs{1},obj.ReactionSystem.nComponents) ;
