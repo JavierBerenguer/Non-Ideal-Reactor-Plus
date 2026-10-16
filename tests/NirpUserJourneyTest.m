@@ -2,7 +2,7 @@ classdef NirpUserJourneyTest < matlab.uitest.TestCase
 %NIRPUSERJOURNEYTEST User-level journeys from empty library blocks.
 %   Visible edit fields, selectors, and buttons use matlab.uitest. UITable
 %   cells use their real CellEditCallback with the payload a real uitable
-%   commits: text when the cell already shows text (E-014). The gas feed
+%   commits: text when the cell already shows text (E-015). The gas feed
 %   journeys type into the cells with matlab.uitest.
 % =========================================================================
 % Javier Berenguer Sabater
@@ -93,7 +93,7 @@ classdef NirpUserJourneyTest < matlab.uitest.TestCase
         end
 
         function j2bTypedFractionsAfterPTQWithoutMolecularWeights(testCase)
-            % Example 25, F2 (E-014): P, T and Q first, then the fractions typed into text cells
+            % Example 25, F2 (E-015): P, T and Q first, then the fractions typed into text cells
             package=nirp.pkg.examples.problem38ParallelGas();createBaseModel(testCase,'journey_f2',package);
             addLibraryBlock(testCase,'Stream','journey_f2/F2',[220 100 330 160]);
             dialog=nirp.flowsheet.StreamDialog('journey_f2/F2','Visible','on');drawnow;
@@ -361,7 +361,7 @@ function tab=findTab(figureHandle,title)
 end
 
 function editCell(tableHandle,row,column,value)
-    % A real uitable returns typed text when the cell already holds text (E-014)
+    % A real uitable returns typed text when the cell already holds text (E-015)
     data=tableHandle.Data;previous=data{row,column};editData=value;if isnumeric(value),editData=num2str(value,17);end
     if (ischar(previous)||isstring(previous))&&isnumeric(value),value=editData;end
     data{row,column}=value;tableHandle.Data=data;

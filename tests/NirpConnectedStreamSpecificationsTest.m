@@ -35,7 +35,7 @@ classdef NirpConnectedStreamSpecificationsTest < matlab.unittest.TestCase
             top=baseline.Streams.(matlab.lang.makeValidName('Separator top')).streamSI;product=baseline.Streams.Product.streamSI;
             nirp.dof.writeSpecs('ex49_reactor_separator_recycle/Separator',struct('r2',spec(0.02,'1')));
             nirp.dof.writeSpecs('ex49_reactor_separator_recycle/Separator top',struct('F1',spec(top.F(1),'mol/s')));
-            dialog=nirp.flowsheet.StreamDialog('ex49_reactor_separator_recycle/Separator top','Visible','off');testCase.addTeardown(@()deleteValid(dialog)); % a saved component F reloads (E-014)
+            dialog=nirp.flowsheet.StreamDialog('ex49_reactor_separator_recycle/Separator top','Visible','off');testCase.addTeardown(@()deleteValid(dialog)); % a saved component F reloads (E-015)
             testCase.verifyEqual(dialog.getSpecifications().F1.si,top.F(1),'RelTol',1e-12);
             sim('ex49_reactor_separator_recycle');actual=evalin('base','nirpResults');actualTop=actual.Streams.(matlab.lang.makeValidName('Separator top')).streamSI;
             testCase.verifyEqual(actualTop.F(1),top.F(1),'RelTol',1e-10,'AbsTol',1e-12);

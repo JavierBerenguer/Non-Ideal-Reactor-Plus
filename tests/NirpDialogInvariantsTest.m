@@ -279,7 +279,7 @@ function addSystem(model,name,className,position,varargin)
 end
 
 function editCell(tableHandle,row,column,value)
-    % A real uitable returns typed text when the cell already holds text (E-014)
+    % A real uitable returns typed text when the cell already holds text (E-015)
     data=tableHandle.Data;previous=data{row,column};editData=num2str(value,17);
     if (ischar(previous)||isstring(previous))&&isnumeric(value),value=editData;end
     data{row,column}=value;tableHandle.Data=data;

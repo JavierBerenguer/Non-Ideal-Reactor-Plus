@@ -810,7 +810,7 @@ classdef StreamDialog < handle
         function componentEdited(obj,event)
             if obj.Updating||obj.Role~="Feed",return,end
             row=event.Indices(1);column=event.Indices(2);keys={'','F','C','x','mdot','w'};key=keys{column};
-            value=cellNumber(event.NewData);catalogName=[key num2str(row)]; % typed cells arrive as text: the table shows formatted numbers (Claude, E-014)
+            value=cellNumber(event.NewData);catalogName=[key num2str(row)]; % typed cells arrive as text: the table shows formatted numbers (Claude, E-015)
             if isnan(value),obj.Origins.(key)(row)="empty";obj.SpecifiedSI.(catalogName)=NaN;
             else
                 obj.Origins.(key)(row)="specified";
@@ -1031,7 +1031,7 @@ function setUnitIfValid(dropdown,unit),if isempty(unit),return,end;if any(string
 function value=emptyValue(value),if isempty(value)||(isnumeric(value)&&isscalar(value)&&isnan(value)),value=[];end,end
 function flag=isFiniteScalar(value),flag=isnumeric(value)&&isscalar(value)&&isfinite(value);end
 function value=cellNumber(value)
-    % A uitable cell holds a number, [] or, once formatted, text; typing into a text cell returns text (Claude, E-014).
+    % A uitable cell holds a number, [] or, once formatted, text; typing into a text cell returns text (Claude, E-015).
     if ischar(value)||(isstring(value)&&isscalar(value)),value=str2double(value);end
     if ~(isnumeric(value)&&isscalar(value)),value=NaN;end
     value=double(value);
