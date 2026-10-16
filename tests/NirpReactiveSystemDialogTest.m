@@ -2,7 +2,7 @@ classdef NirpReactiveSystemDialogTest < matlab.unittest.TestCase
 %NIRPPACKAGEEDITORTEST Tests for the graphical package editor.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 2, 2026. Last update: October 2, 2026
+% Created: October 2, 2026. Last update: October 17, 2026
 % =========================================================================
 
     properties
@@ -153,10 +153,10 @@ classdef NirpReactiveSystemDialogTest < matlab.unittest.TestCase
             new_system('mask_model') ; testCase.addTeardown(@() close_system('mask_model',0)) ;
             block=nirp.flowsheet.addBlock('mask_model') ; mask=Simulink.Mask.get(block) ;
             testCase.verifyNotEmpty(mask.getDialogControl('EditPackage')) ;
-            app=NonIdealReactorApp() ; testCase.addTeardown(@() deleteValid(app)) ;
-            fig=findall(groot,'Type','Figure','Name','Non-Ideal Reactor Analysis') ;
-            set(fig,'Visible','off') ; menu=findall(fig,'Type','uimenu','Text','New flowsheet...') ;
-            feval(menu.MenuSelectedFcn,menu,[]) ;
+            % New flowsheet... lives in the main launcher since T-161
+            launcher=NonIdealReactorPlus() ; testCase.addTeardown(@() deleteValid(launcher)) ;
+            button=findall(launcher.UIFigure,'Type','uibutton','Text','New flowsheet...') ;
+            feval(button.ButtonPushedFcn,button,[]) ;
             editor=findall(groot,'Type','Figure','Tag','NirpReactiveSystemDialog') ;
             testCase.verifyNumElements(editor,1) ; delete(editor) ;
         end
