@@ -21,7 +21,8 @@ classdef NirpLauncherTest < matlab.uitest.TestCase
             testCase.verifyEqual(sort(string({buttons.Text})), sort([ ...
                 "Ideal Reactor App", "Non-Ideal Reactor App", ...
                 "Open block library", "Open example...", ...
-                "New flowsheet..."])) ;
+                "New flowsheet...", "Ideal Reactor App guide", ...
+                "Non-Ideal Reactor App guide", "Flowsheet guide"])) ;
             labels = findall(figureHandle, 'Type', 'uilabel') ;
             labelText = strings(0, 1) ;
             for i = 1:numel(labels)
@@ -125,6 +126,66 @@ classdef NirpLauncherTest < matlab.uitest.TestCase
             drawnow ;
             idealFigure = findall(groot, 'Type', 'Figure', 'Name', 'UI Figure') ;
             testCase.verifyNumElements(idealFigure, 1) ;
+        end
+
+        function guideButtonsOpenExpectedFiles(testCase)
+            launcher = NonIdealReactorPlus() ;
+            testCase.addTeardown(@() deleteIfValid(launcher)) ;
+            rootDir = fileparts(fileparts(mfilename('fullpath'))) ;
+            openedPaths = strings(0, 1) ;
+            launcher.TestActionOverrides.OpenGuide = @recordGuidePath ;
+            cases = { ...
+                'Ideal Reactor App guide', fullfile(rootDir, 'docs', 'guides', ...
+                    'ideal-reactor-app.html') ; ...
+                'Non-Ideal Reactor App guide', ...
+                    fullfile(rootDir, 'docs', 'UserGuide.html') ; ...
+                'Flowsheet guide', fullfile(rootDir, 'docs', 'guides', ...
+                    'simulink-flowsheet.html')} ;
+
+            for i = 1:size(cases, 1)
+                testCase.press(button(launcher.UIFigure, cases{i, 1})) ;
+                testCase.verifyTrue(isfile(cases{i, 2})) ;
+                testCase.verifyEqual(openedPaths(i), string(cases{i, 2})) ;
+            end
+
+            function recordGuidePath(guidePath)
+                openedPaths(end + 1, 1) = string(guidePath) ;
+            end
+        end
+
+        function idealGuideUsesExistingImagesAndUserLanguage(testCase)
+            rootDir = fileparts(fileparts(mfilename('fullpath'))) ;
+            guidePath = fullfile(rootDir, 'docs', 'guides', ...
+                'ideal-reactor-app.html') ;
+            testCase.verifyTrue(isfile(guidePath)) ;
+            guideText = fileread(guidePath) ;
+            imageTokens = regexp(guideText, ...
+                '<img[^>]+src="([^"]+)"', 'tokens') ;
+            testCase.verifyNotEmpty(imageTokens) ;
+            guideDir = fileparts(guidePath) ;
+            for i = 1:numel(imageTokens)
+                imagePath = fullfile(guideDir, imageTokens{i}{1}) ;
+                testCase.verifyTrue(isfile(imagePath), imagePath) ;
+            end
+
+            testCase.verifyNotEmpty(strfind(guideText, ...
+                ['ReactorApp was developed by Isabela Fons ' ...
+                '(University of Alicante)'])) ; %#ok<STREMP>
+            textWithoutRequiredCredit = strrep(guideText, ...
+                'ReactorApp was developed by Isabela Fons', ...
+                'The original ideal-reactor application was developed') ;
+            forbiddenNames = {'ReactorApp', 'defineReactionSysApp', ...
+                'defineStreamApp', 'defineReactorApp', ...
+                'dialogHysysStreamApp', 'UtilitiesApp', ...
+                'unitConverterApp'} ;
+            for i = 1:numel(forbiddenNames)
+                testCase.verifyEmpty(strfind(textWithoutRequiredCredit, ...
+                    forbiddenNames{i})) ; %#ok<STREMP>
+            end
+            testCase.verifyEmpty(strfind(guideText, 'nirp.')) ; %#ok<STREMP>
+            testCase.verifyEmpty(strfind(guideText, '.m"')) ; %#ok<STREMP>
+            testCase.verifyEmpty(strfind(guideText, '()')) ; %#ok<STREMP>
+            testCase.verifyEmpty(strfind(guideText, 'data:image')) ; %#ok<STREMP>
         end
 
         function libraryButtonLoadsLibrary(testCase)
