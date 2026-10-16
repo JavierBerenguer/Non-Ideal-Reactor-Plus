@@ -1,0 +1,149 @@
+classdef NirpLauncherTest < matlab.uitest.TestCase
+    % NirpLauncherTest verifies the main launcher and startup feedback.
+    % =========================================================================
+    % Javier Berenguer Sabater
+    % Created: October 16, 2026. Last update: October 16, 2026
+    % =========================================================================
+
+    methods (TestMethodSetup)
+        function prepareCleanDesktop(testCase)
+            closeAllUi() ;
+            testCase.addTeardown(@() closeAllUi()) ;
+        end
+    end
+
+    methods (Test)
+        function launcherShowsActionsAndCredits(testCase)
+            launcher = NonIdealReactorPlus() ;
+            testCase.addTeardown(@() deleteIfValid(launcher)) ;
+            figureHandle = launcher.UIFigure ;
+            buttons = findall(figureHandle, 'Type', 'uibutton') ;
+            testCase.verifyEqual(sort(string({buttons.Text})), sort([ ...
+                "Ideal Reactor App", "Non-Ideal Reactor App", ...
+                "Open block library", "Open example...", ...
+                "New flowsheet..."])) ;
+            labels = findall(figureHandle, 'Type', 'uilabel') ;
+            labelText = strings(0, 1) ;
+            for i = 1:numel(labels)
+                labelText = [labelText; string(labels(i).Text(:))] ; %#ok<AGROW>
+            end
+            testCase.verifyTrue(any(contains(labelText, 'Isabela Fons'))) ;
+        end
+
+        function nonIdealButtonKeepsLauncherIndependent(testCase)
+            launcher = NonIdealReactorPlus() ;
+            testCase.addTeardown(@() deleteIfValid(launcher)) ;
+            testCase.press(button(launcher.UIFigure, 'Non-Ideal Reactor App')) ;
+            drawnow ;
+            mainFigure = findall(groot, 'Type', 'Figure', ...
+                'Name', 'Non-Ideal Reactor Analysis') ;
+            testCase.verifyNumElements(mainFigure, 1) ;
+            testCase.verifyTrue(isvalid(launcher.UIFigure)) ;
+            testCase.verifyTrue(all(string({findall(launcher.UIFigure, ...
+                'Type', 'uibutton').Enable}) == "on")) ;
+            delete(launcher) ;
+            testCase.verifyTrue(isvalid(mainFigure)) ;
+        end
+
+        function nonIdealProgressIsOrderedAndAdvisory(testCase)
+            fractions = zeros(0, 1) ;
+            messages = strings(0, 1) ;
+            figureExists = false(0, 1) ;
+            figureVisibility = strings(0, 1) ;
+            app = NonIdealReactorApp('ProgressFcn', @recordAndFail) ;
+            testCase.addTeardown(@() deleteIfValid(app)) ;
+
+            testCase.verifyEqual(numel(fractions), 8) ;
+            testCase.verifyEqual(fractions, [[0:6] / 7 1].', ...
+                'AbsTol', eps) ;
+            testCase.verifyGreaterThanOrEqual(diff(fractions), 0) ;
+            testCase.verifyTrue(all(figureExists)) ;
+            testCase.verifyTrue(all(figureVisibility(1:7) == "off")) ;
+            testCase.verifyEqual(figureVisibility(8), "on") ;
+            testCase.verifyEqual(messages(8), "Ready") ;
+            expectedSteps = ["RTD Analysis", "Convolution", "Prediction", ...
+                "Tanks in Series", "Dispersion", ...
+                "Design & Optimization", "Final layout"] ;
+            for i = 1:numel(expectedSteps)
+                testCase.verifySubstring(messages(i), expectedSteps(i)) ;
+            end
+            figureHandle = findall(groot, 'Type', 'Figure', ...
+                'Name', 'Non-Ideal Reactor Analysis') ;
+            testCase.verifyEqual(string(figureHandle.Visible), "on") ;
+
+            function recordAndFail(fraction, message)
+                fractions(end + 1, 1) = fraction ;
+                messages(end + 1, 1) = string(message) ;
+                figureHandle = findall(groot, 'Type', 'Figure', ...
+                    'Name', 'Non-Ideal Reactor Analysis') ;
+                figureExists(end + 1, 1) = ~isempty(figureHandle) ;
+                if isempty(figureHandle)
+                    figureVisibility(end + 1, 1) = "missing" ;
+                else
+                    figureVisibility(end + 1, 1) = string(figureHandle(1).Visible) ;
+                end
+                error('NirpLauncherTest:ProgressFailure', ...
+                    'A progress callback failure is advisory.') ;
+            end
+        end
+
+        function directLaunchRemovesLoadingWindow(testCase)
+            app = NonIdealReactorApp() ;
+            testCase.addTeardown(@() deleteIfValid(app)) ;
+            figures = findall(groot, 'Type', 'Figure') ;
+            testCase.verifyFalse(any(startsWith(string({figures.Name}), ...
+                'Loading'))) ;
+        end
+
+        function idealButtonOpensOriginalApp(testCase)
+            launcher = NonIdealReactorPlus() ;
+            testCase.addTeardown(@() deleteIfValid(launcher)) ;
+            testCase.press(button(launcher.UIFigure, 'Ideal Reactor App')) ;
+            drawnow ;
+            idealFigure = findall(groot, 'Type', 'Figure', 'Name', 'UI Figure') ;
+            testCase.verifyNumElements(idealFigure, 1) ;
+        end
+
+        function libraryButtonLoadsLibrary(testCase)
+            launcher = NonIdealReactorPlus() ;
+            testCase.addTeardown(@() deleteIfValid(launcher)) ;
+            testCase.press(button(launcher.UIFigure, 'Open block library')) ;
+            drawnow ;
+            testCase.verifyTrue(bdIsLoaded('NirpLibrary')) ;
+        end
+
+        function failedActionAlertsAndRestoresButtons(testCase)
+            launcher = NonIdealReactorPlus() ;
+            testCase.addTeardown(@() deleteIfValid(launcher)) ;
+            launcher.TestActionOverrides.Ideal = @failAction ;
+            testCase.press(button(launcher.UIFigure, 'Ideal Reactor App')) ;
+            drawnow ;
+            testCase.dismissAlertDialog(launcher.UIFigure) ;
+            buttons = findall(launcher.UIFigure, 'Type', 'uibutton') ;
+            testCase.verifyTrue(all(string({buttons.Enable}) == "on")) ;
+        end
+    end
+end
+
+function value = button(figureHandle, text)
+    values = findall(figureHandle, 'Type', 'uibutton', 'Text', text) ;
+    value = values(1) ;
+end
+
+function failAction()
+    error('NirpLauncherTest:SyntheticFailure', ...
+        'Synthetic launcher failure.') ;
+end
+
+function closeAllUi()
+    bdclose('all') ;
+    figures = findall(groot, 'Type', 'Figure') ;
+    if ~isempty(figures), delete(figures) ; end
+end
+
+function deleteIfValid(value)
+    try
+        if isvalid(value), delete(value) ; end
+    catch
+    end
+end

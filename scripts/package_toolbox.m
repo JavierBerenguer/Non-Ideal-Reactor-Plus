@@ -5,7 +5,7 @@ function toolboxFile = package_toolbox(outputFolder)
 %   application as NonIdealReactorPlus_0.1.0.mltbx.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 2, 2026. Last update: October 2, 2026
+% Created: October 2, 2026. Last update: October 16, 2026
 % =========================================================================
 
     arguments
@@ -43,7 +43,7 @@ function toolboxFile = package_toolbox(outputFolder)
     options.MinimumMatlabRelease = 'R2025b' ;
     options.ToolboxFiles = packageFiles(stagingRoot) ;
     options.ToolboxMatlabPath = {stagingRoot,simulinkFolder} ;
-    options.AppGalleryFiles = {fullfile(stagingRoot,'NonIdealReactorApp.m')} ;
+    options.AppGalleryFiles = {fullfile(stagingRoot,'NonIdealReactorPlus.m')} ;
     options.OutputFile = toolboxFile ;
     matlab.addons.toolbox.packageToolbox(options) ;
     path(oldPath) ;

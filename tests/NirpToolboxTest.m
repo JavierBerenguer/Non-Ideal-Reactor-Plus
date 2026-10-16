@@ -2,7 +2,7 @@ classdef NirpToolboxTest < matlab.unittest.TestCase
     % NirpToolboxTest verifies packaging and installed-example behaviour.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 2, 2026. Last update: October 2, 2026
+    % Created: October 2, 2026. Last update: October 16, 2026
     % =========================================================================
 
     properties
@@ -36,6 +36,7 @@ classdef NirpToolboxTest < matlab.unittest.TestCase
             unpacked = fullfile(testCase.Folder,'unpacked') ;
             unzip(toolboxFile,unpacked) ;
             names = archiveNames(unpacked) ;
+            testCase.verifyTrue(any(endsWith(names,'NonIdealReactorPlus.m'))) ;
             testCase.verifyTrue(any(endsWith(names,'NonIdealReactorApp.m'))) ;
             testCase.verifyTrue(any(contains(names,'/+nirp/'))) ;
             testCase.verifyTrue(any(endsWith(names,'/simulink/NirpLibrary.slx'))) ;

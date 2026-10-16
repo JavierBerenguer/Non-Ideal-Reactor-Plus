@@ -5,10 +5,11 @@ classdef NonIdealReactorApp < handle
 % and a design & optimization workspace for non-ideal reactors.
 %
 % Launch: app = NonIdealReactorApp ;
+% Optional progress callback: app = NonIdealReactorApp('ProgressFcn', f) ;
 %
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: March 21, 2026. Last update: October 9, 2026
+% Created: March 21, 2026. Last update: October 16, 2026
 % =========================================================================
 
     properties (Access = private)
@@ -229,12 +230,37 @@ classdef NonIdealReactorApp < handle
     methods (Access = public)
 
         %% ============== CONSTRUCTOR ==============
-        function app = NonIdealReactorApp()
+        function app = NonIdealReactorApp(varargin)
+
+            parser = inputParser() ;
+            parser.FunctionName = 'NonIdealReactorApp' ;
+            addParameter(parser, 'ProgressFcn', [], ...
+                @(value) isempty(value) || isa(value, 'function_handle')) ;
+            parse(parser, varargin{:}) ;
+            progressFcn = parser.Results.ProgressFcn ;
+
+            loadingCleanup = [] ;
+            if isempty(progressFcn)
+                loadingFigure = uifigure( ...
+                    'Name', 'Loading Non-Ideal Reactor App', ...
+                    'Position', [100 100 420 130], ...
+                    'Resize', 'off') ;
+                movegui(loadingFigure, 'center') ;
+                progressDialog = uiprogressdlg(loadingFigure, ...
+                    'Title', 'Loading Non-Ideal Reactor App', ...
+                    'Message', 'Preparing interface...', ...
+                    'Value', 0) ;
+                progressFcn = @(fraction, message) ...
+                    NonIdealReactorApp.showLoadingProgress(progressDialog, fraction, message) ;
+                loadingCleanup = onCleanup(@() delete(loadingFigure)) ;
+                drawnow ;
+            end
 
             % Create main figure
             app.UIFigure = uifigure('Name', 'Non-Ideal Reactor Analysis', ...
                 'Position', [100 100 1200 750], ...
                 'Resize', 'on', ...
+                'Visible', 'off', ...
                 'AutoResizeChildren', 'off') ;
 
             % Menu bar
@@ -290,14 +316,28 @@ classdef NonIdealReactorApp < handle
             app.UIFigure.SizeChangedFcn = @(~,~) app.onFigureResize() ;
 
             % Build tabs
+            app.reportProgress(progressFcn, 0 / 7, ...
+                'Building RTD Analysis (1/7)') ;
             app.createRTDTab() ;
+            app.reportProgress(progressFcn, 1 / 7, ...
+                'Building Convolution (2/7)') ;
             app.ConvolutionHelper = ConvolutionTabHelper(app.TabGroup, ...
                 @() app.rtd, @(signal) app.useConvolutionRTD(signal), ...
                 @(message) app.updateStatus(message)) ;
+            app.reportProgress(progressFcn, 2 / 7, ...
+                'Building Prediction (3/7)') ;
             app.createPredictionTab() ;
+            app.reportProgress(progressFcn, 3 / 7, ...
+                'Building Tanks in Series (4/7)') ;
             app.createTISTab() ;
+            app.reportProgress(progressFcn, 4 / 7, ...
+                'Building Dispersion (5/7)') ;
             app.createDispersionTab() ;
+            app.reportProgress(progressFcn, 5 / 7, ...
+                'Building Design & Optimization (6/7)') ;
             app.createDesignTemplatesTab() ;
+            app.reportProgress(progressFcn, 6 / 7, ...
+                'Final layout: drawing the window, the first time can take a while (7/7)') ;
             app.RTD_updateFQuery() ;
             app.Pred_inputMethodChanged() ;
 
@@ -310,6 +350,9 @@ classdef NonIdealReactorApp < handle
             drawnow ;
             app.onFigureResize() ;
             app.refreshLayout() ;
+            % Drawing the visible window is the slow part of a cold start: Ready only after it (Claude, T-161)
+            app.reportProgress(progressFcn, 1, 'Ready') ;
+            clear loadingCleanup
         end
 
         function saveSessionToFile(app, fullPath, sessionName)
@@ -335,6 +378,30 @@ classdef NonIdealReactorApp < handle
             end
 
             app.applySessionSnapshot(loadedData.sessionData) ;
+        end
+
+    end
+
+    methods (Access = private)
+
+        function reportProgress(~, progressFcn, fraction, message)
+            % Progress callbacks are advisory and must never prevent startup.
+            try
+                progressFcn(fraction, message) ;
+            catch
+                % Continue without progress if a caller callback fails.
+            end
+        end
+
+    end
+
+    methods (Static, Access = private)
+
+        function showLoadingProgress(progressDialog, fraction, message)
+            % The build is synchronous: repaint so the loading window really advances (Claude, T-161)
+            progressDialog.Value = fraction ;
+            progressDialog.Message = message ;
+            drawnow limitrate ;
         end
 
     end
