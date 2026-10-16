@@ -95,6 +95,29 @@ classdef NirpLauncherTest < matlab.uitest.TestCase
                 'Loading'))) ;
         end
 
+        function resizeEventsAreCoalescedAndApplyLastSize(testCase)
+            app = NonIdealReactorApp('ProgressFcn', @(~,~) []) ;
+            testCase.addTeardown(@() deleteIfValid(app)) ;
+            figureHandle = findall(groot, 'Type', 'Figure', ...
+                'Name', 'Non-Ideal Reactor Analysis') ;
+            tabGroup = findall(figureHandle, 'Type', 'uitabgroup') ;
+            statusBar = findall(figureHandle, 'Type', 'uilabel', ...
+                'Text', '  Ready') ;
+            resizeFcn = figureHandle.SizeChangedFcn ;
+
+            for i = 1:40
+                figureHandle.Position(3:4) = [1200 + 10 * i, 750 + 5 * i] ;
+                resizeFcn(figureHandle, []) ;
+            end
+            resizeTimers = timerfindall('Tag', ...
+                'NonIdealReactorAppResizeTimer') ;
+            testCase.verifyNumElements(resizeTimers, 1) ;
+
+            testCase.verifyTrue(waitFor(@() ...
+                isequal(tabGroup(1).Position, [0 22 1600 928]), 2)) ;
+            testCase.verifyEqual(statusBar(1).Position, [0 0 1600 22]) ;
+        end
+
         function idealButtonOpensOriginalApp(testCase)
             launcher = NonIdealReactorPlus() ;
             testCase.addTeardown(@() deleteIfValid(launcher)) ;
@@ -125,6 +148,16 @@ classdef NirpLauncherTest < matlab.uitest.TestCase
     end
 end
 
+function value = waitFor(predicate, timeout)
+    started = tic ;
+    value = predicate() ;
+    while ~value && toc(started) < timeout
+        pause(0.02) ;
+        drawnow ;
+        value = predicate() ;
+    end
+end
+
 function value = button(figureHandle, text)
     values = findall(figureHandle, 'Type', 'uibutton', 'Text', text) ;
     value = values(1) ;
@@ -139,6 +172,8 @@ function closeAllUi()
     bdclose('all') ;
     figures = findall(groot, 'Type', 'Figure') ;
     if ~isempty(figures), delete(figures) ; end
+    resizeTimers = timerfindall('Tag', 'NonIdealReactorAppResizeTimer') ;
+    if ~isempty(resizeTimers), stop(resizeTimers) ; delete(resizeTimers) ; end
 end
 
 function deleteIfValid(value)

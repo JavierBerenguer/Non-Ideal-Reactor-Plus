@@ -17,6 +17,7 @@ classdef NonIdealReactorApp < handle
         UIFigure
         TabGroup
         StatusBar               % Status bar label at bottom of figure
+        ResizeTimer
 
         % Shared state
         rtd                 % Current RTD object (shared across tabs)
@@ -262,6 +263,7 @@ classdef NonIdealReactorApp < handle
                 'Resize', 'on', ...
                 'Visible', 'off', ...
                 'AutoResizeChildren', 'off') ;
+            app.UIFigure.CloseRequestFcn = @(~,~) delete(app) ;
 
             % Menu bar
             mFile = uimenu(app.UIFigure, 'Text', 'File') ;
@@ -276,7 +278,7 @@ classdef NonIdealReactorApp < handle
                 'MenuSelectedFcn', @(~,~) app.restartApp()) ;
             uimenu(mFile, 'Text', 'Exit', ...
                 'Separator', 'on', ...
-                'MenuSelectedFcn', @(~,~) delete(app.UIFigure)) ;
+                'MenuSelectedFcn', @(~,~) delete(app)) ;
             mTools = uimenu(app.UIFigure, 'Text', 'Tools') ;
             uimenu(mTools, 'Text', 'Unit Converter', ...
                 'MenuSelectedFcn', @(~,~) UnitConverterHelper.launch()) ;
@@ -303,11 +305,6 @@ classdef NonIdealReactorApp < handle
             % Create tab group (above status bar)
             app.TabGroup = uitabgroup(app.UIFigure, ...
                 'Position', [0 22 1200 728]) ;
-
-            % Resize callback from the start: it only moves the tab group and the status bar, which
-            % exist now. Connected after building the tabs, a resize during start-up (e.g. the
-            % window being maximised) was missed and the layout froze (Claude, 2026-10-15).
-            app.UIFigure.SizeChangedFcn = @(~,~) app.onFigureResize() ;
 
             % Build tabs
             app.reportProgress(progressFcn, 0 / 7, ...
@@ -338,15 +335,25 @@ classdef NonIdealReactorApp < handle
             % Panels whose content has fixed heights scroll when the window is smaller than them
             app.makePanelGridsScrollable() ;
 
-            % Show figure, size it to the window it really has and force one full relayout so
-            % every axes is placed even if the window changed size while it was being built
+            % Size the two top-level children once, then coalesce the resize event storm produced
+            % by a native window drag. Updating the tab group for every event makes the web view
+            % relayout all of its descendants repeatedly and can starve painting for minutes.
+            app.applyFigureSize() ;
+            app.UIFigure.SizeChangedFcn = @(~,~) app.onFigureResize() ;
             app.UIFigure.Visible = 'on' ;
             drawnow ;
-            app.onFigureResize() ;
-            app.refreshLayout() ;
+            app.applyFigureSize() ;
             % Drawing the visible window is the slow part of a cold start: Ready only after it (Claude, T-161)
             app.reportProgress(progressFcn, 1, 'Ready') ;
             clear loadingCleanup
+        end
+
+        function delete(app)
+            app.cancelResizeTimer() ;
+            if ~isempty(app.UIFigure) && isvalid(app.UIFigure)
+                app.UIFigure.SizeChangedFcn = [] ;
+                delete(app.UIFigure) ;
+            end
         end
 
         function saveSessionToFile(app, fullPath, sessionName)
@@ -405,6 +412,30 @@ classdef NonIdealReactorApp < handle
         %% ============== RESPONSIVE RESIZE (T6) ==============
 
         function onFigureResize(app)
+            if isempty(app.UIFigure) || ~isvalid(app.UIFigure)
+                return
+            end
+
+            if isempty(app.ResizeTimer) || ~isvalid(app.ResizeTimer)
+                app.ResizeTimer = timer( ...
+                    'ExecutionMode', 'singleShot', ...
+                    'StartDelay', 0.12, ...
+                    'BusyMode', 'drop', ...
+                    'Tag', 'NonIdealReactorAppResizeTimer', ...
+                    'TimerFcn', @(~,~) app.applyFigureSize()) ;
+            elseif strcmp(app.ResizeTimer.Running, 'on')
+                stop(app.ResizeTimer) ;
+            end
+            start(app.ResizeTimer) ;
+        end
+
+        function applyFigureSize(app)
+            if isempty(app.UIFigure) || ~isvalid(app.UIFigure) || ...
+                    isempty(app.TabGroup) || ~isvalid(app.TabGroup) || ...
+                    isempty(app.StatusBar) || ~isvalid(app.StatusBar)
+                return
+            end
+
             pos = app.UIFigure.Position ;
             w = pos(3) ; h = pos(4) ;
 
@@ -413,6 +444,17 @@ classdef NonIdealReactorApp < handle
 
             % Status bar stretches full width at bottom
             app.StatusBar.Position = [0 0 w 22] ;
+        end
+
+        function cancelResizeTimer(app)
+            if isempty(app.ResizeTimer) || ~isvalid(app.ResizeTimer)
+                return
+            end
+            if strcmp(app.ResizeTimer.Running, 'on')
+                stop(app.ResizeTimer) ;
+            end
+            delete(app.ResizeTimer) ;
+            app.ResizeTimer = [] ;
         end
 
         function makePanelGridsScrollable(app)
@@ -429,19 +471,6 @@ classdef NonIdealReactorApp < handle
                     g.Scrollable = 'on' ;
                 end
             end
-        end
-
-        function refreshLayout(app)
-            % Nudge every grid so the web view recomputes positions after the first display
-            grids = findall(app.UIFigure, 'Type', 'uigridlayout') ;
-            for i = 1:numel(grids)
-                grids(i).Padding = grids(i).Padding + [0 0 0 1] ;
-            end
-            drawnow ;
-            for i = 1:numel(grids)
-                grids(i).Padding = grids(i).Padding - [0 0 0 1] ;
-            end
-            drawnow ;
         end
 
         function restartApp(app)
@@ -489,6 +518,7 @@ classdef NonIdealReactorApp < handle
         end
 
         function closeFigureForRestart(app)
+            app.cancelResizeTimer() ;
             if ~isempty(app.UIFigure) && isvalid(app.UIFigure)
                 fig = app.UIFigure ;
                 try
