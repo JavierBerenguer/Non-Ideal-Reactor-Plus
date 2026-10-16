@@ -2,7 +2,7 @@ classdef NirpDialogInvariantsTest < matlab.unittest.TestCase
 %NIRPDIALOGINVARIANTSTEST Common presentation and editing invariants.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 15, 2026. Last update: October 15, 2026
+% Created: October 15, 2026. Last update: October 16, 2026
 % =========================================================================
     properties
         Folder
@@ -279,9 +279,12 @@ function addSystem(model,name,className,position,varargin)
 end
 
 function editCell(tableHandle,row,column,value)
-    data=tableHandle.Data;previous=data{row,column};data{row,column}=value;tableHandle.Data=data;
+    % A real uitable returns typed text when the cell already holds text (E-014)
+    data=tableHandle.Data;previous=data{row,column};editData=num2str(value,17);
+    if (ischar(previous)||isstring(previous))&&isnumeric(value),value=editData;end
+    data{row,column}=value;tableHandle.Data=data;
     event=struct('Indices',[row column],'PreviousData',previous,'NewData',value, ...
-        'EditData',num2str(value,17));
+        'EditData',editData);
     feval(tableHandle.CellEditCallback,tableHandle,event);
 end
 

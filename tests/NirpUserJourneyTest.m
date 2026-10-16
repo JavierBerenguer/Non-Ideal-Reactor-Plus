@@ -1,10 +1,12 @@
 classdef NirpUserJourneyTest < matlab.uitest.TestCase
 %NIRPUSERJOURNEYTEST User-level journeys from empty library blocks.
 %   Visible edit fields, selectors, and buttons use matlab.uitest. UITable
-%   cells use their real CellEditCallback with the committed event payload.
+%   cells use their real CellEditCallback with the payload a real uitable
+%   commits: text when the cell already shows text (E-014). The gas feed
+%   journeys type into the cells with matlab.uitest.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 15, 2026. Last update: October 15, 2026
+% Created: October 15, 2026. Last update: October 16, 2026
 % =========================================================================
     properties
         Folder
@@ -73,7 +75,7 @@ classdef NirpUserJourneyTest < matlab.uitest.TestCase
             addLibraryBlock(testCase,'Stream','journey_gas/New Gas',[220 100 330 160]);
             dialog=nirp.flowsheet.StreamDialog('journey_gas/New Gas','Visible','on');drawnow;
             testCase.choose(dialog.RoleDropDown,'Feed');testCase.choose(dialog.PhaseDropDown,'G');
-            editCell(dialog.ComponentTable,1,4,0.6);editCell(dialog.ComponentTable,3,4,0.4);
+            testCase.type(dialog.ComponentTable,[1 4],'0.6');drawnow;testCase.type(dialog.ComponentTable,[3 4],'0.4');drawnow;
             typeValue(testCase,dialog.PressureField,2.5e6);typeValue(testCase,dialog.TemperatureField,623.15);
             typeValue(testCase,dialog.VolumetricFlowField,0.01);
             testCase.verifySubstring(dialog.StatusLabel.Text,'Fully specified');capture(dialog.Figure,'j2_gas_feed');
@@ -88,6 +90,31 @@ classdef NirpUserJourneyTest < matlab.uitest.TestCase
             testCase.verifyEqual(origins,["specified";"calculated";"specified"]);
             stored=nirp.pkg.readDictionary(nirp.flowsheet.modelDictionary('journey_gas'));
             testCase.verifyTrue(any(string({stored.feeds.name})=="New Gas"));
+        end
+
+        function j2bTypedFractionsAfterPTQWithoutMolecularWeights(testCase)
+            % Example 25, F2 (E-014): P, T and Q first, then the fractions typed into text cells
+            package=nirp.pkg.examples.problem38ParallelGas();createBaseModel(testCase,'journey_f2',package);
+            addLibraryBlock(testCase,'Stream','journey_f2/F2',[220 100 330 160]);
+            dialog=nirp.flowsheet.StreamDialog('journey_f2/F2','Visible','on');drawnow;
+            testCase.choose(dialog.RoleDropDown,'Feed');testCase.choose(dialog.PhaseDropDown,'G');
+            testCase.verifyEqual(size(dialog.ComponentTable.Data,2),4);
+            testCase.choose(dialog.PressureUnitDropDown,'atm');testCase.choose(dialog.TemperatureUnitDropDown,[char(176) 'C']);
+            testCase.choose(dialog.VolumetricFlowUnitDropDown,'L/h');
+            typeValue(testCase,dialog.PressureField,25);typeValue(testCase,dialog.TemperatureField,350);
+            typeValue(testCase,dialog.VolumetricFlowField,320000);
+            testCase.verifyTrue(ischar(dialog.ComponentTable.Data{1,4}));
+            testCase.type(dialog.ComponentTable,[1 4],'0.5');drawnow;testCase.type(dialog.ComponentTable,[1 4],'0.6');drawnow;
+            testCase.type(dialog.ComponentTable,[3 4],'0.4');drawnow;
+            testCase.verifySubstring(dialog.StatusLabel.Text,'Fully specified');
+            values=dialog.getValues();testCase.verifyEqual(values.MoleFraction.value(:),[0.6;0;0.4],'AbsTol',1e-12);
+            total=25*101325*(320/3600)/(8.314*623.15);
+            testCase.verifyEqual(sum(values.MolarFlow.value(:)),UnitConverterHelper.convertFromSI('MolarFlow',total,values.MolarFlow.unit),'RelTol',1e-3);
+            testCase.press(dialog.OKButton);drawnow;
+            reopened=nirp.flowsheet.StreamDialog('journey_f2/F2','Visible','off');
+            testCase.addTeardown(@()deleteValid(reopened));
+            testCase.verifySubstring(reopened.StatusLabel.Text,'Fully specified');
+            testCase.verifyEqual(reopened.DataModel.MoleFraction.value(:),[0.6;0;0.4],'AbsTol',1e-12);
         end
 
         function j3LiquidConcentrationAndMassBasesAreEnteredInCells(testCase)
@@ -334,8 +361,10 @@ function tab=findTab(figureHandle,title)
 end
 
 function editCell(tableHandle,row,column,value)
-    data=tableHandle.Data;previous=data{row,column};data{row,column}=value;tableHandle.Data=data;
-    editData=value;if isnumeric(value),editData=num2str(value,17);end
+    % A real uitable returns typed text when the cell already holds text (E-014)
+    data=tableHandle.Data;previous=data{row,column};editData=value;if isnumeric(value),editData=num2str(value,17);end
+    if (ischar(previous)||isstring(previous))&&isnumeric(value),value=editData;end
+    data{row,column}=value;tableHandle.Data=data;
     event=struct('Indices',[row column],'PreviousData',previous,'NewData',value,'EditData',editData);
     feval(tableHandle.CellEditCallback,tableHandle,event);drawnow;
 end

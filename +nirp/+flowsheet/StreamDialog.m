@@ -2,7 +2,7 @@ classdef StreamDialog < handle
     % StreamDialog edits feeds and displays calculated stream results.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 2, 2026. Last update: October 12, 2026
+    % Created: October 2, 2026. Last update: October 16, 2026
     % =========================================================================
 
     properties (SetAccess = private)
@@ -480,7 +480,7 @@ classdef StreamDialog < handle
             for i=1:numel(names)
                 name=names{i};item=specs.(name);token=regexp(name,'^(F|x)(\d+)$','tokens','once');
                 if ~isempty(token)
-                    row=str2double(token{2});if row>numel(obj.ComponentNames),continue,end;column=2;if strcmp(token{1},'x'),column=3;value=item.si;else,value=UnitConverterHelper.convertFromSI('MolarFlow',value,obj.SpecificationFlowUnitDropDown.Value);end
+                    row=str2double(token{2});if row>numel(obj.ComponentNames),continue,end;column=2;if strcmp(token{1},'x'),column=3;value=item.si;else,value=UnitConverterHelper.convertFromSI('MolarFlow',item.si,obj.SpecificationFlowUnitDropDown.Value);end
                     data=obj.SpecificationTable.Data;data{row,column}=value;obj.SpecificationTable.Data=data;continue
                 end
                 switch name
@@ -495,7 +495,7 @@ classdef StreamDialog < handle
         function specs=buildConnectedSpecs(obj)
             specs=struct();
             if ~isempty(obj.SpecificationTotalFlowField.Value),specs.F=struct('si',UnitConverterHelper.convertToSI('MolarFlow',obj.SpecificationTotalFlowField.Value,obj.SpecificationTotalFlowUnitDropDown.Value),'unit',char(obj.SpecificationTotalFlowUnitDropDown.Value));end
-            data=obj.SpecificationTable.Data;for i=1:size(data,1),if isFiniteScalar(data{i,2}),name=['F' num2str(i)];specs.(name)=struct('si',UnitConverterHelper.convertToSI('MolarFlow',data{i,2},obj.SpecificationFlowUnitDropDown.Value),'unit',char(obj.SpecificationFlowUnitDropDown.Value));end;if isFiniteScalar(data{i,3}),name=['x' num2str(i)];specs.(name)=struct('si',data{i,3},'unit','1');end,end
+            data=obj.SpecificationTable.Data;for i=1:size(data,1),f=cellNumber(data{i,2});x=cellNumber(data{i,3});if isfinite(f),name=['F' num2str(i)];specs.(name)=struct('si',UnitConverterHelper.convertToSI('MolarFlow',f,obj.SpecificationFlowUnitDropDown.Value),'unit',char(obj.SpecificationFlowUnitDropDown.Value));end;if isfinite(x),name=['x' num2str(i)];specs.(name)=struct('si',x,'unit','1');end,end
             if ~isempty(obj.SpecificationTemperatureField.Value),specs.T=struct('si',UnitConverterHelper.convertToSI('Temperature',obj.SpecificationTemperatureField.Value,obj.SpecificationTemperatureUnitDropDown.Value),'unit',char(obj.SpecificationTemperatureUnitDropDown.Value));end
             if ~isempty(obj.SpecificationPressureField.Value),specs.P=struct('si',UnitConverterHelper.convertToSI('Pressure',obj.SpecificationPressureField.Value,obj.SpecificationPressureUnitDropDown.Value),'unit',char(obj.SpecificationPressureUnitDropDown.Value));end
         end
@@ -541,7 +541,7 @@ classdef StreamDialog < handle
 
         function specificationUnitEdited(obj,category,source,event,target)
             old=event.PreviousValue;new=event.Value;if strcmp(old,new),return,end
-            if isnumeric(target),data=obj.SpecificationTable.Data;values=nan(size(data,1),1);for i=1:numel(values),if isFiniteScalar(data{i,target}),values(i)=data{i,target};end,end;converted=UnitConverterHelper.convertFromSI(category,UnitConverterHelper.convertToSI(category,values,old),new);for i=1:numel(values),if isfinite(values(i)),data{i,target}=converted(i);end,end;obj.SpecificationTable.Data=data;
+            if isnumeric(target),data=obj.SpecificationTable.Data;values=nan(size(data,1),1);for i=1:numel(values),values(i)=cellNumber(data{i,target});end;converted=UnitConverterHelper.convertFromSI(category,UnitConverterHelper.convertToSI(category,values,old),new);for i=1:numel(values),if isfinite(values(i)),data{i,target}=converted(i);end,end;obj.SpecificationTable.Data=data;
             elseif ~isempty(target.Value),target.Value=UnitConverterHelper.convertFromSI(category,UnitConverterHelper.convertToSI(category,target.Value,old),new);end
             source.Value=new;obj.previewConnectedSpecifications();
         end
@@ -810,8 +810,8 @@ classdef StreamDialog < handle
         function componentEdited(obj,event)
             if obj.Updating||obj.Role~="Feed",return,end
             row=event.Indices(1);column=event.Indices(2);keys={'','F','C','x','mdot','w'};key=keys{column};
-            value=event.NewData;catalogName=[key num2str(row)];
-            if isempty(value)||(isnumeric(value)&&isscalar(value)&&isnan(value)),obj.Origins.(key)(row)="empty";obj.SpecifiedSI.(catalogName)=NaN;
+            value=cellNumber(event.NewData);catalogName=[key num2str(row)]; % typed cells arrive as text: the table shows formatted numbers (Claude, E-014)
+            if isnan(value),obj.Origins.(key)(row)="empty";obj.SpecifiedSI.(catalogName)=NaN;
             else
                 obj.Origins.(key)(row)="specified";
                 if strcmp(key,'F'),value=UnitConverterHelper.convertToSI('MolarFlow',value,obj.MolarFlowUnitDropDown.Value);
@@ -902,7 +902,7 @@ classdef StreamDialog < handle
             for i=1:numel(scalarNames),values.(scalarNames{i})=specifiedValue(values.(scalarNames{i}),obj.Origins.(originNames{i}));end
             if strcmp(obj.TSourceDropDown.Value,'Input port'),values.T=toSIField(obj.TemperatureField,obj.TemperatureUnitDropDown,'Temperature');origins.T='external';end
             if strcmp(obj.QSourceDropDown.Value,'Input port'),values.Q=toSIField(obj.VolumetricFlowField,obj.VolumetricFlowUnitDropDown,'VolumetricFlow');origins.Q='external';end
-            names=fieldnames(values);for i=1:numel(names),name=names{i};if string(origins.(name))=="specified"&&isfield(obj.SpecifiedSI,name)&&isfinite(obj.SpecifiedSI.(name)),values.(name)=obj.SpecifiedSI.(name);end,end
+            names=fieldnames(values);for i=1:numel(names),name=names{i};if string(origins.(name))=="specified"&&isfield(obj.SpecifiedSI,name)&&isFiniteScalar(obj.SpecifiedSI.(name)),values.(name)=obj.SpecifiedSI.(name);end,end
         end
         function writeFeedResult(obj,result)
             n=numel(obj.ComponentNames);f=nan(n,1);c=f;x=f;
@@ -998,7 +998,7 @@ classdef StreamDialog < handle
         end
         function value=componentColumn(obj,column)
             data=obj.ComponentTable.Data;value=nan(size(data,1),1);
-            for i=1:size(data,1),item=data{i,column};if ischar(item)||isstring(item),item=str2double(item);end;if isnumeric(item)&&isscalar(item),value(i)=item;end,end
+            for i=1:size(data,1),value(i)=cellNumber(data{i,column});end
         end
     end
 end
@@ -1030,6 +1030,12 @@ function setFromSI(field,units,category,value),if isnumeric(value)&&isscalar(val
 function setUnitIfValid(dropdown,unit),if isempty(unit),return,end;if any(string(dropdown.Items)==string(unit)),dropdown.Value=unit;end,end
 function value=emptyValue(value),if isempty(value)||(isnumeric(value)&&isscalar(value)&&isnan(value)),value=[];end,end
 function flag=isFiniteScalar(value),flag=isnumeric(value)&&isscalar(value)&&isfinite(value);end
+function value=cellNumber(value)
+    % A uitable cell holds a number, [] or, once formatted, text; typing into a text cell returns text (Claude, E-014).
+    if ischar(value)||(isstring(value)&&isscalar(value)),value=str2double(value);end
+    if ~(isnumeric(value)&&isscalar(value)),value=NaN;end
+    value=double(value);
+end
 function value=stripWaiting(value),value=char(string(value));value=regexprep(value,'^Waiting for:\s*','');end
 function values=setAt(values,index,value),if index>=1&&index<=numel(values),values(index)=string(value);end,end
 function addCellStateStyles(tableHandle,column,states)
