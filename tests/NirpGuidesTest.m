@@ -56,11 +56,46 @@ classdef NirpGuidesTest < matlab.unittest.TestCase
             end
         end
 
-        function homesAndLegacyEntriesPointToNewGuides(testCase)
+        function localGuideLinksStayWithinTheirOwnSet(testCase)
             root = fileparts(fileparts(mfilename('fullpath'))) ;
-            index = fileread(fullfile(root, 'docs', 'UserGuide.html')) ;
-            testCase.verifySubstring(string(index), 'href="IdealGuide.html"') ;
-            testCase.verifySubstring(string(index), 'href="FlowsheetGuide.html"') ;
+            [pageSets, setNames] = guidePageSets(root) ;
+            assetsRoot = canonicalPath(fullfile(root, 'docs', 'assets')) ;
+            assetsPrefix = [assetsRoot filesep] ;
+            for setIndex = 1:numel(pageSets)
+                pages = pageSets{setIndex} ;
+                allowedTargets = string(cellfun(@canonicalPath, pages, ...
+                    'UniformOutput', false)) ;
+                for pageIndex = 1:numel(pages)
+                    page = pages{pageIndex} ;
+                    html = fileread(page) ;
+                    tokens = regexp(html, 'href="([^"]+)"', 'tokens', ...
+                        'ignorecase') ;
+                    for linkIndex = 1:numel(tokens)
+                        reference = string(tokens{linkIndex}{1}) ;
+                        if contains(reference, ':') || startsWith(reference, '//')
+                            continue
+                        end
+                        parts = split(reference, '#') ;
+                        relative = parts(1) ;
+                        if strlength(relative) == 0
+                            target = canonicalPath(page) ;
+                        else
+                            target = canonicalPath(fullfile(fileparts(page), ...
+                                strrep(char(relative), '/', filesep))) ;
+                        end
+                        isAsset = strcmp(target, assetsRoot) || ...
+                            startsWith(target, assetsPrefix) ;
+                        testCase.verifyTrue(isAsset || ...
+                            any(string(target) == allowedTargets), sprintf( ...
+                            '%s page %s links outside its guide set: %s', ...
+                            setNames(setIndex), page, reference)) ;
+                    end
+                end
+            end
+        end
+
+        function legacyEntriesPointToTheirOwnGuides(testCase)
+            root = fileparts(fileparts(mfilename('fullpath'))) ;
 
             idealLegacy = fileread(fullfile(root, 'docs', 'guides', ...
                 'ideal-reactor-app.html')) ;
@@ -70,14 +105,24 @@ classdef NirpGuidesTest < matlab.unittest.TestCase
             testCase.verifySubstring(string(flowLegacy), '../FlowsheetGuide.html') ;
         end
 
-        function everyFlowsheetTopicLinksToHome(testCase)
+        function topicBreadcrumbsStartAtTheirOwnHome(testCase)
             root = fileparts(fileparts(mfilename('fullpath'))) ;
-            pages = dir(fullfile(root, 'docs', 'guides', ...
-                'flowsheet-*.html')) ;
-            for index = 1:numel(pages)
-                page = fullfile(pages(index).folder, pages(index).name) ;
-                testCase.verifySubstring(string(fileread(page)), ...
-                    '../FlowsheetGuide.html', page) ;
+            cases = { ...
+                'ideal-*.html', ['<div class="crumbs"><a ' ...
+                    'href="../IdealGuide.html">Ideal Reactor App Guide</a>'] ; ...
+                'flowsheet-*.html', ['<div class="crumbs"><a ' ...
+                    'href="../FlowsheetGuide.html">Flowsheet Guide</a>']} ;
+            for caseIndex = 1:size(cases, 1)
+                pages = dir(fullfile(root, 'docs', 'guides', ...
+                    cases{caseIndex, 1})) ;
+                for pageIndex = 1:numel(pages)
+                    page = fullfile(pages(pageIndex).folder, ...
+                        pages(pageIndex).name) ;
+                    html = string(fileread(page)) ;
+                    if contains(html, 'class="crumbs"')
+                        testCase.verifySubstring(html, cases{caseIndex, 2}, page) ;
+                    end
+                end
             end
         end
 
@@ -112,6 +157,8 @@ classdef NirpGuidesTest < matlab.unittest.TestCase
             for legacyPath = legacyPaths
                 legacyHtml = readBaseGuide(root, legacyPath) ;
                 fragments = extractVisibleFragments(legacyHtml) ;
+                exclusions = legacyLinkTextExclusions(legacyPath) ;
+                fragments(ismember(fragments, exclusions)) = [] ;
                 for fragment = fragments
                     testCase.verifySubstring(combined, fragment, sprintf( ...
                         'Legacy text from %s is missing: %s', legacyPath, fragment)) ;
@@ -196,6 +243,42 @@ function pages = guidePages(root)
     for index = 1:numel(guides)
         pages{end + 1} = fullfile(guides(index).folder, ...
             guides(index).name) ; %#ok<AGROW>
+    end
+end
+
+function [sets, names] = guidePageSets(root)
+    docs = fullfile(root, 'docs') ;
+    guides = fullfile(docs, 'guides') ;
+    nonIdeal = {fullfile(docs, 'UserGuide.html'), ...
+        fullfile(docs, 'TechnicalChapter.html')} ;
+    nonIdeal = [nonIdeal, matchingPages(guides, 'tab-*.html'), ...
+        matchingPages(guides, 'appendix-*.html')] ;
+    ideal = [{fullfile(docs, 'IdealGuide.html')}, ...
+        matchingPages(guides, 'ideal-*.html')] ;
+    flowsheet = [{fullfile(docs, 'FlowsheetGuide.html')}, ...
+        matchingPages(guides, 'flowsheet-*.html'), ...
+        {fullfile(guides, 'simulink-flowsheet.html')}] ;
+    sets = {nonIdeal, ideal, flowsheet} ;
+    names = ["Non-ideal", "Ideal", "Flowsheet"] ;
+end
+
+function pages = matchingPages(folder, pattern)
+    entries = dir(fullfile(folder, pattern)) ;
+    pages = cell(1, numel(entries)) ;
+    for index = 1:numel(entries)
+        pages{index} = fullfile(entries(index).folder, entries(index).name) ;
+    end
+end
+
+function path = canonicalPath(path)
+    path = char(java.io.File(path).getCanonicalPath()) ;
+end
+
+function fragments = legacyLinkTextExclusions(relativePath)
+    if relativePath == "docs/guides/ideal-reactor-app.html"
+        fragments = "Back to the general user guide" ;
+    else
+        fragments = strings(0) ;
     end
 end
 
