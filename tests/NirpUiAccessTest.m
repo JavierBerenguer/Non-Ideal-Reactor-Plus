@@ -1,14 +1,16 @@
-classdef NirpUiAccessTest < matlab.unittest.TestCase
+classdef (SharedTestFixtures={nirptest.ExamplesFixture}) ...
+        NirpUiAccessTest < matlab.unittest.TestCase
     % NirpUiAccessTest verifies no-code access to the NIRP Simulink UI.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 2, 2026. Last update: October 3, 2026
+    % Created: October 2, 2026. Last update: October 16, 2026
     % =========================================================================
 
     properties
         Folder
+        ExamplesFolder
         SimulinkFolder
-        FileGenerationConfig
+        Files
     end
 
     methods (TestMethodSetup)
@@ -18,16 +20,14 @@ classdef NirpUiAccessTest < matlab.unittest.TestCase
             testCase.Folder = fixture.Folder ;
             testCase.SimulinkFolder = fullfile( ...
                 fileparts(fileparts(mfilename('fullpath'))),'simulink') ;
-            addpath(testCase.SimulinkFolder) ; addpath(testCase.Folder) ;
-            testCase.FileGenerationConfig = Simulink.fileGenControl('getConfig') ;
-            Simulink.fileGenControl('set','CacheFolder',fullfile(testCase.Folder,'cache'), ...
-                'CodeGenFolder',fullfile(testCase.Folder,'codegen'),'createDir',true) ;
-            testCase.addTeardown(@() Simulink.fileGenControl( ...
-                'setConfig','config',testCase.FileGenerationConfig)) ;
+            examples = testCase.getSharedTestFixtures( ...
+                'nirptest.ExamplesFixture') ;
+            testCase.ExamplesFolder = examples.Folder ;
+            testCase.Files = examples.Files ;
+            addpath(testCase.Folder) ;
             testCase.addTeardown(@() closeAllUi()) ;
             testCase.addTeardown(@() rmpathIfPresent(fullfile( ...
                 testCase.SimulinkFolder,'examples'))) ;
-            testCase.addTeardown(@() rmpathIfPresent(testCase.SimulinkFolder)) ;
             testCase.addTeardown(@() rmpathIfPresent(testCase.Folder)) ;
             evalin('base','clear nirpResults') ;
         end
@@ -94,7 +94,8 @@ classdef NirpUiAccessTest < matlab.unittest.TestCase
                 'AbsTol',1e-9) ;
         end
 
-        function appContainsFlowsheetMenu(testCase)
+        function appLeavesFlowsheetToLauncher(testCase)
+            % The flowsheet tools open from NonIdealReactorPlus only (T-161)
             app = NonIdealReactorApp() ;
             figureHandle = findall(groot,'Type','Figure', ...
                 'Name','Non-Ideal Reactor Analysis') ;
@@ -102,15 +103,13 @@ classdef NirpUiAccessTest < matlab.unittest.TestCase
             testCase.addTeardown(@() deleteIfValid(app)) ;
             menu = findall(figureHandle(1),'Type','uimenu', ...
                 'Text','Flowsheet (Simulink)') ;
-            testCase.verifyNumElements(menu,1) ;
-            children = menu.Children ;
-            testCase.verifyEqual(sort(string({children.Text})), ...
-                sort(["New flowsheet...","Open block library","Open example..."])) ;
+            testCase.verifyEmpty(menu) ;
+            tools = findall(figureHandle(1),'Type','uimenu','Text','Tools') ;
+            testCase.verifyEqual(string({tools.Children.Text}),"Unit Converter") ;
         end
 
         function missingFeedMessageListsValidFeeds(testCase)
-            build_examples(testCase.Folder) ;
-            load_system(fullfile(testCase.Folder,'ex1_cstr_isothermal.slx')) ;
+            load_system(char(testCase.Files(1))) ;
             set_param('ex1_cstr_isothermal/F1','NameChangeFcn','') ;
             set_param('ex1_cstr_isothermal/F1','Name','missing') ;
             try

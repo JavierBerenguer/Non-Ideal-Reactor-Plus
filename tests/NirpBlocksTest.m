@@ -1,4 +1,5 @@
-classdef NirpBlocksTest < matlab.unittest.TestCase
+classdef (SharedTestFixtures={nirptest.ExamplesFixture}) ...
+        NirpBlocksTest < matlab.unittest.TestCase
     % NirpBlocksTest verifies the milestone-1 Simulink block library.
     % =========================================================================
     % Javier Berenguer Sabater
@@ -7,8 +8,8 @@ classdef NirpBlocksTest < matlab.unittest.TestCase
 
     properties
         Folder
-        SimulinkFolder
-        FileGenerationConfig
+        ExamplesFolder
+        Files
     end
 
     methods (TestMethodSetup)
@@ -16,14 +17,10 @@ classdef NirpBlocksTest < matlab.unittest.TestCase
             import matlab.unittest.fixtures.TemporaryFolderFixture
             fixture=testCase.applyFixture(TemporaryFolderFixture);
             testCase.Folder=fixture.Folder;
-            testCase.SimulinkFolder=fullfile(fileparts(fileparts(mfilename('fullpath'))),'simulink');
-            addpath(testCase.SimulinkFolder); addpath(testCase.Folder);
-            testCase.FileGenerationConfig=Simulink.fileGenControl('getConfig');
-            Simulink.fileGenControl('set','CacheFolder',fullfile(testCase.Folder,'cache'), ...
-                'CodeGenFolder',fullfile(testCase.Folder,'codegen'),'createDir',true);
-            testCase.addTeardown(@() Simulink.fileGenControl( ...
-                'setConfig','config',testCase.FileGenerationConfig));
-            testCase.addTeardown(@() rmpathIfPresent(testCase.SimulinkFolder));
+            examples=testCase.getSharedTestFixtures('nirptest.ExamplesFixture');
+            testCase.ExamplesFolder=examples.Folder;
+            testCase.Files=examples.Files;
+            addpath(testCase.Folder);
             testCase.addTeardown(@() rmpathIfPresent(testCase.Folder));
             testCase.addTeardown(@() closeAllModels());
             evalin('base','clear nirpResults');
@@ -32,7 +29,7 @@ classdef NirpBlocksTest < matlab.unittest.TestCase
 
     methods (Test)
         function examplesMatchScriptsAndReferences(testCase)
-            files=build_examples(testCase.Folder);
+            files=testCase.Files;
             names=["ex1_cstr_isothermal","ex2_cstr_adiabatic_cooler", ...
                 "ex3_pfr_adiabatic","ex4_problem40b_parallel"];
             for i=1:numel(names)

@@ -4,7 +4,7 @@ function graph = topology(model)
 %   counts. Empty entries denote unconnected or direct unit connections.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 2, 2026. Last update: October 2, 2026
+% Created: October 2, 2026. Last update: October 9, 2026
 % =========================================================================
 
     model = char(string(model)) ;
@@ -22,7 +22,8 @@ function graph = topology(model)
         if className == "nirp.blocks.Stream"
             streamPaths(end+1,1) = string(blocks{i}) ;
         elseif startsWith(className,"nirp.blocks.") && ...
-                ~any(className == ["nirp.blocks.Flowsheet","nirp.blocks.Adjust"])
+                ~any(className == ["nirp.blocks.Flowsheet","nirp.blocks.Adjust", ...
+                "nirp.blocks.Jacket"])
             unitPaths(end+1,1) = string(blocks{i}) ;
             unitTypes(end+1,1) = extractAfter(className,"nirp.blocks.") ;
         end
@@ -36,7 +37,8 @@ function graph = topology(model)
         producer = neighborNames(connectivity,'in',unitPaths) ;
         consumer = neighborNames(connectivity,'out',unitPaths) ;
         item = struct('Name',name,'Path',string(path), ...
-            'Role',string(get_param(path,'Role')),'Producer',producer, ...
+            'Role',nirp.flowsheet.streamRole(path), ...
+            'DeclaredRole',string(get_param(path,'Role')),'Producer',producer, ...
             'Consumer',consumer) ;
         graph.Streams.(matlab.lang.makeValidName(name)) = item ;
     end

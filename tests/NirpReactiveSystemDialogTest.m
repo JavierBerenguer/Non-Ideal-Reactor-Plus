@@ -2,7 +2,7 @@ classdef NirpReactiveSystemDialogTest < matlab.unittest.TestCase
 %NIRPPACKAGEEDITORTEST Tests for the graphical package editor.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 2, 2026. Last update: October 2, 2026
+% Created: October 2, 2026. Last update: October 17, 2026
 % =========================================================================
 
     properties
@@ -86,6 +86,25 @@ classdef NirpReactiveSystemDialogTest < matlab.unittest.TestCase
             testCase.verifyEqual(string(ed.ExpressionField.Visible),"off") ;
         end
 
+        function loadsReversibleAndWithoutThermodynamics(testCase)
+            % T-144: reversible packages load (Ea unit as string), orders round-trip,
+            % Ea check and the "Without thermodynamics" flag.
+            ed=nirp.flowsheet.ReactiveSystemDialog('Visible','off') ;
+            testCase.addTeardown(@() deleteValid(ed)) ;
+            pkg=nirp.pkg.examples.problem48ReversibleGas() ;
+            pkg.reactions.kinetics(1).reverse.Ea.unit="J/mol" ;
+            ed.setPackage(pkg) ; out=ed.getPackage() ;
+            testCase.verifyEqual(out.reactions.kinetics(1).reverse.orders, ...
+                pkg.reactions.kinetics(1).reverse.orders,'AbsTol',1e-12) ;
+            testCase.verifyEqual(string(ed.ReversePanel.Visible),"on") ;
+            testCase.verifySubstring(string(ed.RateEquationLabel.Text),"k0r") ;
+            testCase.verifyEqual(size(ed.OrdersField.Data,1),numel(pkg.components)) ;
+            ed.NoThermoCheckBox.Value=true ; out=ed.getPackage() ; nirp.pkg.validate(out) ;
+            testCase.verifyFalse(out.meta.thermodynamics) ;
+            testCase.verifyError(@() nirp.blocks.internal.requireThermodynamics(out,'Heater'), ...
+                'nirp:blocks:noThermodynamics') ;
+        end
+
         function reactionCountRefreshesKineticsAndThermodynamics(testCase)
             ed=nirp.flowsheet.ReactiveSystemDialog('Visible','off') ;
             testCase.addTeardown(@() deleteValid(ed)) ;
@@ -101,6 +120,7 @@ classdef NirpReactiveSystemDialogTest < matlab.unittest.TestCase
         function createsAndSimulatesFlowsheet(testCase)
             ed=nirp.flowsheet.ReactiveSystemDialog('Visible','off') ;
             testCase.addTeardown(@() deleteValid(ed)) ;
+            ed.setPackage(nirp.pkg.examples.firstOrderLiquid()) ;
             ed.createFlowsheet('editor_model',testCase.Folder,'OpenModel',false) ;
             load_system(fullfile(testCase.Folder,'editor_model.slx')) ;
             add_block('simulink/User-Defined Functions/MATLAB System','editor_model/CSTR', ...
@@ -118,6 +138,7 @@ classdef NirpReactiveSystemDialogTest < matlab.unittest.TestCase
         function savesModelAndRegeneratesBus(testCase)
             ed=nirp.flowsheet.ReactiveSystemDialog('Visible','off') ;
             testCase.addTeardown(@() deleteValid(ed)) ;
+            ed.setPackage(nirp.pkg.examples.firstOrderLiquid()) ;
             ed.createFlowsheet('edit_model',testCase.Folder,'OpenModel',false) ;
             load_system(fullfile(testCase.Folder,'edit_model.slx')) ;
             pkg=nirp.pkg.examples.problem40Gas() ; ed.setPackage(pkg) ;
@@ -132,12 +153,26 @@ classdef NirpReactiveSystemDialogTest < matlab.unittest.TestCase
             new_system('mask_model') ; testCase.addTeardown(@() close_system('mask_model',0)) ;
             block=nirp.flowsheet.addBlock('mask_model') ; mask=Simulink.Mask.get(block) ;
             testCase.verifyNotEmpty(mask.getDialogControl('EditPackage')) ;
-            app=NonIdealReactorApp() ; testCase.addTeardown(@() deleteValid(app)) ;
-            fig=findall(groot,'Type','Figure','Name','Non-Ideal Reactor Analysis') ;
-            set(fig,'Visible','off') ; menu=findall(fig,'Type','uimenu','Text','New flowsheet...') ;
-            feval(menu.MenuSelectedFcn,menu,[]) ;
+            % New flowsheet... lives in the main launcher since T-161
+            launcher=NonIdealReactorPlus() ; testCase.addTeardown(@() deleteValid(launcher)) ;
+            button=findall(launcher.UIFigure,'Type','uibutton','Text','New flowsheet...') ;
+            feval(button.ButtonPushedFcn,button,[]) ;
             editor=findall(groot,'Type','Figure','Tag','NirpReactiveSystemDialog') ;
             testCase.verifyNumElements(editor,1) ; delete(editor) ;
+        end
+
+        function newEditorIsEmptyAndHelpStaysInMatlab(testCase)
+            ed=nirp.flowsheet.ReactiveSystemDialog('Visible','off');
+            testCase.addTeardown(@() deleteValid(ed));
+            testCase.verifySize(ed.ComponentTable.Data,[1 5]);
+            testCase.verifyEqual(ed.ComponentTable.Data{1,1},'');
+            testCase.verifySize(ed.ReactionTable.Data,[1 13]);
+            testCase.verifyEqual(ed.ReactionTable.Data{1,1},[]);
+            button=findall(ed.Figure,'Type','uibutton','Text','Help');
+            feval(button.ButtonPushedFcn,button,[]);
+            helpFigure=findall(groot,'Type','Figure','Tag','NirpFlowsheetHelp');
+            testCase.verifyNumElements(helpFigure,1);
+            testCase.verifyNumElements(findall(helpFigure,'Type','uihtml'),1);
         end
     end
 end

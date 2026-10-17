@@ -1,4 +1,5 @@
-classdef NirpCollectionProblems2Test < matlab.unittest.TestCase
+classdef (SharedTestFixtures={nirptest.ExamplesFixture}) ...
+        NirpCollectionProblems2Test < matlab.unittest.TestCase
     % NirpCollectionProblems2Test verifies the second collection batch.
     % =========================================================================
     % Javier Berenguer Sabater
@@ -7,8 +8,8 @@ classdef NirpCollectionProblems2Test < matlab.unittest.TestCase
 
     properties
         Folder
-        SimulinkFolder
-        FileGenerationConfig
+        ExamplesFolder
+        Files
     end
 
     methods (TestMethodSetup)
@@ -16,17 +17,11 @@ classdef NirpCollectionProblems2Test < matlab.unittest.TestCase
             import matlab.unittest.fixtures.TemporaryFolderFixture
             fixture = testCase.applyFixture(TemporaryFolderFixture) ;
             testCase.Folder = fixture.Folder ;
-            testCase.SimulinkFolder = fullfile( ...
-                fileparts(fileparts(mfilename('fullpath'))),'simulink') ;
-            addpath(testCase.SimulinkFolder) ; addpath(testCase.Folder) ;
-            testCase.FileGenerationConfig = Simulink.fileGenControl('getConfig') ;
-            Simulink.fileGenControl('set', ...
-                'CacheFolder',fullfile(testCase.Folder,'cache'), ...
-                'CodeGenFolder',fullfile(testCase.Folder,'codegen'), ...
-                'createDir',true) ;
-            testCase.addTeardown(@() Simulink.fileGenControl( ...
-                'setConfig','config',testCase.FileGenerationConfig)) ;
-            testCase.addTeardown(@() removePath(testCase.SimulinkFolder)) ;
+            examples = testCase.getSharedTestFixtures( ...
+                'nirptest.ExamplesFixture') ;
+            testCase.ExamplesFolder = examples.Folder ;
+            testCase.Files = examples.Files ;
+            addpath(testCase.Folder) ;
             testCase.addTeardown(@() removePath(testCase.Folder)) ;
             testCase.addTeardown(@() closeModels()) ;
         end
@@ -34,7 +29,7 @@ classdef NirpCollectionProblems2Test < matlab.unittest.TestCase
 
     methods (Test)
         function diagramsMatchScriptsAndReferences(testCase)
-            files = build_examples(testCase.Folder) ;
+            files = testCase.Files ;
             testCase.verifyProblem21(files(13:14)) ;
             testCase.verifyProblem27(files(15)) ;
             testCase.verifyProblems30And31(files(16:17)) ;

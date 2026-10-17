@@ -1,4 +1,5 @@
-classdef NirpCollectionProblemsTest < matlab.unittest.TestCase
+classdef (SharedTestFixtures={nirptest.ExamplesFixture}) ...
+        NirpCollectionProblemsTest < matlab.unittest.TestCase
     % NirpCollectionProblemsTest verifies collection-problem flowsheets.
     % =========================================================================
     % Javier Berenguer Sabater
@@ -7,8 +8,8 @@ classdef NirpCollectionProblemsTest < matlab.unittest.TestCase
 
     properties
         Folder
-        SimulinkFolder
-        FileGenerationConfig
+        ExamplesFolder
+        Files
     end
 
     methods (TestMethodSetup)
@@ -16,17 +17,11 @@ classdef NirpCollectionProblemsTest < matlab.unittest.TestCase
             import matlab.unittest.fixtures.TemporaryFolderFixture
             fixture = testCase.applyFixture(TemporaryFolderFixture) ;
             testCase.Folder = fixture.Folder ;
-            testCase.SimulinkFolder = fullfile( ...
-                fileparts(fileparts(mfilename('fullpath'))),'simulink') ;
-            addpath(testCase.SimulinkFolder) ; addpath(testCase.Folder) ;
-            testCase.FileGenerationConfig = Simulink.fileGenControl('getConfig') ;
-            Simulink.fileGenControl('set', ...
-                'CacheFolder',fullfile(testCase.Folder,'cache'), ...
-                'CodeGenFolder',fullfile(testCase.Folder,'codegen'), ...
-                'createDir',true) ;
-            testCase.addTeardown(@() Simulink.fileGenControl( ...
-                'setConfig','config',testCase.FileGenerationConfig)) ;
-            testCase.addTeardown(@() removePath(testCase.SimulinkFolder)) ;
+            examples = testCase.getSharedTestFixtures( ...
+                'nirptest.ExamplesFixture') ;
+            testCase.ExamplesFolder = examples.Folder ;
+            testCase.Files = examples.Files ;
+            addpath(testCase.Folder) ;
             testCase.addTeardown(@() removePath(testCase.Folder)) ;
             testCase.addTeardown(@() closeModels()) ;
         end
@@ -34,10 +29,11 @@ classdef NirpCollectionProblemsTest < matlab.unittest.TestCase
 
     methods (Test)
         function diagramsMatchScriptsAndPublishedSolutions(testCase)
-            files = build_examples(testCase.Folder) ;
+            files = testCase.Files ;
             testCase.verifyProblem37(files(8)) ;
             testCase.verifyProblem40(files(9)) ;
-            testCase.verifyProblem42(files(10:11)) ;
+            mutableFiles = copyExamplePairs(files(10:11),testCase.Folder) ;
+            testCase.verifyProblem42(mutableFiles) ;
             testCase.verifyProblem19(files(12)) ;
         end
 
@@ -165,4 +161,16 @@ end
 
 function removePath(folder)
     if contains([path pathsep],[folder pathsep]), rmpath(folder) ; end
+end
+
+function copies = copyExamplePairs(files,folder)
+    copies = strings(size(files)) ;
+    for i = 1:numel(files)
+        [~,name,extension] = fileparts(files(i)) ;
+        copies(i) = fullfile(folder,name+extension) ;
+        copyfile(files(i),copies(i)) ;
+        sourceDictionary = replace(files(i),".slx",".sldd") ;
+        targetDictionary = fullfile(folder,name+".sldd") ;
+        copyfile(sourceDictionary,targetDictionary) ;
+    end
 end

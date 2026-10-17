@@ -1,4 +1,5 @@
-classdef NirpAdjustConversionTest < matlab.unittest.TestCase
+classdef (SharedTestFixtures={nirptest.ExamplesFixture}) ...
+        NirpAdjustConversionTest < matlab.unittest.TestCase
     % NirpAdjustConversionTest verifies the live Adjust conversion reference.
     % =========================================================================
     % Javier Berenguer Sabater
@@ -7,8 +8,8 @@ classdef NirpAdjustConversionTest < matlab.unittest.TestCase
 
     properties
         Folder
-        SimulinkFolder
-        FileGenerationConfig
+        ExamplesFolder
+        Files
     end
 
     methods (TestMethodSetup)
@@ -16,17 +17,11 @@ classdef NirpAdjustConversionTest < matlab.unittest.TestCase
             import matlab.unittest.fixtures.TemporaryFolderFixture
             fixture = testCase.applyFixture(TemporaryFolderFixture) ;
             testCase.Folder = fixture.Folder ;
-            testCase.SimulinkFolder = fullfile( ...
-                fileparts(fileparts(mfilename('fullpath'))),'simulink') ;
-            addpath(testCase.SimulinkFolder) ; addpath(testCase.Folder) ;
-            testCase.FileGenerationConfig = Simulink.fileGenControl('getConfig') ;
-            Simulink.fileGenControl('set', ...
-                'CacheFolder',fullfile(testCase.Folder,'cache'), ...
-                'CodeGenFolder',fullfile(testCase.Folder,'codegen'), ...
-                'createDir',true) ;
-            testCase.addTeardown(@() Simulink.fileGenControl( ...
-                'setConfig','config',testCase.FileGenerationConfig)) ;
-            testCase.addTeardown(@() removePath(testCase.SimulinkFolder)) ;
+            examples = testCase.getSharedTestFixtures( ...
+                'nirptest.ExamplesFixture') ;
+            testCase.ExamplesFolder = examples.Folder ;
+            testCase.Files = examples.Files ;
+            addpath(testCase.Folder) ;
             testCase.addTeardown(@() removePath(testCase.Folder)) ;
             testCase.addTeardown(@() closeModels()) ;
         end
@@ -61,7 +56,7 @@ classdef NirpAdjustConversionTest < matlab.unittest.TestCase
         end
 
         function fixedFeedExamplesKeepTheirConversionMeasurement(testCase)
-            files = build_examples(testCase.Folder) ;
+            files = testCase.Files ;
             load_system(char(files(6))) ; sim('ex6_adjust_volume') ;
             results = evalin('base','nirpResults') ;
             testCase.verifyEqual(results.Diagnostics.ex6_adjust_volume_Adjust. ...

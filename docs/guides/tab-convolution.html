@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Convolution - Non-Ideal Reactor Analysis</title>
+  <link rel="stylesheet" href="../assets/guide.css">
+</head>
+<body>
+  <div class="page">
+    <div class="topbar">
+      <div class="brand">Convolution Guide</div>
+      <nav class="topnav"><a href="../UserGuide.html">User Guide Home</a></nav>
+    </div>
+    <section class="hero">
+      <span class="kicker">Tracer signal workflows</span>
+      <h1>Convolution, deconvolution, and RTDs in series</h1>
+      <p>The Convolution tab uses the calculation core to combine measured, analytical, piecewise, or model-based signals on one uniform time grid.</p>
+    </section>
+    <section class="section">
+      <h2>Modes</h2>
+      <table>
+        <tr><th>Mode</th><th>Inputs</th><th>Result</th></tr>
+        <tr><td>Convolution</td><td>C<sub>in</sub> and E</td><td>C<sub>out</sub> = C<sub>in</sub> &otimes; E</td></tr>
+        <tr><td>Deconvolution</td><td>C<sub>in</sub> and measured C<sub>out</sub></td><td>A nonnegative E and its reconvolution</td></tr>
+        <tr><td>Series composition</td><td>E<sub>1</sub> and E<sub>2</sub></td><td>The combined residence-time distribution</td></tr>
+      </table>
+      <p>Choose seconds or minutes for all entered times. Set the common step to zero to use the finest input step. A status message reports any resampling. Calculations and stored results always use SI seconds.</p>
+    </section>
+    <section class="section">
+      <h2>Signal sources and results</h2>
+      <p><strong>Table</strong> accepts pasted t/C columns. <strong>Piecewise</strong> accepts From t, To t, and an expression in <code>t</code>. <strong>Function</strong> evaluates one expression over its range and step. E can also use the current RTD from tab 1 or an ideal CSTR, PFR, tanks-in-series, or dispersion model.</p>
+      <p>The plot, result table, and moments panel show the computed signals. The diagnostics line reports mass balance, or the residual and integral of E for deconvolution. <strong>Export to workspace</strong> creates <code>convolutionResult</code>. A deconvolved E can be loaded into RTD Analysis with <strong>Use as RTD in tab 1</strong>.</p>
+    </section>
+    <section class="section">
+      <h2>Example: bulletin problem P3</h2>
+      <ol>
+        <li>Select <strong>Convolution</strong>, seconds, and automatic common step.</li>
+        <li>Paste C<sub>in</sub>: t = 0...11 and C = [0 0 8 6 4 5 6 3 1 0 0 0].</li>
+        <li>Paste E: t = 0...5 and E = [0 .05 .5 .35 .1 0].</li>
+        <li>Compute. The first 16 output values are [0 0 0 .4 4.3 6 5.15 4.8 5.3 4.15 2.15 .65 .1 0 0 0].</li>
+      </ol>
+      <div class="callout info"><strong>Deconvolution note:</strong> experimental data may not conserve tracer mass. The estimated E is therefore not silently normalized; inspect its integral and the reported mass ratio before using it as an RTD.</div>
+    </section>
+  </div>
+</body>
+</html>

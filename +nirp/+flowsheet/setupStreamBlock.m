@@ -12,4 +12,12 @@ function setupStreamBlock(block)
     set_param(block,'UserData',data,'UserDataPersistent','on', ...
         'OpenFcn','nirp.flowsheet.StreamDialog.open(gcb);', ...
         'NameChangeFcn','nirp.flowsheet.streamRenamed(gcb);') ;
+    try
+        mask=Simulink.Mask.get(block);parameter=mask.getParameter('Specifications');
+        if ~isempty(parameter)
+            parameter.Visible='off' ;
+            set_param(block,'LoadFcn','nirp.flowsheet.setupStreamBlock(gcb);') ;
+        end
+    catch
+    end
 end

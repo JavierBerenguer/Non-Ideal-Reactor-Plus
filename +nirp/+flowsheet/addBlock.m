@@ -1,5 +1,5 @@
 function block = addBlock(model,path,position,maxIterations)
-%ADDBLOCK Add the masked Flowsheet auto-stop subsystem to a model.
+%ADDBLOCK Add the masked Flowsheet convergence subsystem to a model.
 % =========================================================================
 % Javier Berenguer Sabater
 % Created: October 2, 2026. Last update: October 2, 2026

@@ -1,14 +1,15 @@
-classdef NirpStreamBlockTest < matlab.unittest.TestCase
+classdef (SharedTestFixtures={nirptest.ExamplesFixture}) ...
+        NirpStreamBlockTest < matlab.unittest.TestCase
     % NirpStreamBlockTest verifies named Stream blocks and their dialog.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 2, 2026. Last update: October 3, 2026
+    % Created: October 2, 2026. Last update: October 9, 2026
     % =========================================================================
 
     properties
         Folder
-        SimulinkFolder
-        FileGenerationConfig
+        ExamplesFolder
+        Files
     end
 
     methods (TestMethodSetup)
@@ -16,12 +17,9 @@ classdef NirpStreamBlockTest < matlab.unittest.TestCase
             import matlab.unittest.fixtures.TemporaryFolderFixture
             fixture=testCase.applyFixture(TemporaryFolderFixture) ;
             testCase.Folder=fixture.Folder ;
-            testCase.SimulinkFolder=fullfile(fileparts(fileparts( ...
-                mfilename('fullpath'))),'simulink') ;
-            addpath(testCase.Folder) ; addpath(testCase.SimulinkFolder) ;
-            testCase.FileGenerationConfig=Simulink.fileGenControl('getConfig') ;
-            Simulink.fileGenControl('set','CacheFolder',fullfile(testCase.Folder,'cache'), ...
-                'CodeGenFolder',fullfile(testCase.Folder,'codegen'),'createDir',true) ;
+            examples=testCase.getSharedTestFixtures('nirptest.ExamplesFixture') ;
+            testCase.ExamplesFolder=examples.Folder ;
+            testCase.Files=examples.Files ; addpath(testCase.Folder) ;
             testCase.addTeardown(@() cleanup(testCase)) ;
             evalin('base','clear nirpResults') ;
         end
@@ -33,6 +31,7 @@ classdef NirpStreamBlockTest < matlab.unittest.TestCase
                 nirp.pkg.examples.firstOrderLiquid(),testCase.Folder,'OpenModel',false) ;
             dialog=nirp.flowsheet.StreamDialog('stream_feed/F1','Visible','off') ;
             testCase.addTeardown(@() deleteValid(dialog)) ;
+            mask=Simulink.Mask.get('stream_feed/F1');parameter=mask.getParameter('Specifications');testCase.verifyEqual(parameter.Visible,'off') ;
             dialog.setUnits('MolarFlow','mol/min','T',[char(176) 'C'], ...
                 'P','atm','Q','L/min') ;
             dialog.setValues('MolarFlow',[60;0],'T',26.85,'P',1, ...
@@ -55,17 +54,76 @@ classdef NirpStreamBlockTest < matlab.unittest.TestCase
                 nirp.pkg.examples.firstOrderLiquid(),testCase.Folder,'OpenModel',false) ;
             emptyDialog=nirp.flowsheet.StreamDialog('optional_feed/F1','Visible','off') ;
             testCase.addTeardown(@() deleteValid(emptyDialog)) ;
+            testCase.verifyEqual(size(emptyDialog.ComponentTable.Data,2),4) ;
             testCase.verifyEmpty(emptyDialog.getValue('Density')) ;
             testCase.verifyEmpty(emptyDialog.getValue('Viscosity')) ;
             testCase.verifyEqual(string(emptyDialog.DensityField.Editable),"off") ;
             testCase.verifyEqual(string(emptyDialog.ViscosityField.Editable),"off") ;
-            feedTips=findall(emptyDialog.Figure,'Type','uitextarea') ;
-            testCase.verifyTrue(contains(strjoin(string(feedTips.Value),' '), ...
-                'Two of molar flow, concentration, and liquid Q complete the third.')) ;
+            testCase.verifyEqual(string(emptyDialog.TotalMassFlowLabel.Visible),"off") ;
+            % T-131: the tips box was removed at the user's request.
+            testCase.verifyEmpty(findall(emptyDialog.Figure,'Type','uitextarea')) ;
+        end
+
+        function gasFeedAcceptsVolumetricFlowAndClosesComposition(testCase)
+            nirp.flowsheet.new('gas_q_feed',nirp.pkg.examples.problem17AdiabaticGas(),testCase.Folder,'OpenModel',false);
+            dialog=nirp.flowsheet.StreamDialog('gas_q_feed/F1','Visible','off');testCase.addTeardown(@()deleteValid(dialog));
+            n=size(dialog.ComponentTable.Data,1);fractions=zeros(n,1);fractions(1)=0.6;fractions(end)=0.4;fractions(2)=NaN;
+            dialog.setUnits('T',[char(176) 'C'],'P','atm','Q','m^3/s');
+            dialog.setValues('F',nan(n,1),'x',fractions,'T',350,'P',25,'Q',0.01,'Phase','G');
+            testCase.verifyEqual(string(dialog.VolumetricFlowField.Editable),"on");
+            moleFractions=dialog.getValue('x');testCase.verifyEqual(moleFractions(2),0,'AbsTol',1e-14);
+            testCase.verifyEqual(dialog.getValue('status'),"Fully specified");
+            testCase.verifyTrue(dialog.apply());
+
+            dialog.setValues('Q',[]);
+            testCase.verifySubstring(dialog.getValue('status'),'1 specification missing: a flow');
+            testCase.verifyFalse(contains(dialog.getValue('status'),'F1'));
+        end
+
+        function feedSpecificationsKeepFullPrecisionAcrossReopen(testCase)
+            [~,dictionary]=nirp.flowsheet.new('precise_feed', ...
+                nirp.pkg.examples.firstOrderLiquid(),testCase.Folder,'OpenModel',false);
+            preciseFlow=0.1234567891;preciseQ=0.0001234567891;
+            dialog=nirp.flowsheet.StreamDialog('precise_feed/F1','Visible','off');
+            testCase.addTeardown(@()deleteValid(dialog));
+            dialog.setUnits('MolarFlow','mol/s','T','K','P','Pa','Q','m^3/s');
+            dialog.setValues('MolarFlow',[preciseFlow;0],'T',300,'P',101325, ...
+                'Q',preciseQ,'Phase','L');
+            testCase.verifyTrue(dialog.apply());
+            specs=nirp.dof.readSpecs(get_param('precise_feed/F1','Specifications'));
+            testCase.verifyEqual(specs.F1.si,preciseFlow,'AbsTol',1e-12);
+            testCase.verifyEqual(specs.Q.si,preciseQ,'AbsTol',1e-12);
+            stream=nirp.pkg.feedStream(nirp.pkg.readDictionary(dictionary),'F1');
+            testCase.verifyEqual(stream.F(1),preciseFlow,'AbsTol',1e-12);
+            testCase.verifyEqual(stream.Q,preciseQ,'AbsTol',1e-12);
+
+            delete(dialog);
+            reopened=nirp.flowsheet.StreamDialog('precise_feed/F1','Visible','off');
+            testCase.addTeardown(@()deleteValid(reopened));
+            values=reopened.getValues();
+            testCase.verifyEqual(values.Result.values.F1,preciseFlow,'AbsTol',1e-12);
+            testCase.verifyEqual(values.Result.values.Q,preciseQ,'AbsTol',1e-12);
+            testCase.verifyTrue(reopened.apply());
+            reopenedSpecs=nirp.dof.readSpecs( ...
+                get_param('precise_feed/F1','Specifications'));
+            testCase.verifyEqual(reopenedSpecs.F1.si,preciseFlow,'AbsTol',1e-12);
+            testCase.verifyEqual(reopenedSpecs.Q.si,preciseQ,'AbsTol',1e-12);
+        end
+
+        function massBasisUsesRealTableCallbacksAndPersistsOrigins(testCase)
+            [~,dictionary]=nirp.flowsheet.new('mass_feed',nirp.pkg.examples.problem17AdiabaticGas(),testCase.Folder,'OpenModel',false);
+            dialog=nirp.flowsheet.StreamDialog('mass_feed/F1','Visible','off');testCase.addTeardown(@()deleteValid(dialog));
+            testCase.verifyEqual(size(dialog.ComponentTable.Data,2),6);dialog.setValues('F',nan(4,1));dialog.setUnits('MassFlow','kg/s','T','K','P','Pa');
+            mass=[0.04;0.08;0;0];
+            for i=1:4,data=dialog.ComponentTable.Data;data{i,5}=mass(i);dialog.ComponentTable.Data=data;event=struct('Indices',[i 5],'PreviousData',[],'NewData',mass(i),'EditData',num2str(mass(i)));feval(dialog.ComponentTable.CellEditCallback,dialog.ComponentTable,event);end
+            dialog.setValues('T',300,'P',1e5);testCase.verifyTrue(dialog.apply());
+            values=dialog.getValues();testCase.verifyEqual(values.MassFlow.origin,'specified');testCase.verifyEqual(values.MolarFlow.origin,'calculated');
+            specs=nirp.dof.readSpecs(get_param('mass_feed/F1','Specifications'));testCase.verifyTrue(isfield(specs,'mdot1'));testCase.verifyFalse(isfield(specs,'F1'));
+            pkg=nirp.pkg.readDictionary(dictionary);stream=nirp.pkg.feedStream(pkg,'F1');testCase.verifyEqual(stream.F,[1;2;0;0],'RelTol',1e-12,'AbsTol',1e-14);
         end
 
         function resultDialogConvertsAndReportsState(testCase)
-            files=build_examples(testCase.Folder) ;
+            files=testCase.Files ;
             load_system(char(files(2))) ;
             before=nirp.flowsheet.StreamDialog( ...
                 'ex2_cstr_adiabatic_cooler/CSTR outlet','Visible','off') ;
@@ -86,9 +144,7 @@ classdef NirpStreamBlockTest < matlab.unittest.TestCase
             testCase.verifyEmpty(middle.getValue('Viscosity')) ;
             testCase.verifyEqual(string(middle.DensityField.Editable),"off") ;
             testCase.verifyEqual(string(middle.ViscosityField.Editable),"off") ;
-            resultTips=findall(middle.Figure,'Type','uitextarea') ;
-            testCase.verifyTrue(contains(strjoin(string(resultTips.Value),' '), ...
-                'Results of the last run.')) ;
+            testCase.verifyEmpty(findall(middle.Figure,'Type','uitextarea')) ;
             product=nirp.flowsheet.StreamDialog( ...
                 'ex2_cstr_adiabatic_cooler/Product','Visible','off') ;
             testCase.addTeardown(@() deleteValid(product)) ;
@@ -105,7 +161,9 @@ classdef NirpStreamBlockTest < matlab.unittest.TestCase
             failed=nirp.flowsheet.StreamDialog( ...
                 'ex2_cstr_adiabatic_cooler/CSTR outlet','Visible','off') ;
             testCase.addTeardown(@() deleteValid(failed)) ;
-            testCase.verifyEqual(failed.getValue('Status'),"Not converged") ;
+            % T-132: a failed stream in a converged run is an error (A1).
+            testCase.verifyEqual(failed.getValue('Status'), ...
+                "Error: Stream calculation failed.") ;
         end
 
         function directFunctionalConnectionWarns(testCase)
@@ -138,7 +196,7 @@ classdef NirpStreamBlockTest < matlab.unittest.TestCase
         end
 
         function exampleTopologyAndRenameAreConsistent(testCase)
-            files=build_examples(testCase.Folder) ; load_system(char(files(4))) ;
+            files=testCase.Files ; load_system(char(files(4))) ;
             graph=nirp.flowsheet.topology('ex4_problem40b_parallel') ;
             testCase.verifyNumElements(graph.Units.Splitter.Outputs,2) ;
             testCase.verifyNumElements(graph.Units.Mixer.Inputs,2) ;
@@ -160,7 +218,7 @@ classdef NirpStreamBlockTest < matlab.unittest.TestCase
             nirp.pkg.validate(pkg) ; dictionary=fullfile(testCase.Folder,'specs.sldd') ;
             nirp.pkg.writeDictionary(pkg,dictionary) ; actual=nirp.pkg.readDictionary(dictionary) ;
             testCase.verifyEqual(actual.streamSpecs,pkg.streamSpecs) ;
-            files=build_examples(testCase.Folder) ;
+            files=testCase.Files ;
             for i=1:numel(files)
                 [~,name]=fileparts(char(files(i))) ; load_system(char(files(i))) ;
                 graph=nirp.flowsheet.topology(name) ;
@@ -188,8 +246,7 @@ function cleanup(testCase)
     bdclose('all') ; Simulink.data.dictionary.closeAll('-discard') ;
     figures=findall(groot,'Type','Figure');if ~isempty(figures),delete(figures);end
     evalin('base','clear nirpResults') ;
-    Simulink.fileGenControl('setConfig','config',testCase.FileGenerationConfig) ;
-    removePath(testCase.Folder) ; removePath(testCase.SimulinkFolder) ;
+    removePath(testCase.Folder) ;
 end
 function removePath(folder),if contains([path pathsep],[folder pathsep]),rmpath(folder);end,end
 function deleteValid(value),try,if isvalid(value),delete(value);end;catch,end,end

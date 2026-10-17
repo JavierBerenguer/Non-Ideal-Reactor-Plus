@@ -5,10 +5,11 @@ classdef NonIdealReactorApp < handle
 % and a design & optimization workspace for non-ideal reactors.
 %
 % Launch: app = NonIdealReactorApp ;
+% Optional progress callback: app = NonIdealReactorApp('ProgressFcn', f) ;
 %
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: March 21, 2026. Last update: July 7, 2026
+% Created: March 21, 2026. Last update: October 16, 2026
 % =========================================================================
 
     properties (Access = private)
@@ -16,9 +17,11 @@ classdef NonIdealReactorApp < handle
         UIFigure
         TabGroup
         StatusBar               % Status bar label at bottom of figure
+        ResizeTimer
 
         % Shared state
         rtd                 % Current RTD object (shared across tabs)
+        ConvolutionHelper   % Delegated UI/state for the Convolution tab
         DisplayControls = struct()
         DisplayCache = struct()
 
@@ -228,13 +231,39 @@ classdef NonIdealReactorApp < handle
     methods (Access = public)
 
         %% ============== CONSTRUCTOR ==============
-        function app = NonIdealReactorApp()
+        function app = NonIdealReactorApp(varargin)
+
+            parser = inputParser() ;
+            parser.FunctionName = 'NonIdealReactorApp' ;
+            addParameter(parser, 'ProgressFcn', [], ...
+                @(value) isempty(value) || isa(value, 'function_handle')) ;
+            parse(parser, varargin{:}) ;
+            progressFcn = parser.Results.ProgressFcn ;
+
+            loadingCleanup = [] ;
+            if isempty(progressFcn)
+                loadingFigure = uifigure( ...
+                    'Name', 'Loading Non-Ideal Reactor App', ...
+                    'Position', [100 100 420 130], ...
+                    'Resize', 'off') ;
+                movegui(loadingFigure, 'center') ;
+                progressDialog = uiprogressdlg(loadingFigure, ...
+                    'Title', 'Loading Non-Ideal Reactor App', ...
+                    'Message', 'Preparing interface...', ...
+                    'Value', 0) ;
+                progressFcn = @(fraction, message) ...
+                    NonIdealReactorApp.showLoadingProgress(progressDialog, fraction, message) ;
+                loadingCleanup = onCleanup(@() delete(loadingFigure)) ;
+                drawnow ;
+            end
 
             % Create main figure
             app.UIFigure = uifigure('Name', 'Non-Ideal Reactor Analysis', ...
                 'Position', [100 100 1200 750], ...
                 'Resize', 'on', ...
+                'Visible', 'off', ...
                 'AutoResizeChildren', 'off') ;
+            app.UIFigure.CloseRequestFcn = @(~,~) delete(app) ;
 
             % Menu bar
             mFile = uimenu(app.UIFigure, 'Text', 'File') ;
@@ -249,17 +278,11 @@ classdef NonIdealReactorApp < handle
                 'MenuSelectedFcn', @(~,~) app.restartApp()) ;
             uimenu(mFile, 'Text', 'Exit', ...
                 'Separator', 'on', ...
-                'MenuSelectedFcn', @(~,~) delete(app.UIFigure)) ;
+                'MenuSelectedFcn', @(~,~) delete(app)) ;
             mTools = uimenu(app.UIFigure, 'Text', 'Tools') ;
             uimenu(mTools, 'Text', 'Unit Converter', ...
                 'MenuSelectedFcn', @(~,~) UnitConverterHelper.launch()) ;
-            mFlowsheet = uimenu(mTools, 'Text', 'Flowsheet (Simulink)') ;
-            uimenu(mFlowsheet, 'Text', 'Open block library', ...
-                'MenuSelectedFcn', @(~,~) nirp.flowsheet.openLibrary()) ;
-            uimenu(mFlowsheet, 'Text', 'Open example...', ...
-                'MenuSelectedFcn', @(~,~) nirp.flowsheet.chooseExample()) ;
-            uimenu(mFlowsheet, 'Text', 'New flowsheet...', ...
-                'MenuSelectedFcn', @(~,~) nirp.flowsheet.newFromTemplate()) ;
+            % The Simulink flowsheet tools open from the main launcher (NonIdealReactorPlus), not from here (Claude, T-161)
             mHelp = uimenu(app.UIFigure, 'Text', 'Help') ;
             uimenu(mHelp, 'Text', 'User Guide', ...
                 'MenuSelectedFcn', @(~,~) app.showHelp()) ;
@@ -284,19 +307,53 @@ classdef NonIdealReactorApp < handle
                 'Position', [0 22 1200 728]) ;
 
             % Build tabs
+            app.reportProgress(progressFcn, 0 / 7, ...
+                'Building RTD Analysis (1/7)') ;
             app.createRTDTab() ;
+            app.reportProgress(progressFcn, 1 / 7, ...
+                'Building Convolution (2/7)') ;
+            app.ConvolutionHelper = ConvolutionTabHelper(app.TabGroup, ...
+                @() app.rtd, @(signal) app.useConvolutionRTD(signal), ...
+                @(message) app.updateStatus(message)) ;
+            app.reportProgress(progressFcn, 2 / 7, ...
+                'Building Prediction (3/7)') ;
             app.createPredictionTab() ;
+            app.reportProgress(progressFcn, 3 / 7, ...
+                'Building Tanks in Series (4/7)') ;
             app.createTISTab() ;
+            app.reportProgress(progressFcn, 4 / 7, ...
+                'Building Dispersion (5/7)') ;
             app.createDispersionTab() ;
+            app.reportProgress(progressFcn, 5 / 7, ...
+                'Building Design & Optimization (6/7)') ;
             app.createDesignTemplatesTab() ;
+            app.reportProgress(progressFcn, 6 / 7, ...
+                'Final layout: drawing the window, the first time can take a while (7/7)') ;
             app.RTD_updateFQuery() ;
             app.Pred_inputMethodChanged() ;
 
-            % Assign resize callback AFTER all UI components exist
-            app.UIFigure.SizeChangedFcn = @(~,~) app.onFigureResize() ;
+            % Panels whose content has fixed heights scroll when the window is smaller than them
+            app.makePanelGridsScrollable() ;
 
-            % Show figure
+            % Size the two top-level children once, then coalesce the resize event storm produced
+            % by a native window drag. Updating the tab group for every event makes the web view
+            % relayout all of its descendants repeatedly and can starve painting for minutes.
+            app.applyFigureSize() ;
+            app.UIFigure.SizeChangedFcn = @(~,~) app.onFigureResize() ;
             app.UIFigure.Visible = 'on' ;
+            drawnow ;
+            app.applyFigureSize() ;
+            % Drawing the visible window is the slow part of a cold start: Ready only after it (Claude, T-161)
+            app.reportProgress(progressFcn, 1, 'Ready') ;
+            clear loadingCleanup
+        end
+
+        function delete(app)
+            app.cancelResizeTimer() ;
+            if ~isempty(app.UIFigure) && isvalid(app.UIFigure)
+                app.UIFigure.SizeChangedFcn = [] ;
+                delete(app.UIFigure) ;
+            end
         end
 
         function saveSessionToFile(app, fullPath, sessionName)
@@ -328,9 +385,57 @@ classdef NonIdealReactorApp < handle
 
     methods (Access = private)
 
+        function reportProgress(~, progressFcn, fraction, message)
+            % Progress callbacks are advisory and must never prevent startup.
+            try
+                progressFcn(fraction, message) ;
+            catch
+                % Continue without progress if a caller callback fails.
+            end
+        end
+
+    end
+
+    methods (Static, Access = private)
+
+        function showLoadingProgress(progressDialog, fraction, message)
+            % The build is synchronous: repaint so the loading window really advances (Claude, T-161)
+            progressDialog.Value = fraction ;
+            progressDialog.Message = message ;
+            drawnow limitrate ;
+        end
+
+    end
+
+    methods (Access = private)
+
         %% ============== RESPONSIVE RESIZE (T6) ==============
 
         function onFigureResize(app)
+            if isempty(app.UIFigure) || ~isvalid(app.UIFigure)
+                return
+            end
+
+            if isempty(app.ResizeTimer) || ~isvalid(app.ResizeTimer)
+                app.ResizeTimer = timer( ...
+                    'ExecutionMode', 'singleShot', ...
+                    'StartDelay', 0.12, ...
+                    'BusyMode', 'drop', ...
+                    'Tag', 'NonIdealReactorAppResizeTimer', ...
+                    'TimerFcn', @(~,~) app.applyFigureSize()) ;
+            elseif strcmp(app.ResizeTimer.Running, 'on')
+                stop(app.ResizeTimer) ;
+            end
+            start(app.ResizeTimer) ;
+        end
+
+        function applyFigureSize(app)
+            if isempty(app.UIFigure) || ~isvalid(app.UIFigure) || ...
+                    isempty(app.TabGroup) || ~isvalid(app.TabGroup) || ...
+                    isempty(app.StatusBar) || ~isvalid(app.StatusBar)
+                return
+            end
+
             pos = app.UIFigure.Position ;
             w = pos(3) ; h = pos(4) ;
 
@@ -339,6 +444,33 @@ classdef NonIdealReactorApp < handle
 
             % Status bar stretches full width at bottom
             app.StatusBar.Position = [0 0 w 22] ;
+        end
+
+        function cancelResizeTimer(app)
+            if isempty(app.ResizeTimer) || ~isvalid(app.ResizeTimer)
+                return
+            end
+            if strcmp(app.ResizeTimer.Running, 'on')
+                stop(app.ResizeTimer) ;
+            end
+            delete(app.ResizeTimer) ;
+            app.ResizeTimer = [] ;
+        end
+
+        function makePanelGridsScrollable(app)
+            % A grid that fills a panel or a tab and has fixed or fit rows gets a scroll bar
+            % instead of clipping its content when the window is smaller (Claude, 2026-10-15).
+            grids = findall(app.UIFigure, 'Type', 'uigridlayout') ;
+            for i = 1:numel(grids)
+                g = grids(i) ;
+                rows = g.RowHeight ;
+                hasFixedRows = any(cellfun(@(r) isnumeric(r) || strcmp(r, 'fit'), rows)) ;
+                fillsContainer = isa(g.Parent, 'matlab.ui.container.Panel') || ...
+                    isa(g.Parent, 'matlab.ui.container.Tab') ;
+                if fillsContainer && numel(rows) >= 3 && hasFixedRows
+                    g.Scrollable = 'on' ;
+                end
+            end
         end
 
         function restartApp(app)
@@ -386,6 +518,7 @@ classdef NonIdealReactorApp < handle
         end
 
         function closeFigureForRestart(app)
+            app.cancelResizeTimer() ;
             if ~isempty(app.UIFigure) && isvalid(app.UIFigure)
                 fig = app.UIFigure ;
                 try
@@ -1024,6 +1157,7 @@ classdef NonIdealReactorApp < handle
                 'streamStatus', app.captureLabelState(app.Disp_StreamStatusLabel)) ;
 
             snapshot.designWorkspace = app.DW_buildSnapshot() ;
+            snapshot.convolution = app.ConvolutionHelper.buildSnapshot() ;
         end
 
         function applySessionSnapshot(app, snapshot)
@@ -1194,6 +1328,11 @@ classdef NonIdealReactorApp < handle
                     app.getStructField(snapshot, 'designTemplates', struct())) ;
             end
             app.DW_applySnapshot(designSnapshot) ;
+
+            % Optional for backward compatibility with sessions saved before
+            % the Convolution tab existed.
+            app.ConvolutionHelper.applySnapshot( ...
+                app.getStructField(snapshot, 'convolution', struct())) ;
 
             selectedTabTitle = app.getStructField(snapshot, 'selected_tab_title', '') ;
             if ~isempty(selectedTabTitle)
@@ -3412,6 +3551,27 @@ classdef NonIdealReactorApp < handle
         function updateStatus(app, msg)
             app.StatusBar.Text = ['  ' msg] ;
             drawnow limitrate ;
+        end
+
+        function useConvolutionRTD(app, signal)
+            % Load a deconvolved signal as a normalized tabulated RTD.
+            signal = nirp.conv.signal(signal.t, signal.C) ;
+            app.rtd = RTD(signal.t, signal.C) ;
+            app.rtd.source = 'deconvolution' ;
+            app.rtd.modelInfo = struct('source', 'Convolution tab') ;
+            app.RTD_SourceDropdown.Value = 'Tabular Input' ;
+            app.RTD_sourceChanged() ;
+            app.RTD_DataTypeDropdown.Value = 'Pulse C(t)' ;
+            app.RTD_DataTable.Data = [signal.t(:), signal.C(:)] ;
+            app.RTD_updateResults() ;
+            app.RTD_updatePlots() ;
+            app.RTD_updateFQuery() ;
+            app.RTD_ExportButton.Enable = 'on' ;
+            if ~isempty(app.Pred_RTDStatusLabel)
+                app.Pred_RTDStatusLabel.Text = app.htmlStatusTauSigma( ...
+                    'Deconvolution', app.rtd.tau, app.rtd.sigma2) ;
+                app.Pred_RTDStatusLabel.FontColor = [0 0.5 0] ;
+            end
         end
 
         %% ============== TAB 1: RTD ANALYSIS ==============
@@ -8787,87 +8947,7 @@ classdef NonIdealReactorApp < handle
         % Help dialog
         % -----------------------------------------------------------------
         function showHelp(~)
-            docsDir = fullfile(fileparts(mfilename('fullpath')), 'docs') ;
-            guidePath = fullfile(docsDir, 'UserGuide.html') ;
-
-            try
-                if ~isfile(guidePath)
-                    error('NonIdealReactorApp:MissingUserGuide', ...
-                        'User guide HTML file not found.') ;
-                end
-
-                fig = uifigure('Name', 'Help - NonIdealReactorApp', ...
-                    'Position', [120 60 980 740], ...
-                    'Resize', 'on') ;
-                uihtml(fig, ...
-                    'HTMLSource', guidePath, ...
-                    'Position', [10 10 960 720]) ;
-            catch
-                fallbackPath = fullfile(docsDir, 'UserGuide.md') ;
-                helpText = { ...
-                    'Formatted user guide not available.', ...
-                    '', ...
-                    ['Expected file: ' guidePath], ...
-                    '', ...
-                    ['Reference markdown: ' fallbackPath], ...
-                    '', ...
-                    'Opening the HTML guide in the system browser if possible.'} ;
-                try
-                    web(guidePath, '-browser') ;
-                catch
-                end
-
-                fig = uifigure('Name', 'Help - NonIdealReactorApp', ...
-                    'Position', [180 120 700 220], ...
-                    'Resize', 'off') ;
-                uitextarea(fig, ...
-                    'Value', helpText, ...
-                    'Position', [10 10 680 200], ...
-                    'Editable', 'off', ...
-                    'FontName', 'Consolas', ...
-                    'FontSize', 12) ;
-            end
-            return
-            helpText = { ...
-                'NonIdealReactorApp — Quick Guide', ...
-                '==================================', ...
-                '', ...
-                'Tab 1: RTD Analysis', ...
-                '  Generate or import E(t) from analytical expression, experimental', ...
-                '  data (pulse/step), Excel file or manual table.', ...
-                '  Computes tau, variance, skewness, equivalent N and effective volume.', ...
-                '', ...
-                'Tab 2: Prediction Models', ...
-                '  Predicts conversion with Segregation and Maximum Mixedness.', ...
-                '  Requires RTD generated in Tab 1.', ...
-                '  Supports 6 kinetics: 1st/2nd Order, Michaelis-Menten,', ...
-                '  Reversible, Parallel and Custom Rate Law.', ...
-                '', ...
-                'Tab 3: Tanks-in-Series (TIS)', ...
-                '  Model of N equal CSTRs in series.', ...
-                '  Computes N from variance or accepts manual input.', ...
-                '', ...
-                'Tab 4: Dispersion Model', ...
-                '  Reactor with axial dispersion (Bo = D_e/(uL) = 1/Pe).', ...
-                '  Boundary conditions: open-open or closed-closed (Danckwerts).', ...
-                '  Smaller Bo and larger Pe approach PFR; larger Bo approaches strong backmixing.', ...
-                '', ...
-                '==================================', ...
-                'Internal units: SI (s, m^3, mol/m^3, m^3/s, Pa, K)', ...
-                'Use the Unit Converter to convert.', ...
-                '', ...
-                'Author: Javier Berenguer Sabater (TFG, March 2026)', ...
-                'Based on ReactorApp by Isabela Fons.'} ;
-
-            fig = uifigure('Name', 'Help — NonIdealReactorApp', ...
-                'Position', [200 100 520 560], ...
-                'Resize', 'off') ;
-            uitextarea(fig, ...
-                'Value', helpText, ...
-                'Position', [10 10 500 540], ...
-                'Editable', 'off', ...
-                'FontName', 'Consolas', ...
-                'FontSize', 12) ;
+            openNirpGuide('UserGuide.html') ;
         end
 
     end

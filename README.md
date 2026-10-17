@@ -1,6 +1,6 @@
-# NonIdealReactorApp
+# Non-Ideal Reactor Plus
 
-`NonIdealReactorApp` is a MATLAB application for teaching and studying non-ideal reactors through RTD-based analysis, reactor-performance prediction, equivalent-model interpretation, and design-oriented comparison tools. The current app covers `RTD Analysis`, direct and one-parameter prediction-model routes, and a `Design & Optimization` workspace built on top of the selected RTD, reaction system, and feed stream.
+`Non-Ideal Reactor Plus` is a MATLAB application for teaching and studying ideal and non-ideal reactors through RTD-based analysis, reactor-performance prediction, equivalent-model interpretation, design-oriented comparison tools, and Simulink flowsheets. The main launcher provides access to the ideal app, the non-ideal app, and the graphical flowsheet tools.
 
 This project extends the original `ReactorApp` line developed at the University of Alicante. The current non-ideal-reactor branch keeps that educational spirit while adding RTD-driven prediction routes, visualization layers, session persistence, and a design workspace for fitting, reactive comparison, and process-side optimization.
 
@@ -21,9 +21,17 @@ There is no installer. Use the project as a normal MATLAB folder:
    - add the extracted folder to the MATLAB path.
 5. Open the `ReactorApp toolbox` folder inside MATLAB if needed.
 
-You can launch the non-ideal app in either of these ways:
+The recommended entry point is the main launcher:
 
-### Direct launch
+```matlab
+NonIdealReactorPlus
+```
+
+It opens the ideal reactor app, the non-ideal reactor app, and the Simulink flowsheet tools with loading feedback. The launcher stays open so that you can open another part of the application.
+
+The individual reactor apps can also be launched directly:
+
+### Direct non-ideal launch
 
 Run:
 
@@ -31,7 +39,7 @@ Run:
 NonIdealReactorApp
 ```
 
-### Launch through the original main window
+### Direct ideal launch
 
 Run:
 
@@ -39,7 +47,7 @@ Run:
 ReactorApp
 ```
 
-Then open the non-ideal branch from the main window by selecting the corresponding non-ideal reactor option.
+From `ReactorApp`, you can also open the non-ideal branch by selecting the corresponding non-ideal reactor option.
 
 ## Academic Origin and Acknowledgment
 

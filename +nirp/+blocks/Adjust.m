@@ -2,7 +2,7 @@ classdef Adjust < matlab.System
     % Adjust drives a scalar SI parameter to a measured stream target.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 2, 2026. Last update: October 4, 2026
+    % Created: October 2, 2026. Last update: October 9, 2026
     % =========================================================================
     properties (Nontunable)
         TargetVariable = 'Conversion'
@@ -19,9 +19,9 @@ classdef Adjust < matlab.System
         Strategy = 'Simultaneous'
     end
     properties (Constant,Hidden)
-        TargetVariableSet = matlab.system.StringSet({'Conversion', ...
+        TargetVariableSet = matlab.system.StringSet({'Select...','Conversion', ...
             'Component molar flow','Temperature','Component concentration'})
-        TargetUnitSet = matlab.system.StringSet([{'as entered'}, ...
+        TargetUnitSet = matlab.system.StringSet([{'Select...','as entered'}, ...
             UnitConverterHelper.getUnits('MolarFlow'), ...
             UnitConverterHelper.getUnits('Temperature'), ...
             UnitConverterHelper.getUnits('Concentration')])
@@ -30,7 +30,7 @@ classdef Adjust < matlab.System
             UnitConverterHelper.getUnits('Temperature'), ...
             UnitConverterHelper.getUnits('VolumetricFlow'), ...
             UnitConverterHelper.getUnits('Area')])
-        StrategySet = matlab.system.StringSet({'Simultaneous','Nested'})
+        StrategySet = matlab.system.StringSet({'Select...','Simultaneous','Nested'})
     end
     properties (Access=private)
         Current
@@ -53,8 +53,16 @@ classdef Adjust < matlab.System
         function setupImpl(obj)
             [obj.Model,pkg,~] = nirp.blocks.internal.modelPackage() ; obj.Key = gcb ;
             obj.Block = get_param(gcb,'Name') ;
+            missing=strings(0,1);if strcmp(obj.TargetVariable,'Select...'),missing(end+1)="TargetVariable";end;if strcmp(obj.TargetUnit,'Select...'),missing(end+1)="TargetUnit";end;if strcmp(obj.Strategy,'Select...'),missing(end+1)="Strategy";end;numeric={"TargetValue",obj.TargetValue;"InitialValue",obj.InitialValue;"MinValue",obj.MinValue;"MaxValue",obj.MaxValue;"Damping",obj.Damping;"Tolerance",obj.Tolerance};for i=1:size(numeric,1),if ~isfinite(numeric{i,2}),missing(end+1)=numeric{i,1};end,end
+            nirp.blocks.internal.requireSpecifications('Adjust',obj.Block,missing);
             category = nirp.blocks.internal.unitCategory(obj.ParameterUnit, ...
                 {'Volume','Temperature','VolumetricFlow','Area'}) ;
+            target = nirp.flowsheet.adjustTarget(gcb) ;
+            if target.Label ~= "<not connected>" && target.Category ~= string(category)
+                error('nirp:blocks:invalidAdjustParameterUnit', ...
+                    'Adjust "%s" moves %s (%s) but its parameter unit is %s (%s).', ...
+                    obj.Block,target.Label,target.Category,obj.ParameterUnit,category) ;
+            end
             obj.Current = UnitConverterHelper.convertToSI(category,obj.InitialValue,char(obj.ParameterUnit)) ;
             obj.Minimum = UnitConverterHelper.convertToSI(category,obj.MinValue,char(obj.ParameterUnit)) ;
             obj.Maximum = UnitConverterHelper.convertToSI(category,obj.MaxValue,char(obj.ParameterUnit)) ;

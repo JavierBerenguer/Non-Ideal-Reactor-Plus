@@ -2,7 +2,7 @@ function streamRenamed(block)
 %STREAMRENAMED Keep package and result identities aligned with a Stream name.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 2, 2026. Last update: October 2, 2026
+% Created: October 2, 2026. Last update: October 9, 2026
 % =========================================================================
 
     block = getfullname(block) ;
@@ -14,8 +14,8 @@ function streamRenamed(block)
     end
     previous = char(string(data.NirpStreamName)) ;
     if strcmp(previous,current), return, end
-    role = get_param(block,'Role') ;
-    if strcmp(role,'Feed')
+    role = nirp.flowsheet.streamRole(block) ;
+    if role == "Feed"
         path = nirp.flowsheet.modelDictionary(bdroot(block)) ;
         pkg = nirp.pkg.readDictionary(path) ;
         names = string({pkg.feeds.name}) ;

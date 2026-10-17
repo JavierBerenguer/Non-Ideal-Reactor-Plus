@@ -2,11 +2,13 @@ function params = thermalParameters(obj)
 %THERMALPARAMETERS Convert reactor block thermal properties to SI.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 2, 2026. Last update: October 2, 2026
+% Created: October 2, 2026. Last update: October 7, 2026
 % =========================================================================
 
     params.heatMode = char(obj.HeatMode) ;
-    params.bypassRatio = obj.BypassRatio ;
+    % Flowsheet reactors have no internal bypass (T-131, D-057): a bypass
+    % is drawn as a Splitter and a Mixer.
+    params.bypassRatio = 0 ;
     params.catalystDensity = obj.CatalystDensity ;
     params.catalystPorosity = obj.CatalystPorosity ;
     params.specifiedT = convertTemperature(obj.SpecifiedT,obj.SpecifiedTUnit) ;

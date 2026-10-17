@@ -2,7 +2,7 @@ classdef Recycle < matlab.System
     % Recycle breaks a stream loop using direct or bounded Wegstein updates.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 2, 2026. Last update: October 2, 2026
+    % Created: October 2, 2026. Last update: October 10, 2026
     % =========================================================================
     properties (Nontunable)
         Method = 'Direct'
@@ -18,8 +18,8 @@ classdef Recycle < matlab.System
         InitialFeedName = 'F1'
     end
     properties (Constant,Hidden)
-        MethodSet = matlab.system.StringSet({'Direct','Wegstein'})
-        InitialGuessSet = matlab.system.StringSet({'Empty stream','Feed'})
+        MethodSet = matlab.system.StringSet({'Select...','Direct','Wegstein'})
+        InitialGuessSet = matlab.system.StringSet({'Select...','Empty stream','Feed'})
         InitialTUnitSet = matlab.system.StringSet({'K',[char(176) 'C']})
         InitialPUnitSet = matlab.system.StringSet(UnitConverterHelper.getUnits('Pressure'))
     end
@@ -31,6 +31,7 @@ classdef Recycle < matlab.System
         Iteration = 0
         Consecutive = 0
         Converged = false
+        LastError = NaN
         Model = ''
         Key = ''
     end
@@ -38,6 +39,8 @@ classdef Recycle < matlab.System
         function setupImpl(obj)
             [obj.Model,pkg,rs] = nirp.blocks.internal.modelPackage() ;
             obj.Key = gcb ;
+            missing=strings(0,1);if strcmp(obj.Method,'Select...'),missing(end+1)="Method";end;if ~isfinite(obj.Tolerance),missing(end+1)="Tolerance";end;if ~isfinite(obj.QMin),missing(end+1)="QMin";end;if ~isfinite(obj.QMax),missing(end+1)="QMax";end;if ~isfinite(obj.AccelerationEvery),missing(end+1)="AccelerationEvery";end;if strcmp(obj.InitialGuess,'Select...'),missing(end+1)="InitialGuess";end
+            nirp.blocks.internal.requireSpecifications('Recycle',get_param(gcb,'Name'),missing);
             if ~isscalar(obj.Tolerance) || ~isfinite(obj.Tolerance) || obj.Tolerance <= 0
                 error('nirp:blocks:invalidTolerance','Tolerance must be positive.') ;
             end
@@ -59,7 +62,7 @@ classdef Recycle < matlab.System
             obj.PreviousEstimate = obj.Estimate ;
             obj.PreviousRaw = obj.Estimate ;
             obj.HavePrevious = false ; obj.Iteration = 0 ;
-            obj.Consecutive = 0 ; obj.Converged = false ;
+            obj.Consecutive = 0 ; obj.Converged = false ; obj.LastError = NaN ;
             obj.publish() ;
         end
         function estimate = outputImpl(obj,~)
@@ -87,7 +90,9 @@ classdef Recycle < matlab.System
                     next = raw ;
                 end
             end
-            if obj.relativeError(next,obj.Estimate) <= obj.Tolerance
+            % T-142: the change is kept so results can report the final error.
+            obj.LastError = obj.relativeError(next,obj.Estimate) ;
+            if obj.LastError <= obj.Tolerance
                 obj.Consecutive = obj.Consecutive+1 ;
             else
                 obj.Consecutive = 0 ;
@@ -110,7 +115,7 @@ classdef Recycle < matlab.System
     methods (Access=private)
         function publish(obj)
             value = struct('converged',obj.Converged,'status',double(obj.Converged), ...
-                'kind','Recycle','iteration',obj.Iteration) ;
+                'kind','Recycle','iteration',obj.Iteration,'finalError',obj.LastError) ;
             nirp.flowsheet.registry('set',obj.Model,obj.Key,value) ;
         end
     end

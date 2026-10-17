@@ -1,13 +1,15 @@
 function tables = showResults(model,varargin)
 %SHOWRESULTS Return and optionally display unit and Stream result tables.
-%   TABLES = nirp.flowsheet.showResults(MODEL) returns Units and Adjust
-%   tables followed by one table per Stream in nirpResults.Streams. Unit
-%   volumes, heat-transfer parameters, and heat duties use display units.
+%   TABLES = nirp.flowsheet.showResults(MODEL) returns Units, Adjust, and
+%   Messages tables followed by one table per Stream in nirpResults.Streams.
+%   PFR profiles, when available, are returned as SI tables in Profiles.
+%   Unit volumes, Jacket heat-transfer parameters, heat duties, and optional
+%   utility mass flows use display units (mass flow is reported in kg/s).
 %   ...showResults(MODEL,'NoWindow',true) never creates a UI window.
 %   ...showResults(MODEL,'Visible',VALUE) controls the results window.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 2, 2026. Last update: October 4, 2026
+% Created: October 2, 2026. Last update: October 9, 2026
 % =========================================================================
 
     if nargin < 1 || isempty(model), model = bdroot ; end
@@ -36,8 +38,17 @@ function tables = showResults(model,varargin)
     tables = struct() ;
     tables.Units = emptyUnitTable() ;
     tables.Adjust = emptyAdjustTable() ;
+    tables.Recycles = emptyRecycleTable() ;
     if modelLoaded
         [tables.Units,tables.Adjust] = unitTables(model,results) ;
+        tables.Recycles = recycleTable(model) ;
+    end
+    profileDisplays = struct([]) ;
+    if modelLoaded
+        [profileTables,profileDisplays] = pfrProfileTables(model,results) ;
+        if ~isempty(fieldnames(profileTables))
+            tables.Profiles = profileTables ;
+        end
     end
     for i = 1:numel(fields)
         item = results.Streams.(fields{i}) ;
@@ -57,6 +68,7 @@ function tables = showResults(model,varargin)
         tableValue.Conversion = repmat(conversion,n,1) ;
         tables.(fields{i}) = tableValue ;
     end
+    tables.Messages = messageTable(model,results,modelLoaded) ;
     if isempty(fieldnames(tables))
         error('nirp:flowsheet:noResults','nirpResults contains no Stream results.') ;
     end
@@ -68,20 +80,322 @@ function tables = showResults(model,varargin)
         'Padding',[10 10 10 10]) ;
     tabs = uitabgroup(figureGrid) ;
     unitTab = uitab(tabs,'Title','Units') ;
-    unitGrid = uigridlayout(unitTab,[4 1], ...
-        'RowHeight',{22,'1x',22,'1x'},'Padding',[10 10 10 10]) ;
+    unitGrid = uigridlayout(unitTab,[6 1], ...
+        'RowHeight',{22,'1x',22,'1x',22,'0.6x'},'Padding',[10 10 10 10]) ;
     uilabel(unitGrid,'Text','Units','FontWeight','bold') ;
+    % Keep each result and unit in its typed column. The table deliberately
+    % scrolls horizontally so neither engineering values nor headings are
+    % truncated at the default window size.
     createDisplayTable(unitGrid,tables.Units,2, ...
-        {105,65,50,70,55,70,55,85,60,85,60,220},true) ;
+        {130,75,65,110,65,110,65,110,95,110,75,110,75,140,70, ...
+        130,80,320},true) ;
     uilabel(unitGrid,'Text','Adjust','FontWeight','bold') ;
     createDisplayTable(unitGrid,tables.Adjust,4, ...
-        {115,55,80,95,105,70,90,75,80,75,160},true) ;
-    names = fieldnames(tables) ; names = names(3:end) ;
+        {115,130,55,80,95,105,70,90,75,80,75,160},true) ;
+    uilabel(unitGrid,'Text','Recycle','FontWeight','bold') ;
+    createDisplayTable(unitGrid,tables.Recycles,6,{115,90,80,80,110,90,320}) ;
+    messageTab = uitab(tabs,'Title',messageTabTitle(tables.Messages)) ;
+    messageGrid = uigridlayout(messageTab,[1 1], ...
+        'Padding',[10 10 10 10]) ;
+    createDisplayTable(messageGrid,tables.Messages,1,{90,150,650}) ;
+    if ~isempty(profileDisplays)
+        createPfrProfileTab(tabs,profileDisplays) ;
+    end
+    names = setdiff(fieldnames(tables), ...
+        {'Units','Adjust','Recycles','Messages','Profiles'},'stable') ;
     for i = 1:numel(names)
         tab = uitab(tabs,'Title',names{i}) ;
         grid = uigridlayout(tab,[1 1],'Padding',[10 10 10 10]) ;
         createDisplayTable(grid,tables.(names{i}),1,'auto') ;
     end
+end
+
+function [tables,displays] = pfrProfileTables(model,results)
+    tables = struct() ; displays = struct([]) ;
+    if ~isfield(results,'Diagnostics') || ~isstruct(results.Diagnostics)
+        return
+    end
+    [blocks,types] = functionalBlocks(model) ;
+    blocks = blocks(types == "PFR") ;
+    for i = 1:numel(blocks)
+        block = blocks{i} ; name = string(get_param(block,'Name')) ;
+        field = matlab.lang.makeValidName(char(string(model)+"_"+name)) ;
+        if ~isfield(results.Diagnostics,field), continue, end
+        diagnostic = results.Diagnostics.(field) ;
+        if ~isstruct(diagnostic) || ~isfield(diagnostic,'lastInfo') || ...
+                ~isstruct(diagnostic.lastInfo) || ...
+                ~isfield(diagnostic.lastInfo,'profile')
+            continue
+        end
+        profile = diagnostic.lastInfo.profile ;
+        if ~validPfrProfile(profile), continue, end
+        componentNames = profileComponentNames(profile,size(profile.F,2)) ;
+        flowVariables = cellstr(matlab.lang.makeUniqueStrings( ...
+            matlab.lang.makeValidName("F_"+componentNames))) ;
+        variableNames = [{'V','L','T','P','Q'} flowVariables] ;
+        value = array2table([profile.V(:) profile.L(:) profile.T(:) ...
+            profile.P(:) profile.Q(:) profile.F], ...
+            'VariableNames',variableNames) ;
+        value.Properties.VariableUnits = ...
+            [{'m^3','m','K','Pa','W'} repmat({'mol/s'},1,size(profile.F,2))] ;
+        tableField = matlab.lang.makeValidName(char(name)) ;
+        tables.(tableField) = value ;
+        entry = struct('Block',name,'VolumeUnit',string(get_param(block,'VUnit')), ...
+            'PressureMode',string(get_param(block,'PressureMode')), ...
+            'ComponentNames',{componentNames},'FlowVariables',{flowVariables}, ...
+            'Table',value) ;
+        displays = [displays;entry] ; %#ok<AGROW>
+    end
+end
+
+function result = validPfrProfile(profile)
+    fields = {'L','V','F','T','P','Q'} ;
+    result = isstruct(profile) && isscalar(profile) && ...
+        all(isfield(profile,fields)) && isnumeric(profile.F) && ...
+        size(profile.F,1) == 201 ;
+    if ~result, return, end
+    for i = [1 2 4 5 6]
+        value = profile.(fields{i}) ;
+        if ~isnumeric(value) || numel(value) ~= size(profile.F,1)
+            result = false ; return
+        end
+    end
+end
+
+function names = profileComponentNames(profile,count)
+    if isfield(profile,'componentNames') && ...
+            numel(profile.componentNames) == count
+        names = string(profile.componentNames(:)') ;
+    else
+        names = "Component "+string(1:count) ;
+    end
+    missing = ismissing(names) | strlength(names) == 0 ;
+    names(missing) = "Component "+string(find(missing)) ;
+    names = matlab.lang.makeUniqueStrings(names) ;
+end
+
+function createPfrProfileTab(tabs,profiles)
+    tab = uitab(tabs,'Title','PFR profiles') ;
+    profileGrid = uigridlayout(tab,[3 2], ...
+        'RowHeight',{22,'1x','1x'},'ColumnWidth',{'1x','1x'}, ...
+        'Padding',[10 10 10 10]) ;
+    selectors = uigridlayout(profileGrid,[1 4], ...
+        'ColumnWidth',{70,'1x',105,'1x'},'Padding',[0 0 0 0]) ;
+    selectors.Layout.Row = 1 ; selectors.Layout.Column = [1 2] ;
+    uilabel(selectors,'Text','PFR') ;
+    reactor = uidropdown(selectors,'Items',cellstr(string({profiles.Block}))) ;
+    uilabel(selectors,'Text','Key component') ;
+    component = uidropdown(selectors) ;
+    flowAxis = uiaxes(profileGrid) ; flowAxis.Layout.Row = 2 ; flowAxis.Layout.Column = 1 ;
+    temperatureAxis = uiaxes(profileGrid) ;
+    temperatureAxis.Layout.Row = 2 ; temperatureAxis.Layout.Column = 2 ;
+    conversionAxis = uiaxes(profileGrid) ;
+    conversionAxis.Layout.Row = 3 ; conversionAxis.Layout.Column = 1 ;
+    fourthAxis = uiaxes(profileGrid) ; fourthAxis.Layout.Row = 3 ; fourthAxis.Layout.Column = 2 ;
+    reactor.ValueChangedFcn = @(~,~) selectReactor() ;
+    component.ValueChangedFcn = @(~,~) drawProfiles() ;
+    selectReactor() ;
+
+    function selectReactor()
+        index = find(string({profiles.Block}) == string(reactor.Value),1) ;
+        names = profiles(index).ComponentNames ;
+        component.Items = cellstr(names) ;
+        values = profiles(index).Table{:,profiles(index).FlowVariables} ;
+        preferred = find(values(1,:) > 0 & values(end,:) < values(1,:),1) ;
+        if isempty(preferred), preferred = find(values(1,:) > 0,1) ; end
+        if isempty(preferred), preferred = 1 ; end
+        component.Value = char(names(preferred)) ;
+        drawProfiles() ;
+    end
+
+    function drawProfiles()
+        index = find(string({profiles.Block}) == string(reactor.Value),1) ;
+        item = profiles(index) ; value = item.Table ;
+        volume = UnitConverterHelper.convertFromSI( ...
+            'Volume',value.V,char(item.VolumeUnit)) ;
+        flows = value{:,item.FlowVariables} ;
+        cla(flowAxis) ; plot(flowAxis,volume,flows,'LineWidth',1.2) ;
+        title(flowAxis,'Molar-flow profiles') ;
+        xlabel(flowAxis,"V ("+item.VolumeUnit+")") ; ylabel(flowAxis,'F (mol/s)') ;
+        legend(flowAxis,cellstr(item.ComponentNames),'Location','best') ; grid(flowAxis,'on') ;
+        cla(temperatureAxis) ; plot(temperatureAxis,volume,value.T,'LineWidth',1.2) ;
+        title(temperatureAxis,'Temperature') ;
+        xlabel(temperatureAxis,"V ("+item.VolumeUnit+")") ; ylabel(temperatureAxis,'T (K)') ;
+        grid(temperatureAxis,'on') ;
+        componentIndex = find(item.ComponentNames == string(component.Value),1) ;
+        conversion = 1-flows(:,componentIndex)/flows(1,componentIndex) ;
+        cla(conversionAxis) ; plot(conversionAxis,volume,conversion,'LineWidth',1.2) ;
+        title(conversionAxis,"Conversion of "+item.ComponentNames(componentIndex)+" in this PFR") ;
+        xlabel(conversionAxis,"V ("+item.VolumeUnit+")") ; ylabel(conversionAxis,'X') ;
+        grid(conversionAxis,'on') ;
+        cla(fourthAxis) ;
+        if item.PressureMode == "Non constant"
+            plot(fourthAxis,volume,value.P/1000,'LineWidth',1.2) ;
+            title(fourthAxis,'Pressure') ; ylabel(fourthAxis,'P (kPa)') ;
+        else
+            plot(fourthAxis,volume,value.Q,'LineWidth',1.2) ;
+            title(fourthAxis,'Accumulated heat') ; ylabel(fourthAxis,'Q (W)') ;
+        end
+        xlabel(fourthAxis,"V ("+item.VolumeUnit+")") ; grid(fourthAxis,'on') ;
+    end
+end
+
+function messages = messageTable(model,results,modelLoaded)
+    severity = strings(0,1) ; blocks = strings(0,1) ; text = strings(0,1) ;
+    diagnostics = struct() ;
+    if isfield(results,'Diagnostics') && isstruct(results.Diagnostics)
+        diagnostics = results.Diagnostics ;
+    end
+    prefix = matlab.lang.makeValidName([char(string(model)) '_']) ;
+    diagnosticFields = fieldnames(diagnostics) ;
+    diagnosticFields = diagnosticFields(startsWith(diagnosticFields,prefix)) ;
+    for i = 1:numel(diagnosticFields)
+        field = diagnosticFields{i} ; item = diagnostics.(field) ;
+        if ~isstruct(item) || ~isfield(item,'lastInfo') || ...
+                ~isstruct(item.lastInfo)
+            continue
+        end
+        info = item.lastInfo ; block = diagnosticBlockName( ...
+            model,field,prefix,modelLoaded) ;
+        hasMessage = isfield(info,'message') && ...
+            any(strlength(string(info.message)) > 0) ;
+        if hasMessage
+            kind = "Warning" ;
+            if isfield(info,'status') && isequal(info.status,-1), kind = "Error" ; end
+            [severity,blocks,text] = appendMessage( ...
+                severity,blocks,text,kind,block,string(info.message)) ;
+        elseif isfield(info,'status') && isequal(info.status,-1)
+            [severity,blocks,text] = appendMessage(severity,blocks,text, ...
+                "Error",block,"Calculation failed.") ;
+        end
+        if isfield(info,'warnings')
+            warnings = nonemptyText(info.warnings) ;
+            for j = 1:numel(warnings)
+                [severity,blocks,text] = appendMessage( ...
+                    severity,blocks,text,"Warning",block,warnings(j)) ;
+            end
+        end
+    end
+
+    flowsheetWarning = flowsheetDidNotConverge(results) ;
+    if isfield(results,'Streams') && isstruct(results.Streams)
+        streamFields = fieldnames(results.Streams) ;
+        for i = 1:numel(streamFields)
+            item = results.Streams.(streamFields{i}) ;
+            if ~isstruct(item) || ~isfield(item,'status') || item.status ~= -1
+                continue
+            end
+            block = string(streamFields{i}) ;
+            if isfield(item,'name'), block = string(item.name) ; end
+            if flowsheetWarning
+                [severity,blocks,text] = appendMessage(severity,blocks,text, ...
+                    "Warning",block, ...
+                    "Flowsheet did not converge; values are from the last iteration.") ;
+            else
+                [severity,blocks,text] = appendMessage(severity,blocks,text, ...
+                    "Error",block,"Stream calculation failed.") ;
+            end
+        end
+    end
+
+    entries = nirp.flowsheet.registry('list',model) ;
+    for i = 1:numel(entries)
+        if logical(entries(i).converged), continue, end
+        kind = string(entries(i).kind) ;
+        if ~any(kind == ["Adjust","Recycle"]), continue, end
+        if modelLoaded
+            block = string(get_param(entries(i).key,'Name')) ;
+        else
+            parts = split(string(entries(i).key),'/') ; block = parts(end) ;
+        end
+        message = kind+" did not converge." ;
+        if kind == "Recycle" && isfinite(entries(i).finalError)
+            message = message+sprintf(" Final relative error %.3g.",entries(i).finalError) ;
+        end
+        [severity,blocks,text] = appendMessage(severity,blocks,text, ...
+            "Warning",block,message) ;
+    end
+    if isfield(results,'Flowsheet') && isstruct(results.Flowsheet) && ...
+            isfield(results.Flowsheet,'notConverged') && ...
+            ~isempty(results.Flowsheet.notConverged)
+        names = blockNames(results.Flowsheet.notConverged) ;
+        [severity,blocks,text] = appendMessage(severity,blocks,text, ...
+            "Info","Flowsheet","Blocks not converged: "+strjoin(names,", ")) ;
+    end
+    if isempty(severity)
+        severity = "Info" ; blocks = "Flowsheet" ;
+        text = "No warnings or errors" ;
+    else
+        rank = zeros(size(severity)) ; rank(severity == "Error") = 1 ;
+        rank(severity == "Warning") = 2 ; rank(severity == "Info") = 3 ;
+        [~,order] = sort(rank,'ascend') ; severity = severity(order) ;
+        blocks = blocks(order) ; text = text(order) ;
+    end
+    messages = table(severity,blocks,text, ...
+        'VariableNames',{'Severity','Block','Message'}) ;
+end
+
+function value = flowsheetDidNotConverge(results)
+    value = isfield(results,'Flowsheet') && isstruct(results.Flowsheet) && ...
+        isfield(results.Flowsheet,'notConverged') && ...
+        ~isempty(results.Flowsheet.notConverged) ;
+end
+
+function names = blockNames(paths)
+    names = string(paths(:)) ;
+    for i = 1:numel(names)
+        parts = split(names(i),'/') ;
+        names(i) = parts(end) ;
+    end
+end
+
+function name = diagnosticBlockName(model,field,prefix,modelLoaded)
+    name = string(extractAfter(field,strlength(prefix))) ;
+    if ~modelLoaded, return, end
+    candidates = find_system(model,'LookUnderMasks','all','SearchDepth',1, ...
+        'BlockType','MATLABSystem') ;
+    for i = 1:numel(candidates)
+        candidateField = matlab.lang.makeValidName( ...
+            [char(string(model)) '_' get_param(candidates{i},'Name')]) ;
+        if strcmp(candidateField,field)
+            name = string(get_param(candidates{i},'Name')) ; return
+        end
+    end
+end
+
+function values = nonemptyText(value)
+    values = strings(0,1) ;
+    if ischar(value) || isstring(value) || iscell(value)
+        values = strip(string(value(:))) ;
+        values = values(strlength(values) > 0) ;
+    end
+end
+
+function [severity,blocks,text] = appendMessage( ...
+        severity,blocks,text,kind,block,message)
+    message = strip(string(message)) ;
+    message = message(strlength(message) > 0) ;
+    for i = 1:numel(message)
+        severity(end+1,1) = string(kind) ; %#ok<AGROW>
+        blocks(end+1,1) = string(block) ; %#ok<AGROW>
+        text(end+1,1) = message(i) ; %#ok<AGROW>
+    end
+end
+
+function title = messageTabTitle(messages)
+    errors = nnz(messages.Severity == "Error") ;
+    warnings = nnz(messages.Severity == "Warning") ;
+    if errors == 0 && warnings == 0, title = 'Messages' ; return, end
+    % Only nonzero counts are shown, e.g. 'Messages (6 warnings)'.
+    parts = strings(0,1) ;
+    if errors > 0, parts(end+1) = countText(errors,"error") ; end
+    if warnings > 0, parts(end+1) = countText(warnings,"warning") ; end
+    title = char("Messages ("+strjoin(parts,", ")+")") ;
+end
+
+function text = countText(count,word)
+    if count ~= 1, word = word+"s" ; end
+    text = count+" "+word ;
 end
 
 function [units,adjusts] = unitTables(model,results)
@@ -113,14 +427,16 @@ function [units,adjusts] = unitTables(model,results)
             if isfield(info,'status'), row{3} = double(info.status) ;
             elseif isfield(item,'lastOutput'), row{3} = outputStatus(item.lastOutput) ;
             end
-            if isfield(info,'message'), row{12} = string(info.message) ; end
+            if isfield(info,'message'), row{18} = string(info.message) ; end
             if any(type == ["CSTR","PFR"])
                 row = reactorValues(block,info,row) ;
+            elseif type == "Jacket"
+                row = jacketValues(model,block,info,row,diagnostics) ;
             end
             if isfield(info,'heatDuty')
-                row{11} = heatUnit(block,type) ;
-                row{10} = UnitConverterHelper.convertFromSI( ...
-                    'Power',info.heatDuty,char(row{11})) ;
+                row{15} = heatUnit(block,type) ;
+                row{14} = UnitConverterHelper.convertFromSI( ...
+                    'Power',info.heatDuty,char(row{15})) ;
             end
             if type == "Adjust"
                 adjusts(end+1,:) = adjustValues(block,info,registryEntries) ; %#ok<AGROW>
@@ -133,46 +449,91 @@ function [units,adjusts] = unitTables(model,results)
             warning('nirp:flowsheet:unitResultRow', ...
                 'Could not build results row for "%s": %s',name,exception.message) ;
             if type == "Adjust"
-                failed = emptyAdjustRow(block) ; failed{11} = string(exception.message) ;
+                failed = emptyAdjustRow(block) ; failed{12} = string(exception.message) ;
                 adjusts(end+1,:) = failed ; %#ok<AGROW>
                 continue
             end
-            row{12} = string(exception.message) ;
+            row{18} = string(exception.message) ;
         end
         units(end+1,:) = row ; %#ok<AGROW>
     end
+    units = clearUnitsWithoutValues(units) ;
 end
 
 function value = emptyUnitTable()
-    columns = {'Block','Type','Status','V','VUnit','A','AUnit', ...
-        'UtilityTin','UtilityTinUnit','HeatDuty','QUnit','Message'} ;
+    columns = {'Block','Type','Status','V','VUnit','A','AUnit','U','UUnit', ...
+        'UtilityTin','UtilityTinUnit','UtilityTout','UtilityToutUnit', ...
+        'HeatDuty','QUnit','ServiceFlow','ServiceFlowUnit','Message'} ;
     value = table('Size',[0 numel(columns)], ...
         'VariableTypes',{'string','string','double','double','string', ...
-        'double','string','double','string','double','string','string'}, ...
+        'double','string','double','string','double','string','double','string', ...
+        'double','string','double','string','string'}, ...
         'VariableNames',columns) ;
 end
 
+function value = emptyRecycleTable()
+    columns = {'Block','Method','Converged','Iterations','FinalError','Tolerance','TearStream'} ;
+    value = table('Size',[0 numel(columns)], ...
+        'VariableTypes',{'string','string','double','double','double','double','string'}, ...
+        'VariableNames',columns) ;
+end
+
+function value = recycleTable(model)
+    % T-142: one row per Recycle block with its convergence and tear stream.
+    value = emptyRecycleTable() ;
+    blocks = find_system(model,'LookUnderMasks','all','SearchDepth',1, ...
+        'BlockType','MATLABSystem','System','nirp.blocks.Recycle') ;
+    entries = nirp.flowsheet.registry('list',model) ;
+    for i = 1:numel(blocks)
+        block = blocks{i} ; converged = NaN ; iterations = NaN ; finalError = NaN ;
+        index = find(strcmp({entries.key},block),1) ;
+        if ~isempty(index)
+            converged = double(entries(index).converged) ;
+            iterations = double(entries(index).iteration) ;
+            finalError = entries(index).finalError ;
+        end
+        value(end+1,:) = {string(get_param(block,'Name')),string(get_param(block,'Method')), ...
+            converged,iterations,finalError,str2double(get_param(block,'Tolerance')), ...
+            tearStream(block)} ; %#ok<AGROW>
+    end
+end
+
+function text = tearStream(block)
+    ports = get_param(block,'PortConnectivity') ; source = "<missing>" ; targets = strings(0,1) ;
+    for i = 1:numel(ports)
+        if ~isempty(ports(i).SrcBlock) && all(ports(i).SrcBlock ~= -1)
+            source = string(get_param(ports(i).SrcBlock,'Name')) ;
+        end
+        for handle = ports(i).DstBlock(:)'
+            targets(end+1,1) = string(get_param(handle,'Name')) ; %#ok<AGROW>
+        end
+    end
+    if isempty(targets), targets = "<missing>" ; end
+    text = source+" -> "+strjoin(targets,", ") ;
+end
+
 function value = emptyAdjustTable()
-    columns = {'Block','Status','Parameter','ParameterUnit','TargetVariable', ...
+    columns = {'Block','AdjustedVariable','Status','Parameter','ParameterUnit','TargetVariable', ...
         'Target','TargetUnit','Measured','Converged','Iterations','Message'} ;
     value = table('Size',[0 numel(columns)], ...
-        'VariableTypes',{'string','double','double','string','string', ...
+        'VariableTypes',{'string','string','double','double','string','string', ...
         'double','string','double','double','double','string'}, ...
         'VariableNames',columns) ;
 end
 
 function row = emptyUnitRow(block,type)
     row = {string(get_param(block,'Name')),type,NaN,NaN,"",NaN,"", ...
-        NaN,"",NaN,"",""} ;
+        NaN,"",NaN,"",NaN,"",NaN,"",NaN,"",""} ;
 end
 
 function row = emptyAdjustRow(block)
-    row = {string(get_param(block,'Name')),NaN,NaN,"","",NaN,"", ...
+    target = nirp.flowsheet.adjustTarget(block) ;
+    row = {string(get_param(block,'Name')),target.Label,NaN,NaN,"","",NaN,"", ...
         NaN,NaN,NaN,""} ;
 end
 
 function [blocks,types] = functionalBlocks(model)
-    supported = ["CSTR","PFR","Heater","Mixer","Splitter","Adjust","Recycle"] ;
+    supported = ["CSTR","PFR","Heater","Jacket","Mixer","Splitter","Separator","Adjust","Recycle"] ;
     paths = find_system(model,'LookUnderMasks','all','SearchDepth',1, ...
         'BlockType','MATLABSystem') ;
     blocks = cell(0,1) ; types = strings(0,1) ;
@@ -222,14 +583,47 @@ function row = reactorValues(block,info,row)
         row{4} = UnitConverterHelper.convertFromSI( ...
             'Volume',info.V,char(row{5})) ;
     end
-    if ~strcmp(get_param(block,'HeatMode'),'Heat exchange'), return, end
-    row{7} = string(get_param(block,'AUnit')) ;
-    area = parameterSI(block,'A','Area') ;
-    row{6} = UnitConverterHelper.convertFromSI('Area',area,char(row{7})) ;
-    row{9} = string(get_param(block,'UtilityTinUnit')) ;
-    utilityTin = parameterSI(block,'UtilityTin','Temperature') ;
-    row{8} = UnitConverterHelper.convertFromSI( ...
-        'Temperature',utilityTin,char(row{9})) ;
+end
+
+function units = clearUnitsWithoutValues(units)
+    pairs = {'V','VUnit';'A','AUnit';'U','UUnit'; ...
+        'UtilityTin','UtilityTinUnit';'UtilityTout','UtilityToutUnit'; ...
+        'HeatDuty','QUnit';'ServiceFlow','ServiceFlowUnit'} ;
+    for i = 1:size(pairs,1)
+        missing = ismissing(units.(pairs{i,1})) ;
+        units.(pairs{i,2})(missing) = "" ;
+    end
+end
+
+function row = jacketValues(model,block,info,row,diagnostics)
+    if isempty(fieldnames(info)), return, end
+    row{7}=string(get_param(block,'AUnit'));row{6}=UnitConverterHelper.convertFromSI('Area',info.A,char(row{7}));
+    row{9}=string(get_param(block,'UUnit'));row{8}=UnitConverterHelper.convertFromSI('HeatTransferCoefficient',info.U,char(row{9}));
+    row{11}=string(get_param(block,'UtilityTinUnit'));row{10}=UnitConverterHelper.convertFromSI('Temperature',info.utilityTin,char(row{11}));
+    row{13}=string(get_param(block,'UtilityToutUnit'));
+    if ~isnan(info.utilityTout),row{12}=UnitConverterHelper.convertFromSI('Temperature',info.utilityTout,char(row{13}));end
+    reactorInfo=connectedReactorInfo(model,block,diagnostics);
+    if isfield(reactorInfo,'heatDuty')
+        row{14}=reactorInfo.heatDuty;row{15}="W";
+        latent=str2double(get_param(block,'LatentHeat'));cp=str2double(get_param(block,'UtilityCp'));
+        if ison(get_param(block,'Condenses'))&&isfinite(latent)&&latent>0
+            row{16}=abs(reactorInfo.heatDuty)/latent;row{17}="kg/s";
+        elseif isfinite(cp)&&cp>0&&~isnan(info.utilityTout)&&info.utilityTout~=info.utilityTin
+            row{16}=abs(reactorInfo.heatDuty)/(cp*abs(info.utilityTout-info.utilityTin));row{17}="kg/s";
+        end
+    end
+end
+
+function info = connectedReactorInfo(model,block,diagnostics)
+    info=struct();ports=get_param(block,'PortHandles');
+    if isempty(ports.Outport),return,end;line=get_param(ports.Outport(1),'Line');if line==-1,return,end
+    destinations=get_param(line,'DstBlockHandle');
+    for destination=reshape(destinations,1,[])
+        try,className=string(get_param(destination,'System'));catch,continue,end
+        if ~any(className==["nirp.blocks.CSTR","nirp.blocks.PFR"]),continue,end
+        field=matlab.lang.makeValidName([char(string(model)) '_' get_param(destination,'Name')]);
+        if isfield(diagnostics,field)&&isfield(diagnostics.(field),'lastInfo'),info=diagnostics.(field).lastInfo;return,end
+    end
 end
 
 function value = parameterSI(block,name,category)
@@ -283,30 +677,36 @@ end
 
 function unit = heatUnit(block,type)
     if any(type == ["CSTR","PFR"])
-        unit = string(get_param(block,'SpecifiedQUnit')) ;
+        % T-131: reactors no longer expose a specified-Q unit; the heat
+        % port is in W.
+        unit = "W" ;
     elseif type == "Heater"
         unit = string(get_param(block,'DutyUnit')) ;
+    elseif type == "Jacket"
+        unit = "W" ;
     else
         unit = "kW" ;
     end
 end
 
+function flag=ison(value),flag=strcmp(value,'on')||strcmp(value,'1');end
+
 function row = adjustValues(block,info,entries)
     row = emptyAdjustRow(block) ;
     entry = registryEntry(entries,block,'Adjust') ;
     if ~isempty(entry)
-        row{2} = double(entry.status) ; row{9} = double(entry.converged) ;
-        row{10} = double(entry.iteration) ;
+        row{3} = double(entry.status) ; row{10} = double(entry.converged) ;
+        row{11} = double(entry.iteration) ;
     end
     if isempty(fieldnames(info)), return, end
-    row{4} = string(info.parameterUnit) ;
+    row{5} = string(info.parameterUnit) ;
     category = nirp.blocks.internal.unitCategory( ...
-        char(row{4}),{'Volume','Temperature','VolumetricFlow','Area'}) ;
-    row{3} = UnitConverterHelper.convertFromSI( ...
-        category,info.value,char(row{4})) ;
-    row{5} = string(info.targetVariable) ; row{7} = string(info.targetUnit) ;
-    [row{6},row{8}] = displayTarget(info) ;
-    row{9} = double(info.converged) ; row{10} = double(info.iteration) ;
+        char(row{5}),{'Volume','Temperature','VolumetricFlow','Area'}) ;
+    row{4} = UnitConverterHelper.convertFromSI( ...
+        category,info.value,char(row{5})) ;
+    row{6} = string(info.targetVariable) ; row{8} = string(info.targetUnit) ;
+    [row{7},row{9}] = displayTarget(info) ;
+    row{10} = double(info.converged) ; row{11} = double(info.iteration) ;
 end
 
 function createDisplayTable(parent,value,row,columnWidths,formatUnitResults)
@@ -322,8 +722,16 @@ function createDisplayTable(parent,value,row,columnWidths,formatUnitResults)
     if formatUnitResults
         data = formatUnitResultData(data,value.Properties.VariableNames) ;
     end
+    columnNames = value.Properties.VariableNames ;
+    if formatUnitResults && width(value) == 18
+        columnNames = {'Block','Type','Status','V','V unit','A','A unit', ...
+            'U','U unit','Tin','Tin unit','Tout','Tout unit','Q','Q unit', ...
+            'Service flow','Flow unit','Message'} ;
+    elseif formatUnitResults && any(strcmp(columnNames,'AdjustedVariable'))
+        columnNames{strcmp(columnNames,'AdjustedVariable')} = 'Adjusted variable' ;
+    end
     control = uitable(parent,'Data',data, ...
-        'ColumnName',value.Properties.VariableNames,'RowName',{}, ...
+        'ColumnName',columnNames,'RowName',{}, ...
         'ColumnWidth',columnWidths) ;
     control.Layout.Row = row ;
 end
