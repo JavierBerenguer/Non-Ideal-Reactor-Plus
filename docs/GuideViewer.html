@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Guide viewer</title>
+  <!-- Loaded by the guide window: keeps every guide page and docs/assets inside the folder the window may read (Claude, 2026-10-17) -->
+  <style>html,body{margin:0;height:100%;overflow:hidden}iframe{border:0;width:100%;height:100%}</style>
+  <script>
+    function setup(htmlComponent) {
+      var frame = null ;
+      function section() { var parts = String(htmlComponent.Data || "").split("#") ; return parts.length > 1 ? parts[1] : "" ; }
+      function show() { frame = document.getElementById("guide") ; if (htmlComponent.Data) { frame.src = htmlComponent.Data ; } }
+      document.getElementById("guide").addEventListener("load", function () {
+        var id = section() ; if (!id) { return ; }
+        try { var target = frame.contentDocument.getElementById(id) ; if (target) { target.scrollIntoView() ; } } catch (e) { }
+      }) ;
+      htmlComponent.addEventListener("DataChanged", show) ;
+      show() ;
+    }
+  </script>
+</head>
+<body><iframe id="guide" title="Guide"></iframe></body>
+</html>

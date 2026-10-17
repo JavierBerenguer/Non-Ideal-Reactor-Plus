@@ -1,9 +1,10 @@
 function openNirpGuide(relativePath)
 % openNirpGuide Open a NIRP HTML guide from the docs directory.
 %   openNirpGuide(RELATIVEPATH) accepts a path relative to docs, optionally
-%   followed by an HTML anchor (for example, "guides/page.html#section").
+%   followed by an HTML anchor (for example, "guides/page.html#section"), in a
+%   window of its own.
 %
-%   Tests can avoid opening a browser by setting the root-appdata entry
+%   Tests can avoid opening the guide window by setting the root-appdata entry
 %   NirpGuideOpenOverride to a function handle. The handle is called with
 %   the validated relative path, including its anchor. Tests must remove
 %   the appdata entry during teardown.
@@ -42,19 +43,20 @@ function openNirpGuide(relativePath)
         return
     end
 
-    guideLocation = string(guidePath) ;
-    if numel(pathParts) > 1
-        guideLocation = guideLocation + "#" + strjoin(pathParts(2:end), '#') ;
-    end
+    % A window of its own, like the former help windows. The viewer in docs/ shows the page in a frame,
+    % so pages in docs/guides can still load docs/assets (uihtml only reads its own folder tree).
+    viewerPath = fullfile(docsDirectory, 'GuideViewer.html') ;
     try
-        web(char(guideLocation)) ;
-    catch matlabBrowserException
+        guideFigure = uifigure('Name', 'Non-Ideal Reactor Plus - Guide', ...
+            'Position', [120 60 1100 780], 'Resize', 'on') ;
+        guideGrid = uigridlayout(guideFigure, [1 1], 'Padding', [0 0 0 0]) ;
+        uihtml(guideGrid, 'HTMLSource', viewerPath, 'Data', char(relativePath)) ;
+    catch windowException
         try
-            web(char(guideLocation), '-browser') ;
+            web(guidePath, '-browser') ;
         catch systemBrowserException
-            matlabBrowserException = addCause( ...
-                matlabBrowserException, systemBrowserException) ;
-            rethrow(matlabBrowserException) ;
+            windowException = addCause(windowException, systemBrowserException) ;
+            rethrow(windowException) ;
         end
     end
 end
