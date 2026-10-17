@@ -1,7 +1,7 @@
 function toolboxFile = package_toolbox(outputFolder)
 %PACKAGE_TOOLBOX Build the distributable Non-Ideal Reactor Plus toolbox.
 %   TOOLBOXFILE = PACKAGE_TOOLBOX(OUTPUTFOLDER) creates a clean staging
-%   copy, generates the Simulink library and examples, and packages the
+%   copy, generates the Simulink library, and packages the
 %   application as NonIdealReactorPlus_0.1.0.mltbx.
 % =========================================================================
 % Javier Berenguer Sabater
@@ -26,9 +26,8 @@ function toolboxFile = package_toolbox(outputFolder)
     cleanupPath = onCleanup(@() path(oldPath)) ;
     addpath(stagingRoot,'-begin') ;
     addpath(simulinkFolder,'-begin') ;
-    clear build_library build_examples
+    clear build_library
     build_library(simulinkFolder) ;
-    build_examples(fullfile(simulinkFolder,'examples')) ;
 
     toolboxFile = fullfile(outputFolder, ...
         ['NonIdealReactorPlus_' version '.mltbx']) ;
@@ -48,7 +47,7 @@ function toolboxFile = package_toolbox(outputFolder)
     matlab.addons.toolbox.packageToolbox(options) ;
     path(oldPath) ;
     clear cleanupPath
-    clear build_library build_examples
+    clear build_library
     clear cleanupStaging
 end
 

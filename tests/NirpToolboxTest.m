@@ -2,7 +2,7 @@ classdef NirpToolboxTest < matlab.unittest.TestCase
     % NirpToolboxTest verifies packaging and installed-example behaviour.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 2, 2026. Last update: October 16, 2026
+    % Created: October 2, 2026. Last update: October 17, 2026
     % =========================================================================
 
     properties
@@ -30,7 +30,7 @@ classdef NirpToolboxTest < matlab.unittest.TestCase
     end
 
     methods (Test)
-        function packageContainsApplicationAndGeneratedModels(testCase)
+        function packageContainsApplicationAndOnDemandGenerator(testCase)
             toolboxFile = package_toolbox(fullfile(testCase.Folder,'release')) ;
             testCase.verifyTrue(isfile(toolboxFile)) ;
             unpacked = fullfile(testCase.Folder,'unpacked') ;
@@ -41,13 +41,9 @@ classdef NirpToolboxTest < matlab.unittest.TestCase
             testCase.verifyTrue(any(contains(names,'/+nirp/'))) ;
             testCase.verifyTrue(any(endsWith(names,'/simulink/NirpLibrary.slx'))) ;
             testCase.verifyTrue(any(endsWith(names,'/simulink/slblocks.m'))) ;
-            [examples,~] = nirp.flowsheet.exampleNames() ;
-            for i = 1:numel(examples)
-                testCase.verifyTrue(any(endsWith(names, ...
-                    "/simulink/examples/"+examples(i)+".slx"))) ;
-                testCase.verifyTrue(any(endsWith(names, ...
-                    "/simulink/examples/"+examples(i)+".sldd"))) ;
-            end
+            testCase.verifyTrue(any(endsWith(names, ...
+                '/simulink/build_examples.m'))) ;
+            testCase.verifyFalse(any(contains(names,'/simulink/examples/'))) ;
             forbidden = ["/tests/","/C__/","/.git","/slprj/"] ;
             for item = forbidden
                 testCase.verifyFalse(any(contains(names,item))) ;
