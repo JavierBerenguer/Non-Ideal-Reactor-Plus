@@ -2,7 +2,7 @@ function modelFiles = build_examples(folder,only)
 %BUILD_EXAMPLES Generate the milestone-1 NIRP example flowsheets.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 2, 2026. Last update: October 10, 2026
+% Created: October 2, 2026. Last update: October 17, 2026
 %   BUILD_EXAMPLES(FOLDER,ONLY) builds only the examples named in ONLY (T-143).
 % =========================================================================
 
@@ -70,7 +70,12 @@ function modelFiles = build_examples(folder,only)
         if bdIsLoaded(name),close_system(name,0);end
         if isfile(modelFile),delete(modelFile);end
         if isfile(dictionaryFile),delete(dictionaryFile);end
-        nirp.pkg.writeDictionary(pkg,dictionaryFile); new_system(name); save_system(name,modelFile);
+        nirp.pkg.writeDictionary(pkg,dictionaryFile);
+        shadowWarning = warning('off','Simulink:Engine:MdlFileShadowing');
+        warningCleanup = onCleanup(@() warning(shadowWarning));
+        new_system(name);
+        clear warningCleanup
+        save_system(name,modelFile);
         set_param(name,'DataDictionary',[name '.sldd']);
         nirp.flowsheet.addBlock(name,'Flowsheet',[20 20 140 75],200);
         builder(name); routeSignalLines(name); nirp.flowsheet.configure(name);
