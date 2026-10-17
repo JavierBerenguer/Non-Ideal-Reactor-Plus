@@ -43,7 +43,12 @@ classdef SeparatorDialog < handle
         function accept(obj),if obj.apply(),delete(obj);end,end
         function cancel(obj),delete(obj);end
     end
-    methods (Static),function dialog=open(blockPath),dialog=nirp.flowsheet.SeparatorDialog(blockPath);end,end
+    methods (Static)
+        function dialog=open(blockPath)
+            if nirp.flowsheet.openLibraryBlockGuide(blockPath),dialog=[];return,end
+            dialog=nirp.flowsheet.SeparatorDialog(blockPath);
+        end
+    end
     methods (Access=private)
         function build(obj,visible)
             obj.Figure=uifigure('Name','Separator','Tag','NirpSeparatorDialog','Visible',visible,'Position',[80 80 980 560],'WindowStyle','alwaysontop');

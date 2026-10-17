@@ -100,7 +100,10 @@ classdef AdjustDialog < handle
         end
     end
     methods (Static)
-        function dialog=open(blockPath),dialog=nirp.flowsheet.AdjustDialog(blockPath);end
+        function dialog=open(blockPath)
+            if nirp.flowsheet.openLibraryBlockGuide(blockPath),dialog=[];return,end
+            dialog=nirp.flowsheet.AdjustDialog(blockPath);
+        end
     end
     methods (Access=private)
         function build(obj,visible)

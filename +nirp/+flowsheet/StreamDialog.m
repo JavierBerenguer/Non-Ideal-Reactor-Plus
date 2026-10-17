@@ -287,6 +287,10 @@ classdef StreamDialog < handle
 
     methods (Static)
         function dialog = open(blockPath)
+            if nirp.flowsheet.openLibraryBlockGuide(blockPath)
+                dialog = [] ;
+                return
+            end
             dialog = nirp.flowsheet.StreamDialog(blockPath) ;
         end
     end

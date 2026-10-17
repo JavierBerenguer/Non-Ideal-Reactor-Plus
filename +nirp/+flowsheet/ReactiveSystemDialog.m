@@ -370,6 +370,10 @@ classdef ReactiveSystemDialog < handle
 
     methods (Static)
         function obj = openForModel(model)
+            if nirp.flowsheet.openLibraryBlockGuide(model)
+                obj = [] ;
+                return
+            end
             obj = nirp.flowsheet.ReactiveSystemDialog('Mode','edit','Model',model) ;
         end
     end

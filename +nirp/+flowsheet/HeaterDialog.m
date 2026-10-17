@@ -65,7 +65,12 @@ classdef HeaterDialog < handle
         function accept(obj),if obj.apply(),delete(obj);else,nirp.flowsheet.internal.showDialogError(obj.Figure,obj.StatusLabel.Text,'Heater / Cooler');end,end
         function cancel(obj),delete(obj);end
     end
-    methods (Static),function dialog=open(blockPath),dialog=nirp.flowsheet.HeaterDialog(blockPath);end,end
+    methods (Static)
+        function dialog=open(blockPath)
+            if nirp.flowsheet.openLibraryBlockGuide(blockPath),dialog=[];return,end
+            dialog=nirp.flowsheet.HeaterDialog(blockPath);
+        end
+    end
     methods (Access=private)
         function build(obj,visible)
             obj.Figure=uifigure('Name','Heater / Cooler','Tag','NirpHeaterDialog','Visible',visible,'Position',[120 100 760 500],'WindowStyle','alwaysontop');main=uigridlayout(obj.Figure,[4 1],'RowHeight',{40,'1x',25,38},'Padding',[12 10 12 10]);

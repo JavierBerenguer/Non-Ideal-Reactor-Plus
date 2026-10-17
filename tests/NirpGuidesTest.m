@@ -164,6 +164,8 @@ classdef NirpGuidesTest < matlab.unittest.TestCase
                         'Legacy text from %s is missing: %s', legacyPath, fragment)) ;
                 end
                 legacyImages = extractImageSources(legacyHtml) ;
+                legacyImages(ismember(legacyImages, ...
+                    legacyImageExclusions(legacyPath))) = [] ;
                 for image = legacyImages'
                     testCase.verifyTrue(any(imageSources == image), sprintf( ...
                         'Legacy image from %s is missing: %s', legacyPath, image)) ;
@@ -276,9 +278,18 @@ end
 
 function fragments = legacyLinkTextExclusions(relativePath)
     if relativePath == "docs/guides/ideal-reactor-app.html"
-        fragments = "Back to the general user guide" ;
+        fragments = ["Back to the general user guide", ...
+            "Open this page directly from Ideal Reactor App guide in the new Guides group."] ;
     else
         fragments = strings(0) ;
+    end
+end
+
+function images = legacyImageExclusions(relativePath)
+    if relativePath == "docs/guides/ideal-reactor-app.html"
+        images = "../assets/ideal/launcher-guides.png" ;
+    else
+        images = strings(0) ;
     end
 end
 

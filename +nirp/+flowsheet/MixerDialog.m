@@ -24,7 +24,12 @@ classdef MixerDialog < handle
         function accept(obj),if obj.apply(),delete(obj);else,nirp.flowsheet.internal.showDialogError(obj.Figure,obj.StatusLabel.Text,'Mixer');end,end
         function cancel(obj),delete(obj);end
     end
-    methods (Static),function dialog=open(blockPath),dialog=nirp.flowsheet.MixerDialog(blockPath);end,end
+    methods (Static)
+        function dialog=open(blockPath)
+            if nirp.flowsheet.openLibraryBlockGuide(blockPath),dialog=[];return,end
+            dialog=nirp.flowsheet.MixerDialog(blockPath);
+        end
+    end
     methods (Access=private)
         function build(obj,visible)
             obj.Figure=uifigure('Name','Mixer','Tag','NirpMixerDialog','Visible',visible,'Position',[120 90 760 560],'WindowStyle','alwaysontop');main=uigridlayout(obj.Figure,[4 1],'RowHeight',{38,'1x',25,38},'Padding',[12 10 12 10]);
