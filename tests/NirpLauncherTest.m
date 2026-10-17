@@ -155,8 +155,7 @@ classdef NirpLauncherTest < matlab.uitest.TestCase
 
         function idealGuideUsesExistingImagesAndUserLanguage(testCase)
             rootDir = fileparts(fileparts(mfilename('fullpath'))) ;
-            guidePath = fullfile(rootDir, 'docs', 'guides', ...
-                'ideal-reactor-app.html') ;
+            guidePath = fullfile(rootDir, 'docs', 'IdealGuide.html') ;
             testCase.verifyTrue(isfile(guidePath)) ;
             guideText = fileread(guidePath) ;
             imageTokens = regexp(guideText, ...
