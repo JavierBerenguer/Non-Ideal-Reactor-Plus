@@ -2,7 +2,7 @@ classdef NirpDialogInvariantsTest < matlab.unittest.TestCase
 %NIRPDIALOGINVARIANTSTEST Common presentation and editing invariants.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 15, 2026. Last update: October 16, 2026
+% Created: October 15, 2026. Last update: October 17, 2026
 % =========================================================================
     properties
         Folder
@@ -23,6 +23,39 @@ classdef NirpDialogInvariantsTest < matlab.unittest.TestCase
     end
 
     methods (Test)
+        function helpButtonsOpenTheirBlockTopics(testCase)
+            createDialogModel(testCase,'help_buttons');
+            addSystem('help_buttons','PFR','nirp.blocks.PFR',[670 20 780 90]);
+            dialogs=[allDialogs('help_buttons','off'), ...
+                {nirp.flowsheet.ReactorDialog('help_buttons/PFR','Visible','off')}];
+            testCase.addTeardown(@()deleteDialogs(dialogs));
+            openedPaths=strings(0,1);
+            setappdata(groot,'NirpGuideOpenOverride',@recordGuidePath);
+            testCase.addTeardown(@()clearGuideOverride());
+            expected=["guides/flowsheet-streams.html#stream"; ...
+                "guides/flowsheet-reactors.html#cstr"; ...
+                "guides/flowsheet-units.html#splitter"; ...
+                "guides/flowsheet-units.html#separator"; ...
+                "guides/flowsheet-units.html#heater"; ...
+                "guides/flowsheet-reactors.html#jacket"; ...
+                "guides/flowsheet-units.html#mixer"; ...
+                "guides/flowsheet-recycle-adjust.html#recycle"; ...
+                "guides/flowsheet-recycle-adjust.html#adjust"; ...
+                "guides/flowsheet-reactive-system.html"; ...
+                "guides/flowsheet-reactors.html#pfr"];
+            for i=1:numel(dialogs)
+                help=findall(dialogs{i}.Figure,'Type','uibutton','Text','Help');
+                testCase.verifyNumElements(help,1,class(dialogs{i}));
+                feval(help.ButtonPushedFcn,help,[]);
+                verifyGuideTarget(testCase,expected(i));
+            end
+            testCase.verifyEqual(openedPaths,expected);
+
+            function recordGuidePath(relativePath)
+                openedPaths(end+1,1)=string(relativePath);
+            end
+        end
+
         function everyTableHasOneEditableFlagPerColumn(testCase)
             createDialogModel(testCase,'dialog_invariants');
             dialogs={nirp.flowsheet.StreamDialog('dialog_invariants/F1','Visible','off'), ...
@@ -294,11 +327,29 @@ function editNumeric(field,value)
 end
 
 function cleanup(testCase)
+    clearGuideOverride();
     bdclose('all');Simulink.data.dictionary.closeAll('-discard');
     evalin('base','clear nirpResults');
     if contains([path pathsep],[testCase.Folder pathsep]),rmpath(testCase.Folder);end
     Simulink.fileGenControl('setConfig','config',testCase.FileGenerationConfig);
     figures=findall(groot,'Type','Figure');if ~isempty(figures),delete(figures);end
+end
+
+function clearGuideOverride()
+    if isappdata(groot,'NirpGuideOpenOverride')
+        rmappdata(groot,'NirpGuideOpenOverride');
+    end
+end
+
+function verifyGuideTarget(testCase,relativePath)
+    root=fileparts(fileparts(mfilename('fullpath')));
+    parts=split(relativePath,'#');
+    target=fullfile(root,'docs',strrep(char(parts(1)),'/',filesep));
+    testCase.verifyTrue(isfile(target),target);
+    if numel(parts)>1
+        html=string(fileread(target));
+        testCase.verifySubstring(html,'id="'+parts(2)+'"',relativePath);
+    end
 end
 
 function deleteDialogs(dialogs)

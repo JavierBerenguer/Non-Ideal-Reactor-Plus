@@ -419,18 +419,7 @@ classdef ReactiveSystemDialog < handle
         end
 
         function openHelp(~)
-            classFolder = fileparts(mfilename('fullpath')) ;
-            repositoryRoot = fileparts(fileparts(classFolder)) ;
-            guidePath = fullfile(repositoryRoot,'docs','guides', ...
-                'simulink-flowsheet.html') ;
-            if ~isfile(guidePath)
-                error('nirp:flowsheet:missingHelp', ...
-                    'The Simulink flowsheet guide was not found at "%s".',guidePath) ;
-            end
-            helpFigure=uifigure('Name','NIRP flowsheet help', ...
-                'Tag','NirpFlowsheetHelp','Position',[140 100 980 700]);
-            view=uihtml(helpFigure,'HTMLSource',guidePath);
-            view.Position=[1 1 helpFigure.Position(3) helpFigure.Position(4)];
+            openNirpGuide('guides/flowsheet-reactive-system.html') ;
         end
 
         function buildComponents(obj)

@@ -2,7 +2,7 @@ classdef NirpLauncherTest < matlab.uitest.TestCase
     % NirpLauncherTest verifies the main launcher and startup feedback.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 16, 2026. Last update: October 16, 2026
+    % Created: October 16, 2026. Last update: October 17, 2026
     % =========================================================================
 
     methods (TestMethodSetup)
@@ -21,8 +21,9 @@ classdef NirpLauncherTest < matlab.uitest.TestCase
             testCase.verifyEqual(sort(string({buttons.Text})), sort([ ...
                 "Ideal Reactor App", "Non-Ideal Reactor App", ...
                 "Open block library", "Open example...", ...
-                "New flowsheet...", "Ideal Reactor App guide", ...
-                "Non-Ideal Reactor App guide", "Flowsheet guide"])) ;
+                "New flowsheet..."])) ;
+            panels = findall(figureHandle, 'Type', 'uipanel') ;
+            testCase.verifyFalse(any(string({panels.Title}) == "Guides")) ;
             labels = findall(figureHandle, 'Type', 'uilabel') ;
             labelText = strings(0, 1) ;
             for i = 1:numel(labels)
@@ -128,28 +129,35 @@ classdef NirpLauncherTest < matlab.uitest.TestCase
             testCase.verifyNumElements(idealFigure, 1) ;
         end
 
-        function guideButtonsOpenExpectedFiles(testCase)
-            launcher = NonIdealReactorPlus() ;
-            testCase.addTeardown(@() deleteIfValid(launcher)) ;
-            rootDir = fileparts(fileparts(mfilename('fullpath'))) ;
-            openedPaths = strings(0, 1) ;
-            launcher.TestActionOverrides.OpenGuide = @recordGuidePath ;
-            cases = { ...
-                'Ideal Reactor App guide', fullfile(rootDir, 'docs', 'guides', ...
-                    'ideal-reactor-app.html') ; ...
-                'Non-Ideal Reactor App guide', ...
-                    fullfile(rootDir, 'docs', 'UserGuide.html') ; ...
-                'Flowsheet guide', fullfile(rootDir, 'docs', 'guides', ...
-                    'simulink-flowsheet.html')} ;
+        function idealHelpButtonOpensIdealGuide(testCase)
+            openedPath = "" ;
+            setappdata(groot, 'NirpGuideOpenOverride', @recordGuidePath) ;
+            testCase.addTeardown(@() clearGuideOverride()) ;
+            app = ReactorApp() ;
+            testCase.addTeardown(@() deleteIfValid(app)) ;
+            testCase.press(button(app.UIFigure, 'Help')) ;
+            testCase.verifyEqual(openedPath, "IdealGuide.html") ;
 
-            for i = 1:size(cases, 1)
-                testCase.press(button(launcher.UIFigure, cases{i, 1})) ;
-                testCase.verifyTrue(isfile(cases{i, 2})) ;
-                testCase.verifyEqual(openedPaths(i), string(cases{i, 2})) ;
+            function recordGuidePath(relativePath)
+                openedPath = string(relativePath) ;
             end
+        end
 
-            function recordGuidePath(guidePath)
-                openedPaths(end + 1, 1) = string(guidePath) ;
+        function nonIdealUserGuideUsesCommonOpener(testCase)
+            openedPath = "" ;
+            setappdata(groot, 'NirpGuideOpenOverride', @recordGuidePath) ;
+            testCase.addTeardown(@() clearGuideOverride()) ;
+            app = NonIdealReactorApp('ProgressFcn', @(~,~) []) ;
+            testCase.addTeardown(@() deleteIfValid(app)) ;
+            figureHandle = findall(groot, 'Type', 'Figure', ...
+                'Name', 'Non-Ideal Reactor Analysis') ;
+            userGuide = findall(figureHandle, 'Type', 'uimenu', ...
+                'Text', 'User Guide') ;
+            feval(userGuide.MenuSelectedFcn, userGuide, []) ;
+            testCase.verifyEqual(openedPath, "UserGuide.html") ;
+
+            function recordGuidePath(relativePath)
+                openedPath = string(relativePath) ;
             end
         end
 
@@ -229,11 +237,18 @@ function failAction()
 end
 
 function closeAllUi()
+    clearGuideOverride() ;
     bdclose('all') ;
     figures = findall(groot, 'Type', 'Figure') ;
     if ~isempty(figures), delete(figures) ; end
     resizeTimers = timerfindall('Tag', 'NonIdealReactorAppResizeTimer') ;
     if ~isempty(resizeTimers), stop(resizeTimers) ; delete(resizeTimers) ; end
+end
+
+function clearGuideOverride()
+    if isappdata(groot, 'NirpGuideOpenOverride')
+        rmappdata(groot, 'NirpGuideOpenOverride') ;
+    end
 end
 
 function deleteIfValid(value)

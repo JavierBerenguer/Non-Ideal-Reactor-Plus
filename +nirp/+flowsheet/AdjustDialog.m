@@ -158,8 +158,11 @@ classdef AdjustDialog < handle
             obj.StrategyDropDown.Layout.Row=4;obj.StrategyDropDown.Layout.Column=[2 3];
 
             obj.StatusLabel=uilabel(main,'Text','Ready.','FontAngle','italic');
-            buttons=uigridlayout(main,[1 4],'ColumnWidth',{'1x',90,90,90});
+            buttons=uigridlayout(main,[1 5],'ColumnWidth',{'1x',70,90,90,90});
             uilabel(buttons,'Text','');
+            uibutton(buttons,'Text','Help','ButtonPushedFcn', ...
+                @(~,~) openNirpGuide( ...
+                'guides/flowsheet-recycle-adjust.html#adjust'));
             uibutton(buttons,'Text','OK','ButtonPushedFcn',@(~,~) obj.accept());
             uibutton(buttons,'Text','Cancel','ButtonPushedFcn',@(~,~) obj.cancel());
             uibutton(buttons,'Text','Apply','ButtonPushedFcn',@(~,~) obj.apply());

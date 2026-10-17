@@ -70,6 +70,32 @@ classdef NirpGuidesTest < matlab.unittest.TestCase
             testCase.verifySubstring(string(flowLegacy), '../FlowsheetGuide.html') ;
         end
 
+        function everyFlowsheetTopicLinksToHome(testCase)
+            root = fileparts(fileparts(mfilename('fullpath'))) ;
+            pages = dir(fullfile(root, 'docs', 'guides', ...
+                'flowsheet-*.html')) ;
+            for index = 1:numel(pages)
+                page = fullfile(pages(index).folder, pages(index).name) ;
+                testCase.verifySubstring(string(fileread(page)), ...
+                    '../FlowsheetGuide.html', page) ;
+            end
+        end
+
+        function commonOpenerValidatesBeforeUsingTestOverride(testCase)
+            openedPath = "" ;
+            setappdata(groot, 'NirpGuideOpenOverride', @recordGuidePath) ;
+            testCase.addTeardown(@() clearGuideOverride()) ;
+            expected = "guides/flowsheet-reactors.html#pfr" ;
+            openNirpGuide(expected) ;
+            testCase.verifyEqual(openedPath, expected) ;
+            testCase.verifyError(@() openNirpGuide('missing.html'), ...
+                'openNirpGuide:MissingGuide') ;
+
+            function recordGuidePath(relativePath)
+                openedPath = string(relativePath) ;
+            end
+        end
+
         function legacyGuideContentIsPreserved(testCase)
             root = fileparts(fileparts(mfilename('fullpath'))) ;
             pages = guidePages(root) ;
@@ -119,6 +145,12 @@ classdef NirpGuidesTest < matlab.unittest.TestCase
                 end
             end
         end
+    end
+end
+
+function clearGuideOverride()
+    if isappdata(groot, 'NirpGuideOpenOverride')
+        rmappdata(groot, 'NirpGuideOpenOverride') ;
     end
 end
 

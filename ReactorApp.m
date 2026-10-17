@@ -1,9 +1,11 @@
 classdef ReactorApp < matlab.apps.AppBase
+    % Original application by Isabela Fons.
+    % Modified by Javier Berenguer Sabater, October 17, 2026: Help access.
 
     % Properties that correspond to app components
     properties (Access = public)
         UIFigure                        matlab.ui.Figure
-        NoIdealReactorButton            matlab.ui.control.Button
+        HelpButton                      matlab.ui.control.Button
         ChoosethekindofproblemtobesolvedListBox  matlab.ui.control.ListBox
         ChoosethekindofproblemtobesolvedListBoxLabel  matlab.ui.control.Label
         OptimLocusPannel                matlab.ui.container.Panel
@@ -361,9 +363,9 @@ classdef ReactorApp < matlab.apps.AppBase
             app.manageVisibilityPannels(state) ;
         end
 
-        % Button pushed function: NoIdealReactorButton
-        function NoIdealReactorButtonPushed(app, event)
-            NonIdealReactorApp();
+        % Button pushed function: HelpButton
+        function HelpButtonPushed(app, event)
+            openNirpGuide('IdealGuide.html');
         end
     end
 
@@ -892,11 +894,11 @@ classdef ReactorApp < matlab.apps.AppBase
             app.ChoosethekindofproblemtobesolvedListBox.Position = [74 378 490 117];
             app.ChoosethekindofproblemtobesolvedListBox.Value = '';
 
-            % Create NoIdealReactorButton
-            app.NoIdealReactorButton = uibutton(app.UIFigure, 'push');
-            app.NoIdealReactorButton.ButtonPushedFcn = createCallbackFcn(app, @NoIdealReactorButtonPushed, true);
-            app.NoIdealReactorButton.Position = [77 568 105 23];
-            app.NoIdealReactorButton.Text = 'No Ideal Reactor';
+            % Create HelpButton
+            app.HelpButton = uibutton(app.UIFigure, 'push');
+            app.HelpButton.ButtonPushedFcn = createCallbackFcn(app, @HelpButtonPushed, true);
+            app.HelpButton.Position = [77 568 105 23];
+            app.HelpButton.Text = 'Help';
 
             % Show the figure after all components are created
             app.UIFigure.Visible = 'on';

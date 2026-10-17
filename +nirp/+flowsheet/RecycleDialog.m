@@ -81,8 +81,8 @@ classdef RecycleDialog < handle
             pGrid=uigridlayout(grid,[1 2],'ColumnWidth',{'1x',60},'Padding',[0 0 0 0]);place(pGrid,11,[3 4]);
             obj.InitialPField=uieditfield(pGrid,'numeric','AllowEmpty','on','Value',[],'ValueChangedFcn',@(~,~)obj.validateLive());obj.InitialPUnitDropDown=uidropdown(pGrid,'Items',UnitConverterHelper.getUnits('Pressure'));
             obj.StatusLabel=uilabel(main,'Text','Ready.','FontAngle','italic');
-            b=uigridlayout(main,[1 4],'ColumnWidth',{'1x',90,90,90});uilabel(b,'Text','');
-            uibutton(b,'Text','OK','ButtonPushedFcn',@(~,~) obj.accept());uibutton(b,'Text','Cancel','ButtonPushedFcn',@(~,~) obj.cancel());uibutton(b,'Text','Apply','ButtonPushedFcn',@(~,~) obj.apply());
+            b=uigridlayout(main,[1 5],'ColumnWidth',{'1x',70,90,90,90});uilabel(b,'Text','');
+            uibutton(b,'Text','Help','ButtonPushedFcn',@(~,~) openNirpGuide('guides/flowsheet-recycle-adjust.html#recycle'));uibutton(b,'Text','OK','ButtonPushedFcn',@(~,~) obj.accept());uibutton(b,'Text','Cancel','ButtonPushedFcn',@(~,~) obj.cancel());uibutton(b,'Text','Apply','ButtonPushedFcn',@(~,~) obj.apply());
         end
         function load(obj)
             block=obj.BlockPath;obj.NameField.Value=get_param(block,'Name');
