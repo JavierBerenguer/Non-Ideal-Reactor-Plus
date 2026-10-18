@@ -1,8 +1,8 @@
-classdef NirpConvolutionTabTest < matlab.unittest.TestCase
+classdef NirpConvolutionTabTest < matlab.uitest.TestCase
     % NirpConvolutionTabTest verifies the app integration of nirp.conv.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 9, 2026. Last update: October 9, 2026
+    % Created: October 9, 2026. Last update: October 18, 2026
     % =========================================================================
 
     properties
@@ -22,7 +22,7 @@ classdef NirpConvolutionTabTest < matlab.unittest.TestCase
             figures = findall(groot, 'Type', 'Figure', ...
                 'Name', 'Non-Ideal Reactor Analysis') ;
             testCase.Figure = figures(1) ;
-            testCase.Figure.Visible = 'off' ;
+            testCase.Figure.Visible = 'on' ;
             testCase.addTeardown(@() closeFigures()) ;
         end
     end
@@ -38,20 +38,41 @@ classdef NirpConvolutionTabTest < matlab.unittest.TestCase
             testCase.verifyEqual(convolutionIndex, rtdIndex + 1) ;
         end
 
-        function tableProblemThreeMatchesCore(testCase)
-            Cin = [0:11; 0 0 8 6 4 5 6 3 1 0 0 0].' ;
-            E = [0:5; 0 .05 .5 .35 .1 0].' ;
-            testCase.control('ConvTableCin').Data = Cin ;
-            testCase.control('ConvTableE').Data = E ;
+        function topicExampleOneUsesAddedTableRows(testCase)
+            Cin = [0:4; 0 8 4 6 0].' ;
+            E = [2:6; 0 .05 .5 .35 0].' ;
+            testCase.press(testCase.control('ConvAddRowCin')) ;
+            testCase.press(testCase.control('ConvAddRowCin')) ;
+            testCase.press(testCase.control('ConvAddRowE')) ;
+            testCase.press(testCase.control('ConvAddRowE')) ;
+            testCase.typeTable('ConvTableCin', Cin) ;
+            testCase.typeTable('ConvTableE', E) ;
 
-            testCase.press('ConvCompute') ;
+            testCase.press(testCase.control('ConvCompute')) ;
 
-            expected = nirp.conv.convolve( ...
-                nirp.conv.signal(E(:, 1), E(:, 2)), ...
-                nirp.conv.signal(Cin(:, 1), Cin(:, 2))) ;
             result = testCase.control('ConvResultTable').Data ;
-            testCase.verifyEqual(result(:, 1).', expected.t, 'AbsTol', 1e-12) ;
-            testCase.verifyEqual(result(:, 2).', expected.C, 'AbsTol', 1e-12) ;
+            testCase.verifyEqual(result(:, 1).', 2:10, 'AbsTol', 1e-12) ;
+            testCase.verifyEqual(result(:, 2).', ...
+                [0 0 .4 4.2 5.1 4.4 2.1 0 0], 'AbsTol', 1e-12) ;
+        end
+
+        function removeRowUsesSelectionAndKeepsOneRow(testCase)
+            tableControl = testCase.control('ConvTableCin') ;
+            testCase.press(testCase.control('ConvAddRowCin')) ;
+            testCase.type(tableControl, [2 1], '17') ;
+            testCase.press(testCase.control('ConvRemoveRowCin')) ;
+            testCase.verifySize(tableControl.Data, [3 2]) ;
+            containsSeventeen = cellfun(@(v) isequal(v, 17) || isequal(v, '17'), ...
+                testCase.asCells(tableControl.Data)) ;
+            testCase.verifyFalse(any(containsSeventeen, 'all')) ;
+            testCase.press(testCase.control('ConvRemoveRowCin')) ;
+            testCase.press(testCase.control('ConvRemoveRowCin')) ;
+            testCase.press(testCase.control('ConvRemoveRowCin')) ;
+            testCase.verifySize(tableControl.Data, [1 2]) ;
+
+            testCase.choose(testCase.control('ConvSourceCin'), 'Piecewise') ;
+            testCase.press(testCase.control('ConvAddRowCin')) ;
+            testCase.verifySize(testCase.control('ConvPiecewiseCin').Data, [4 3]) ;
         end
 
         function modelCstrAndCurrentRTDAreAvailable(testCase)
@@ -59,7 +80,7 @@ classdef NirpConvolutionTabTest < matlab.unittest.TestCase
             testCase.setDropdown('ConvSourceE', 'Model') ;
             testCase.setDropdown('ConvModelE', 'CSTR') ;
             testCase.control('ConvTauE').Value = 5 ;
-            testCase.press('ConvCompute') ;
+            testCase.press(testCase.control('ConvCompute')) ;
             lines = findall(testCase.control('ConvAxes'), 'Type', 'Line') ;
             eLine = lines(strcmp({lines.DisplayName}, 'E')) ;
             expected = nirp.conv.fromRTD(RTD.ideal_cstr(5), 1) ;
@@ -73,7 +94,7 @@ classdef NirpConvolutionTabTest < matlab.unittest.TestCase
                 stored.sessionData.shared.rtd.Et) ;
             testCase.control('ConvTableCin').Data = [0:10; ones(1, 11)].' ;
             testCase.setDropdown('ConvSourceE', 'RTD from tab 1') ;
-            testCase.press('ConvCompute') ;
+            testCase.press(testCase.control('ConvCompute')) ;
             lines = findall(testCase.control('ConvAxes'), 'Type', 'Line') ;
             eLine = lines(strcmp({lines.DisplayName}, 'E')) ;
             expected = nirp.conv.fromRTD(expectedRTD, 1) ;
@@ -84,13 +105,13 @@ classdef NirpConvolutionTabTest < matlab.unittest.TestCase
         function deconvolutionFunctionMatchesCourseAndLoadsTabOne(testCase)
             testCase.configureCourseDeconvolution('min') ;
 
-            testCase.press('ConvCompute') ;
+            testCase.press(testCase.control('ConvCompute')) ;
 
             result = testCase.control('ConvResultTable').Data ;
             testCase.verifyEqual(result(:, 1).', 4:9, 'AbsTol', 1e-12) ;
             testCase.verifyEqual(result(:, 2).', [1.79 2.33 2.58 0 1.24 0], ...
                 'AbsTol', 2e-2) ;
-            testCase.press('ConvUseAsRTD') ;
+            testCase.press(testCase.control('ConvUseAsRTD')) ;
             saved = fullfile(testCase.Folder, 'deconvolved.mat') ;
             testCase.App.saveSessionToFile(saved, 'deconvolved') ;
             session = load(saved, 'sessionData') ;
@@ -102,11 +123,11 @@ classdef NirpConvolutionTabTest < matlab.unittest.TestCase
 
         function momentsUseSelectedTimeUnit(testCase)
             testCase.configureCourseDeconvolution('min') ;
-            testCase.press('ConvCompute') ;
+            testCase.press(testCase.control('ConvCompute')) ;
 
             minuteTable = testCase.control('ConvMomentsTable') ;
             testCase.verifyEqual(minuteTable.ColumnName(:), ...
-                {'Signal'; 'Area'; 'Mean [min]'; 'Variance [min^2]'}) ;
+                {'Signal'; 'Trapezoidal area'; 'Mean [min]'; 'Variance [min^2]'}) ;
             minuteData = minuteTable.Data ;
             minuteCin = minuteData(strcmp(minuteData(:, 1), 'C_{in}'), 2:4) ;
             minuteE = minuteData(strcmp(minuteData(:, 1), 'E'), 2:4) ;
@@ -125,16 +146,18 @@ classdef NirpConvolutionTabTest < matlab.unittest.TestCase
                 'RelTol', 1e-12) ;
             testCase.verifyEqual(minuteE{2}, 5.8, 'AbsTol', 0.1) ;
             minuteDiagnostics = testCase.control('ConvDiagnostics').Text ;
-            testCase.verifyEqual(expectedInfo.areaE, 7.95, 'AbsTol', 0.01) ;
+            expectedDisplayedArea = nirp.conv.moments(expectedE) ;
             testCase.verifySubstring(minuteDiagnostics, ...
-                sprintf('Integral E: %.6g', expectedInfo.areaE)) ;
+                sprintf('Trapezoidal area of E: %.6g', expectedDisplayedArea.area)) ;
+            testCase.verifyNotEqual(expectedInfo.areaE, expectedDisplayedArea.area, ...
+                'The fixture must distinguish rectangular and trapezoidal areas.') ;
 
             testCase.configureCourseDeconvolution('s') ;
-            testCase.press('ConvCompute') ;
+            testCase.press(testCase.control('ConvCompute')) ;
 
             secondTable = testCase.control('ConvMomentsTable') ;
             testCase.verifyEqual(secondTable.ColumnName(:), ...
-                {'Signal'; 'Area'; 'Mean [s]'; 'Variance [s^2]'}) ;
+                {'Signal'; 'Trapezoidal area'; 'Mean [s]'; 'Variance [s^2]'}) ;
             secondData = secondTable.Data ;
             secondCin = secondData(strcmp(secondData(:, 1), 'C_{in}'), 2:4) ;
             secondE = secondData(strcmp(secondData(:, 1), 'E'), 2:4) ;
@@ -161,22 +184,83 @@ classdef NirpConvolutionTabTest < matlab.unittest.TestCase
             end
         end
 
-        function convolutionStateRoundTrips(testCase)
+        function convolutionStateRoundTripsAllUnits(testCase)
             input = [0 0; 1 2; 2 0] ;
             testCase.control('ConvTableCin').Data = input ;
-            testCase.setDropdown('ConvTimeUnit', 'min') ;
+            testCase.choose(testCase.control('ConvTimeUnitCin'), 'min') ;
+            testCase.choose(testCase.control('ConvConcentrationUnitCin'), 'mol/L') ;
+            testCase.choose(testCase.control('ConvTimeUnitE'), 'h') ;
+            testCase.choose(testCase.control('ConvDtUnit'), 'min') ;
+            testCase.choose(testCase.control('ConvOutputTimeUnit'), 'h') ;
+            testCase.choose(testCase.control('ConvOutputConcentrationUnit'), 'mmol/L') ;
             testCase.control('ConvDt').Value = 0.25 ;
             saved = fullfile(testCase.Folder, 'convolution-session.mat') ;
             testCase.App.saveSessionToFile(saved, 'convolution-session') ;
 
             testCase.control('ConvTableCin').Data = cell(3, 2) ;
-            testCase.setDropdown('ConvTimeUnit', 's') ;
+            testCase.choose(testCase.control('ConvTimeUnitCin'), 's') ;
+            testCase.choose(testCase.control('ConvConcentrationUnitCin'), 'mol/m^3') ;
+            testCase.choose(testCase.control('ConvOutputTimeUnit'), 's') ;
             testCase.control('ConvDt').Value = 0 ;
             testCase.App.loadSessionFromFile(saved) ;
 
             testCase.verifyEqual(testCase.control('ConvTableCin').Data, input) ;
-            testCase.verifyEqual(testCase.control('ConvTimeUnit').Value, 'min') ;
+            testCase.verifyEqual(testCase.control('ConvTimeUnitCin').Value, 'min') ;
+            testCase.verifyEqual(testCase.control('ConvConcentrationUnitCin').Value, 'mol/L') ;
+            testCase.verifyEqual(testCase.control('ConvTimeUnitE').Value, 'h') ;
+            testCase.verifyEqual(testCase.control('ConvDtUnit').Value, 'min') ;
+            testCase.verifyEqual(testCase.control('ConvOutputTimeUnit').Value, 'h') ;
+            testCase.verifyEqual(testCase.control('ConvOutputConcentrationUnit').Value, 'mmol/L') ;
             testCase.verifyEqual(testCase.control('ConvDt').Value, 0.25) ;
+        end
+
+        function equivalentInputUnitsAndPresentationOnlyOutputUnits(testCase)
+            testCase.choose(testCase.control('ConvTimeUnitCin'), 'min') ;
+            testCase.choose(testCase.control('ConvConcentrationUnitCin'), 'mol/L') ;
+            testCase.choose(testCase.control('ConvTimeUnitE'), 'min') ;
+            testCase.press(testCase.control('ConvAddRowCin')) ;
+            testCase.press(testCase.control('ConvAddRowCin')) ;
+            testCase.press(testCase.control('ConvAddRowE')) ;
+            testCase.press(testCase.control('ConvAddRowE')) ;
+            testCase.typeTable('ConvTableCin', [(0:4).' / 60 [0 8 4 6 0].']) ;
+            testCase.typeTable('ConvTableE', [(2:6).' / 60 [0 .05 .5 .35 0].' * 60]) ;
+            testCase.press(testCase.control('ConvCompute')) ;
+
+            secondsResult = testCase.control('ConvResultTable').Data ;
+            testCase.verifyEqual(secondsResult(:, 1).', 2:10, 'AbsTol', 1e-12) ;
+            testCase.verifyEqual(secondsResult(:, 2).', ...
+                [0 0 .4 4.2 5.1 4.4 2.1 0 0] * 1000, 'AbsTol', 1e-9) ;
+            testCase.control('ConvTableCin').Data = [0 99; 1 99] ;
+            testCase.choose(testCase.control('ConvOutputTimeUnit'), 'min') ;
+            testCase.choose(testCase.control('ConvOutputConcentrationUnit'), 'mol/L') ;
+            converted = testCase.control('ConvResultTable').Data ;
+            testCase.verifyEqual(converted(:, 1).', (2:10) / 60, 'AbsTol', 1e-12) ;
+            testCase.verifyEqual(converted(:, 2).', ...
+                [0 0 .4 4.2 5.1 4.4 2.1 0 0], 'AbsTol', 1e-12) ;
+        end
+
+        function legacySnapshotAppliesOneTimeUnitEverywhere(testCase)
+            saved = fullfile(testCase.Folder, 'legacy-convolution.mat') ;
+            testCase.App.saveSessionToFile(saved, 'legacy-convolution') ;
+            loaded = load(saved, 'sessionData') ;
+            loaded.sessionData.convolution.timeUnit = 'min' ;
+            loaded.sessionData.convolution = rmfield(loaded.sessionData.convolution, ...
+                {'dtUnit', 'outputTimeUnit', 'outputConcentrationUnit'}) ;
+            names = fieldnames(loaded.sessionData.convolution.signals) ;
+            for k = 1:numel(names)
+                state = loaded.sessionData.convolution.signals.(names{k}) ;
+                state = rmfield(state, {'timeUnit', 'concentrationUnit'}) ;
+                loaded.sessionData.convolution.signals.(names{k}) = state ;
+            end
+            sessionData = loaded.sessionData ; %#ok<NASGU>
+            save(saved, 'sessionData') ;
+            testCase.App.loadSessionFromFile(saved) ;
+            testCase.verifyEqual(testCase.control('ConvOutputTimeUnit').Value, 'min') ;
+            testCase.verifyEqual(testCase.control('ConvDtUnit').Value, 'min') ;
+            testCase.verifyEqual(testCase.control('ConvTimeUnitCin').Value, 'min') ;
+            testCase.verifyEqual(testCase.control('ConvTimeUnitE').Value, 'min') ;
+            testCase.verifyEqual(testCase.control('ConvConcentrationUnitCin').Value, 'mol/m^3') ;
+            testCase.verifyEqual(testCase.control('ConvOutputConcentrationUnit').Value, 'mol/m^3') ;
         end
     end
 
@@ -185,32 +269,48 @@ classdef NirpConvolutionTabTest < matlab.unittest.TestCase
             values = findall(testCase.Figure, 'Tag', tag) ;
             testCase.assertNumElements(values, 1, ['Missing control: ' tag]) ;
             value = values(1) ;
+            current = value ;
+            while ~isempty(current) && isvalid(current) && isprop(current, 'Parent')
+                current = current.Parent ;
+                if isa(current, 'matlab.ui.container.Tab') && ...
+                        isa(current.Parent, 'matlab.ui.container.TabGroup')
+                    current.Parent.SelectedTab = current ;
+                end
+            end
+            drawnow ;
         end
 
         function setDropdown(testCase, tag, value)
-            dropdown = testCase.control(tag) ; dropdown.Value = value ;
-            if ~isempty(dropdown.ValueChangedFcn)
-                feval(dropdown.ValueChangedFcn, dropdown, []) ;
-            end
+            testCase.choose(testCase.control(tag), value) ;
         end
 
         function selectMode(testCase, label)
             group = testCase.control('ConvModeGroup') ;
             buttons = group.Children ;
-            group.SelectedObject = buttons(strcmp({buttons.Text}, label)) ;
-            if ~isempty(group.SelectionChangedFcn)
-                feval(group.SelectionChangedFcn, group, []) ;
-            end
+            testCase.press(buttons(strcmp({buttons.Text}, label))) ;
         end
 
-        function press(testCase, tag)
-            button = testCase.control(tag) ;
-            feval(button.ButtonPushedFcn, button, []) ; drawnow ;
+        function typeTable(testCase, tag, values)
+            tableControl = testCase.control(tag) ;
+            for row = 1:size(values, 1)
+                for column = 1:size(values, 2)
+                    testCase.type(tableControl, [row column], ...
+                        sprintf('%.15g', values(row, column))) ;
+                end
+            end
+            drawnow ;
+        end
+
+        function cells = asCells(~, data)
+            if isnumeric(data), cells = num2cell(data) ; else, cells = data ; end
         end
 
         function configureCourseDeconvolution(testCase, unit)
             testCase.selectMode('Deconvolution') ;
-            testCase.setDropdown('ConvTimeUnit', unit) ;
+            testCase.setDropdown('ConvTimeUnitCin', unit) ;
+            testCase.setDropdown('ConvTimeUnitCout', unit) ;
+            testCase.setDropdown('ConvDtUnit', unit) ;
+            testCase.setDropdown('ConvOutputTimeUnit', unit) ;
             testCase.setDropdown('ConvSourceCin', 'Function') ;
             output = [.9 1.8 2.1 5.2 3.6 4.5 1.7 .8 .7 .5].' ;
             if strcmp(unit, 'min')

@@ -15,7 +15,15 @@
     <section class="hero">
       <span class="kicker">Tracer signal workflows</span>
       <h1>Convolution, deconvolution, and RTDs in series</h1>
-      <p>The Convolution tab uses the calculation core to combine measured, analytical, piecewise, or model-based signals on one uniform time grid.</p>
+      <p>The Convolution tab combines measured, analytical, piecewise, or model-based signals on one uniform time grid.</p>
+    </section>
+    <section class="section">
+      <h2>Workspace overview</h2>
+      <p>Choose the workflow and enter its signals on the left. The plot, result table, moments, and diagnostics remain together on the right. Hover over a label or control for a short description.</p>
+      <figure>
+        <img src="../assets/tab-convolution-integrated.png" alt="Convolution tab showing independent input units, row controls, display units, plot, and result tables">
+        <figcaption>The integrated Convolution workspace after calculating the first course example.</figcaption>
+      </figure>
     </section>
     <section class="section">
       <h2>Modes</h2>
@@ -25,20 +33,25 @@
         <tr><td>Deconvolution</td><td>C<sub>in</sub> and measured C<sub>out</sub></td><td>A nonnegative E and its reconvolution</td></tr>
         <tr><td>Series composition</td><td>E<sub>1</sub> and E<sub>2</sub></td><td>The combined residence-time distribution</td></tr>
       </table>
-      <p>Choose seconds or minutes for all entered times. Set the common step to zero to use the finest input step. A status message reports any resampling. Calculations and stored results always use SI seconds.</p>
+      <p>Each signal has its own time unit. Concentration signals also have their own concentration unit; E is entered in the reciprocal of its selected time unit. Set the common step to zero to use the finest input step, or choose its value and unit explicitly. A status message reports any resampling.</p>
     </section>
     <section class="section">
-      <h2>Signal sources and results</h2>
-      <p><strong>Table</strong> accepts pasted t/C columns. <strong>Piecewise</strong> accepts From t, To t, and an expression in <code>t</code>. <strong>Function</strong> evaluates one expression over its range and step. E can also use the current RTD from tab 1 or an ideal CSTR, PFR, tanks-in-series, or dispersion model.</p>
-      <p>The plot, result table, and moments panel show the computed signals. The diagnostics line reports mass balance, or the residual and integral of E for deconvolution. <strong>Export to workspace</strong> creates <code>convolutionResult</code>. A deconvolved E can be loaded into RTD Analysis with <strong>Use as RTD in tab 1</strong>.</p>
+      <h2>Enter a signal</h2>
+      <p><strong>Table</strong> accepts time/value pairs. Use <strong>Add row</strong> and <strong>Remove row</strong> to resize it; Remove row deletes the selected row, or the last row when nothing is selected. <strong>Import file...</strong> reads the first two numeric columns from Excel, CSV, or TSV and ignores headers or incomplete rows.</p>
+      <p><strong>Piecewise</strong> accepts From t, To t, and an expression in <code>t</code>, with the same row controls. <strong>Function</strong> evaluates one expression over its range and step. E can also use the current RTD from RTD Analysis or an ideal CSTR, PFR, tanks-in-series, or dispersion model.</p>
+    </section>
+    <section class="section">
+      <h2>Read and reuse results</h2>
+      <p>The <strong>Display units</strong> selectors convert the plot, result table, and moments without recalculating. The moments table and the deconvolution diagnostic both report the trapezoidal area, so one E has one displayed area throughout the tab.</p>
+      <p><strong>Export convolutionResult to Workspace</strong> creates <code>convolutionResult</code> with SI inputs and results plus diagnostics, mode, and display units. A deconvolved E can be loaded into RTD Analysis with <strong>Use as RTD in tab 1</strong>.</p>
     </section>
     <section class="section">
       <h2>Example: bulletin problem P3</h2>
       <ol>
-        <li>Select <strong>Convolution</strong>, seconds, and automatic common step.</li>
-        <li>Paste C<sub>in</sub>: t = 0...11 and C = [0 0 8 6 4 5 6 3 1 0 0 0].</li>
-        <li>Paste E: t = 0...5 and E = [0 .05 .5 .35 .1 0].</li>
-        <li>Compute. The first 16 output values are [0 0 0 .4 4.3 6 5.15 4.8 5.3 4.15 2.15 .65 .1 0 0 0].</li>
+        <li>Select <strong>Convolution</strong>, seconds for both signals, and automatic common step.</li>
+        <li>Add two rows and enter C<sub>in</sub>: t = 0...4 and C = [0 8 4 6 0].</li>
+        <li>Add two rows and enter E: t = 2...6 and E = [0 .05 .5 .35 0].</li>
+        <li>Compute. The output is [0 0 .4 4.2 5.1 4.4 2.1 0 0] at t = 2...10 s.</li>
       </ol>
       <div class="callout info"><strong>Deconvolution note:</strong> experimental data may not conserve tracer mass. The estimated E is therefore not silently normalized; inspect its integral and the reported mass ratio before using it as an RTD.</div>
     </section>
