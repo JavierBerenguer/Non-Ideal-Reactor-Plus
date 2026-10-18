@@ -28,14 +28,39 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
     end
 
     methods (Test)
-        function tabExistsImmediatelyAfterRTD(testCase)
+        function tabIsSixthAfterDesignWorkspace(testCase)
             group = findall(testCase.Figure, 'Type', 'uitabgroup') ;
             mainGroup = group(arrayfun(@(g) any(strcmp({g.Children.Title}, ...
                 'RTD Analysis')), group)) ;
             titles = string({mainGroup(1).Children.Title}) ;
-            rtdIndex = find(titles == "RTD Analysis", 1) ;
             convolutionIndex = find(titles == "Convolution", 1) ;
-            testCase.verifyEqual(convolutionIndex, rtdIndex + 1) ;
+            designIndex = find(titles == "Design & Optimization", 1) ;
+            testCase.verifyEqual(titles, ["RTD Analysis", "Prediction Models", ...
+                "Tanks-in-Series", "Dispersion Model", ...
+                "Design & Optimization", "Convolution"]) ;
+            testCase.verifyEqual(convolutionIndex, designIndex + 1) ;
+        end
+
+        function activeConvolutionTabRoundTripsByTitle(testCase)
+            group = findall(testCase.Figure, 'Type', 'uitabgroup') ;
+            mainGroup = group(arrayfun(@(g) any(strcmp({g.Children.Title}, ...
+                'RTD Analysis')), group)) ;
+            convolutionTab = mainGroup(1).Children(strcmp( ...
+                {mainGroup(1).Children.Title}, 'Convolution')) ;
+            mainGroup(1).SelectedTab = convolutionTab ;
+            saved = fullfile(testCase.Folder, 'active-tab.mat') ;
+            testCase.App.saveSessionToFile(saved, 'active-tab') ;
+            mainGroup(1).SelectedTab = mainGroup(1).Children(1) ;
+
+            testCase.App.loadSessionFromFile(saved) ;
+
+            testCase.verifyEqual(mainGroup(1).SelectedTab.Title, 'Convolution') ;
+        end
+
+        function manualTableUsesAvailableEditorHeight(testCase)
+            tableControl = testCase.control('ConvTableCin') ;
+            testCase.verifyEqual(tableControl.Parent.RowHeight{3}, '1x') ;
+            testCase.verifyEqual(tableControl.Layout.Row, 3) ;
         end
 
         function topicExampleOneUsesAddedTableRows(testCase)
@@ -129,7 +154,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             testCase.verifyEqual(minuteTable.ColumnName(:), ...
                 {'Signal'; 'Trapezoidal area'; 'Mean [min]'; 'Variance [min^2]'}) ;
             minuteData = minuteTable.Data ;
-            minuteCin = minuteData(strcmp(minuteData(:, 1), 'C_{in}'), 2:4) ;
+            minuteCin = minuteData(strcmp(minuteData(:, 1), 'Input'), 2:4) ;
             minuteE = minuteData(strcmp(minuteData(:, 1), 'E'), 2:4) ;
             tCin = (0:4) * 60 ;
             cin = nirp.conv.signal(tCin, (0:4) .* exp(-(0:4) / 2)) ;
@@ -159,7 +184,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             testCase.verifyEqual(secondTable.ColumnName(:), ...
                 {'Signal'; 'Trapezoidal area'; 'Mean [s]'; 'Variance [s^2]'}) ;
             secondData = secondTable.Data ;
-            secondCin = secondData(strcmp(secondData(:, 1), 'C_{in}'), 2:4) ;
+            secondCin = secondData(strcmp(secondData(:, 1), 'Input'), 2:4) ;
             secondE = secondData(strcmp(secondData(:, 1), 'E'), 2:4) ;
             testCase.verifyEqual(secondCin{1}, minuteCin{1} * 60, 'RelTol', 1e-12) ;
             testCase.verifyEqual(secondCin{2}, minuteCin{2} * 60, 'RelTol', 1e-12) ;

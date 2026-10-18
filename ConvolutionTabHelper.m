@@ -208,7 +208,7 @@ classdef ConvolutionTabHelper < handle
                 'Enable', 'off', 'Tag', 'ConvExport', ...
                 'Tooltip', 'Export inputs, SI result, diagnostics, mode, and selected units as convolutionResult.', ...
                 'ButtonPushedFcn', @(~,~) obj.export()) ;
-            obj.UseRTDButton = uibutton(buttons, 'Text', 'Use as RTD in tab 1', ...
+            obj.UseRTDButton = uibutton(buttons, 'Text', 'Use as RTD in Tab 1', ...
                 'Enable', 'off', 'Tag', 'ConvUseAsRTD', ...
                 'Tooltip', 'Load the deconvolved E(t) into RTD Analysis.', ...
                 'ButtonPushedFcn', @(~,~) obj.useAsRTD()) ;
@@ -235,7 +235,7 @@ classdef ConvolutionTabHelper < handle
         function createSignalEditor(obj, name, titleText, allowRTD)
             tab = uitab(obj.SignalTabs, 'Title', titleText, 'Tag', ['ConvSignal' name]) ;
             grid = uigridlayout(tab, [10 2], ...
-                'RowHeight', {26, 26, 76, 26, 24, 66, 24, 26, 26, '1x'}, ...
+                'RowHeight', {26, 26, '1x', 26, 0, 0, 0, 0, 0, 0}, ...
                 'RowSpacing', 3, 'ColumnWidth', {125, '1x'}, 'Padding', [4 4 4 4]) ;
             sourceLabel = uilabel(grid, 'Text', 'Source') ;
             items = {'Table', 'Piecewise', 'Function'} ;
@@ -343,7 +343,7 @@ classdef ConvolutionTabHelper < handle
             bo = uieditfield(modelGrid, 'numeric', 'Value', 0.1, 'Limits', [eps Inf], ...
                 'Tag', ['ConvBo' name]) ;
             bo.Tooltip = 'Axial dispersion number used by the dispersion RTD model.' ;
-            obj.Signals.(name) = struct('Tab', tab, 'Source', source, ...
+            obj.Signals.(name) = struct('Tab', tab, 'Grid', grid, 'Source', source, ...
                 'TimeUnit', timeUnit, 'ConcentrationUnit', concentrationUnit, ...
                 'Table', tableInput, 'PieceLabel', pieceLabel, ...
                 'PiecewiseTable', pieceTable, 'FunctionLabel', functionLabel, ...
@@ -387,6 +387,17 @@ classdef ConvolutionTabHelper < handle
             ui.FunctionExpression.Visible = obj.onOff(isFunction) ;
             ui.RangeGrid.Visible = obj.onOff(isFunction) ;
             ui.ModelGrid.Visible = obj.onOff(strcmp(source, 'Model')) ;
+            if strcmp(source, 'Table')
+                ui.Grid.RowHeight = {26, 26, '1x', 26, 0, 0, 0, 0, 0, 0} ;
+            elseif strcmp(source, 'Piecewise')
+                ui.Grid.RowHeight = {26, 26, 0, 26, 24, '1x', 0, 0, 0, 0} ;
+            elseif strcmp(source, 'Function')
+                ui.Grid.RowHeight = {26, 26, 0, 0, 0, 0, 24, 26, 0, 0} ;
+            elseif strcmp(source, 'Model')
+                ui.Grid.RowHeight = {26, 26, 0, 0, 0, 0, 0, 0, '1x', '1x'} ;
+            else
+                ui.Grid.RowHeight = {26, 26, 0, 0, 0, 0, 0, 0, 0, 0} ;
+            end
             obj.modelChanged(name) ;
         end
 
@@ -665,7 +676,7 @@ classdef ConvolutionTabHelper < handle
                 return
             end
             obj.SetRTD(obj.LastResult) ;
-            obj.SetStatus('Deconvolved E loaded as the tab 1 RTD.') ;
+            obj.SetStatus('Deconvolved E loaded as the Tab 1 RTD.') ;
         end
 
         function values = numericTable(obj, data, columns, name)
@@ -856,7 +867,7 @@ classdef ConvolutionTabHelper < handle
         end
 
         function name = displayName(~, fieldName)
-            names = struct('Cin', 'C_{in}', 'Cout', 'C_{out}', 'E', 'E', ...
+            names = struct('Cin', 'Input', 'Cout', 'Output', 'E', 'E', ...
                 'E1', 'E_1', 'E2', 'E_2', 'Reconvolved', 'Reconvolved') ;
             name = fieldName ; if isfield(names, fieldName), name = names.(fieldName) ; end
         end

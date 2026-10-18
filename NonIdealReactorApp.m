@@ -9,7 +9,7 @@ classdef NonIdealReactorApp < handle
 %
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: March 21, 2026. Last update: October 16, 2026
+% Created: March 21, 2026. Last update: October 18, 2026
 % =========================================================================
 
     properties (Access = private)
@@ -311,22 +311,22 @@ classdef NonIdealReactorApp < handle
                 'Building RTD Analysis (1/7)') ;
             app.createRTDTab() ;
             app.reportProgress(progressFcn, 1 / 7, ...
-                'Building Convolution (2/7)') ;
+                'Building Prediction (2/7)') ;
+            app.createPredictionTab() ;
+            app.reportProgress(progressFcn, 2 / 7, ...
+                'Building Tanks in Series (3/7)') ;
+            app.createTISTab() ;
+            app.reportProgress(progressFcn, 3 / 7, ...
+                'Building Dispersion (4/7)') ;
+            app.createDispersionTab() ;
+            app.reportProgress(progressFcn, 4 / 7, ...
+                'Building Design & Optimization (5/7)') ;
+            app.createDesignTemplatesTab() ;
+            app.reportProgress(progressFcn, 5 / 7, ...
+                'Building Convolution (6/7)') ;
             app.ConvolutionHelper = ConvolutionTabHelper(app.TabGroup, ...
                 @() app.rtd, @(signal) app.useConvolutionRTD(signal), ...
                 @(message) app.updateStatus(message)) ;
-            app.reportProgress(progressFcn, 2 / 7, ...
-                'Building Prediction (3/7)') ;
-            app.createPredictionTab() ;
-            app.reportProgress(progressFcn, 3 / 7, ...
-                'Building Tanks in Series (4/7)') ;
-            app.createTISTab() ;
-            app.reportProgress(progressFcn, 4 / 7, ...
-                'Building Dispersion (5/7)') ;
-            app.createDispersionTab() ;
-            app.reportProgress(progressFcn, 5 / 7, ...
-                'Building Design & Optimization (6/7)') ;
-            app.createDesignTemplatesTab() ;
             app.reportProgress(progressFcn, 6 / 7, ...
                 'Final layout: drawing the window, the first time can take a while (7/7)') ;
             app.RTD_updateFQuery() ;
