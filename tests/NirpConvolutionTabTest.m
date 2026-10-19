@@ -2,7 +2,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
     % NirpConvolutionTabTest verifies the app integration of nirp.conv.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 9, 2026. Last update: October 18, 2026
+    % Created: October 9, 2026. Last update: October 19, 2026
     % =========================================================================
 
     properties
@@ -59,8 +59,33 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
 
         function manualTableUsesAvailableEditorHeight(testCase)
             tableControl = testCase.control('ConvTableCin') ;
-            testCase.verifyEqual(tableControl.Parent.RowHeight{3}, '1x') ;
-            testCase.verifyEqual(tableControl.Layout.Row, 3) ;
+            testCase.verifyEqual(tableControl.Parent.RowHeight{4}, '1x') ;
+            testCase.verifyEqual(tableControl.Layout.Row, 4) ;
+        end
+
+        function everySignalTabDescribesUseAndInactiveMode(testCase)
+            expected = struct( ...
+                'Cin', 'Inlet tracer concentration C_in(t), used in Convolution and Deconvolution.', ...
+                'Cout', 'Outlet tracer concentration C_out(t), used in Deconvolution.', ...
+                'E', 'Residence-time distribution E(t), used in Convolution.', ...
+                'E1', ['Residence-time distribution E1(t) of the first vessel, ' ...
+                    'used in Series composition.'], ...
+                'E2', ['Residence-time distribution E2(t) of the second vessel, ' ...
+                    'used in Series composition.']) ;
+            names = fieldnames(expected) ;
+            for k = 1:numel(names)
+                label = testCase.control(['ConvDescription' names{k}]) ;
+                testCase.verifySubstring(label.Text, expected.(names{k})) ;
+            end
+            testCase.verifyFalse(contains( ...
+                testCase.control('ConvDescriptionCin').Text, 'Not used')) ;
+            testCase.verifySubstring(testCase.control('ConvDescriptionCout').Text, ...
+                'Not used in the selected mode.') ;
+            testCase.selectMode('Series composition') ;
+            testCase.verifySubstring(testCase.control('ConvDescriptionCin').Text, ...
+                'Not used in the selected mode.') ;
+            testCase.verifyFalse(contains( ...
+                testCase.control('ConvDescriptionE1').Text, 'Not used')) ;
         end
 
         function topicExampleOneUsesAddedTableRows(testCase)
@@ -73,12 +98,36 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             testCase.typeTable('ConvTableCin', Cin) ;
             testCase.typeTable('ConvTableE', E) ;
 
+            cinData = testCase.asCells(testCase.control('ConvTableCin').Data) ;
+            eData = testCase.asCells(testCase.control('ConvTableE').Data) ;
+            testCase.verifyTrue(all(cellfun( ...
+                @(value) isnumeric(value) && isscalar(value), cinData), 'all')) ;
+            testCase.verifyTrue(all(cellfun( ...
+                @(value) isnumeric(value) && isscalar(value), eData), 'all')) ;
+            testCase.verifyEqual(cell2mat(cinData), Cin) ;
+            testCase.verifyEqual(cell2mat(eData), E) ;
+
             testCase.press(testCase.control('ConvCompute')) ;
 
             result = testCase.control('ConvResultTable').Data ;
             testCase.verifyEqual(result(:, 1).', 2:10, 'AbsTol', 1e-12) ;
             testCase.verifyEqual(result(:, 2).', ...
                 [0 0 .4 4.2 5.1 4.4 2.1 0 0], 'AbsTol', 1e-12) ;
+        end
+
+        function excelImportMatchesRTDAnalysisAndStoresNumbers(testCase)
+            imported = [0 0; 1 8; 2 4; 3 6; 4 0] ;
+            file = fullfile(testCase.Folder, 'tracer.xlsx') ;
+            writematrix(imported, file) ;
+
+            button = testCase.control('ConvImportCin') ;
+            testCase.verifyEqual(button.Text, 'Import Experimental Data') ;
+            button.UserData = file ;
+            testCase.press(button) ;
+
+            data = testCase.control('ConvTableCin').Data ;
+            testCase.verifyClass(data, 'double') ;
+            testCase.verifyEqual(data, imported) ;
         end
 
         function removeRowUsesSelectionAndKeepsOneRow(testCase)
@@ -353,6 +402,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
                 testCase.control('ConvTableCout').Data = [(240:60:780).', output] ;
             end
         end
+
     end
 end
 

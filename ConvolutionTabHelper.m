@@ -3,7 +3,7 @@ classdef ConvolutionTabHelper < handle
 % All times passed to nirp.conv are expressed in seconds.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 9, 2026. Last update: October 18, 2026
+% Created: October 9, 2026. Last update: October 19, 2026
 % =========================================================================
 
     properties (SetAccess = private)
@@ -89,7 +89,12 @@ classdef ConvolutionTabHelper < handle
                 obj.setDropdown(ui.TimeUnit, obj.getField(state, 'timeUnit', legacyTimeUnit)) ;
                 obj.setDropdown(ui.ConcentrationUnit, ...
                     obj.getField(state, 'concentrationUnit', 'mol/m^3')) ;
-                ui.Table.Data = obj.getField(state, 'tableData', ui.Table.Data) ;
+                storedTableData = obj.getField(state, 'tableData', ui.Table.Data) ;
+                if isnumeric(storedTableData)
+                    ui.Table.Data = double(storedTableData) ;
+                else
+                    ui.Table.Data = obj.numericEditorData(storedTableData, 2) ;
+                end
                 ui.PiecewiseTable.Data = obj.getField(state, 'piecewiseData', ui.PiecewiseTable.Data) ;
                 ui.FunctionExpression.Value = char(string(obj.getField(state, 'functionExpression', 'exp(-t)'))) ;
                 ui.FunctionStart.Value = obj.getField(state, 'functionStart', 0) ;
@@ -234,10 +239,15 @@ classdef ConvolutionTabHelper < handle
 
         function createSignalEditor(obj, name, titleText, allowRTD)
             tab = uitab(obj.SignalTabs, 'Title', titleText, 'Tag', ['ConvSignal' name]) ;
-            grid = uigridlayout(tab, [10 2], ...
-                'RowHeight', {26, 26, '1x', 26, 0, 0, 0, 0, 0, 0}, ...
+            grid = uigridlayout(tab, [11 2], ...
+                'RowHeight', {38, 26, 26, '1x', 26, 0, 0, 0, 0, 0, 0}, ...
                 'RowSpacing', 3, 'ColumnWidth', {125, '1x'}, 'Padding', [4 4 4 4]) ;
+            description = uilabel(grid, 'Text', obj.signalDescription(name), ...
+                'WordWrap', 'on', 'Tag', ['ConvDescription' name], ...
+                'Tooltip', obj.signalDescription(name)) ;
+            description.Layout.Row = 1 ; description.Layout.Column = [1 2] ;
             sourceLabel = uilabel(grid, 'Text', 'Source') ;
+            sourceLabel.Layout.Row = 2 ;
             items = {'Table', 'Piecewise', 'Function'} ;
             if allowRTD
                 items = [items {'RTD from tab 1', 'Model'}] ;
@@ -246,10 +256,11 @@ classdef ConvolutionTabHelper < handle
                 'Tag', ['ConvSource' name], ...
                 'Tooltip', 'Choose how this signal is entered.', ...
                 'ValueChangedFcn', @(~,~) obj.sourceChanged(name)) ;
+            source.Layout.Row = 2 ;
             sourceLabel.Tooltip = source.Tooltip ;
             unitsGrid = uigridlayout(grid, [1 4], ...
                 'ColumnWidth', {45, '1x', 45, '1x'}, 'Padding', [0 0 0 0]) ;
-            unitsGrid.Layout.Row = 2 ; unitsGrid.Layout.Column = [1 2] ;
+            unitsGrid.Layout.Row = 3 ; unitsGrid.Layout.Column = [1 2] ;
             timeLabel = uilabel(unitsGrid, 'Text', '$t$:', 'Interpreter', 'latex') ;
             timeUnit = uidropdown(unitsGrid, 'Items', UnitConverterHelper.getUnits('Time'), ...
                 'Value', 's', 'Tag', ['ConvTimeUnit' name], ...
@@ -271,13 +282,14 @@ classdef ConvolutionTabHelper < handle
             if obj.isRTDName(name), valueSymbol = 'E' ; end
             tableInput = uitable(grid, 'Data', cell(3, 2), ...
                 'ColumnName', {'t', valueSymbol}, 'ColumnEditable', [true true], ...
+                'CellEditCallback', @(src,event) obj.tableCellEdited(src, event), ...
                 'CellSelectionCallback', @(src,event) obj.rememberSelection(src, event), ...
                 'Tooltip', 'Enter time and signal value pairs; headers and incomplete imported rows are ignored.', ...
                 'Tag', ['ConvTable' name]) ;
-            tableInput.Layout.Row = 3 ; tableInput.Layout.Column = [1 2] ;
+            tableInput.Layout.Row = 4 ; tableInput.Layout.Column = [1 2] ;
             tableButtons = uigridlayout(grid, [1 3], ...
-                'ColumnWidth', {'1x', '1x', '1x'}, 'Padding', [0 0 0 0]) ;
-            tableButtons.Layout.Row = 4 ; tableButtons.Layout.Column = [1 2] ;
+                'ColumnWidth', {100, 120, '1x'}, 'Padding', [0 0 0 0]) ;
+            tableButtons.Layout.Row = 5 ; tableButtons.Layout.Column = [1 2] ;
             addRow = uibutton(tableButtons, 'Text', 'Add row', ...
                 'BackgroundColor', [0.85 0.95 0.85], 'Tag', ['ConvAddRow' name], ...
                 'Tooltip', 'Append one empty row to the active manual-input table.', ...
@@ -286,20 +298,20 @@ classdef ConvolutionTabHelper < handle
                 'BackgroundColor', [0.95 0.85 0.85], 'Tag', ['ConvRemoveRow' name], ...
                 'Tooltip', 'Remove the selected row, or the last row when none is selected; one row is always kept.', ...
                 'ButtonPushedFcn', @(~,~) obj.removeRow(name)) ;
-            importButton = uibutton(tableButtons, 'Text', 'Import file...', ...
+            importButton = uibutton(tableButtons, 'Text', 'Import Experimental Data', ...
                 'Tag', ['ConvImport' name], ...
                 'Tooltip', 'Import the first two numeric columns from Excel, CSV, or TSV into this signal.', ...
-                'ButtonPushedFcn', @(~,~) obj.importTable(name)) ;
+                'ButtonPushedFcn', @(src,~) obj.importTable(name, src.UserData)) ;
             pieceLabel = uilabel(grid, 'Text', 'From / To / expression in t', ...
                 'Visible', 'off', 'Tooltip', 'Define consecutive signal expressions over intervals in the selected time unit.') ;
-            pieceLabel.Layout.Row = 5 ; pieceLabel.Layout.Column = [1 2] ;
+            pieceLabel.Layout.Row = 6 ; pieceLabel.Layout.Column = [1 2] ;
             pieceTable = uitable(grid, 'Data', cell(3, 3), ...
                 'ColumnName', {'From t', 'To t', 'Expression in t'}, ...
                 'ColumnEditable', [true true true], 'Visible', 'off', ...
                 'CellSelectionCallback', @(src,event) obj.rememberSelection(src, event), ...
                 'Tooltip', 'Enter interval bounds and a MATLAB expression in t for each segment.', ...
                 'Tag', ['ConvPiecewise' name]) ;
-            pieceTable.Layout.Row = 6 ; pieceTable.Layout.Column = [1 2] ;
+            pieceTable.Layout.Row = 7 ; pieceTable.Layout.Column = [1 2] ;
             functionLabel = uilabel(grid, 'Text', 'Expression in t', 'Visible', 'off') ;
             functionExpression = uieditfield(grid, 'text', 'Value', 'exp(-t)', ...
                 'Visible', 'off', 'Tag', ['ConvFunction' name], ...
@@ -308,7 +320,7 @@ classdef ConvolutionTabHelper < handle
             rangeGrid = uigridlayout(grid, [1 6], ...
                 'ColumnWidth', {35, '1x', 30, '1x', 32, '1x'}, ...
                 'Padding', [0 0 0 0], 'Visible', 'off') ;
-            rangeGrid.Layout.Row = 8 ; rangeGrid.Layout.Column = [1 2] ;
+            rangeGrid.Layout.Row = 9 ; rangeGrid.Layout.Column = [1 2] ;
             uilabel(rangeGrid, 'Text', 'Start') ;
             functionStart = uieditfield(rangeGrid, 'numeric', 'Value', 0, ...
                 'Tag', ['ConvFunctionStart' name], ...
@@ -324,7 +336,7 @@ classdef ConvolutionTabHelper < handle
             modelGrid = uigridlayout(grid, [2 4], ...
                 'ColumnWidth', {50, '1x', 50, '1x'}, 'Padding', [0 0 0 0], ...
                 'Visible', 'off') ;
-            modelGrid.Layout.Row = [9 10] ; modelGrid.Layout.Column = [1 2] ;
+            modelGrid.Layout.Row = [10 11] ; modelGrid.Layout.Column = [1 2] ;
             uilabel(modelGrid, 'Text', 'Model') ;
             model = uidropdown(modelGrid, ...
                 'Items', {'CSTR', 'PFR', 'Tanks-in-Series', 'Dispersion'}, ...
@@ -343,7 +355,8 @@ classdef ConvolutionTabHelper < handle
             bo = uieditfield(modelGrid, 'numeric', 'Value', 0.1, 'Limits', [eps Inf], ...
                 'Tag', ['ConvBo' name]) ;
             bo.Tooltip = 'Axial dispersion number used by the dispersion RTD model.' ;
-            obj.Signals.(name) = struct('Tab', tab, 'Grid', grid, 'Source', source, ...
+            obj.Signals.(name) = struct('Tab', tab, 'Grid', grid, ...
+                'Description', description, 'Source', source, ...
                 'TimeUnit', timeUnit, 'ConcentrationUnit', concentrationUnit, ...
                 'Table', tableInput, 'PieceLabel', pieceLabel, ...
                 'PiecewiseTable', pieceTable, 'FunctionLabel', functionLabel, ...
@@ -368,6 +381,11 @@ classdef ConvolutionTabHelper < handle
                 obj.Signals.(names{k}).Tab.Parent = obj.SignalTabs ;
                 obj.Signals.(names{k}).Tab.UserData = struct( ...
                     'activeForMode', any(strcmp(names{k}, visibleNames))) ;
+                description = obj.signalDescription(names{k}) ;
+                if ~any(strcmp(names{k}, visibleNames))
+                    description = [description ' Not used in the selected mode.'] ;
+                end
+                obj.Signals.(names{k}).Description.Text = description ;
             end
             obj.SignalTabs.SelectedTab = obj.Signals.(visibleNames{1}).Tab ;
             obj.UseRTDButton.Enable = obj.onOff(strcmp(mode, 'Deconvolution') && ...
@@ -388,15 +406,15 @@ classdef ConvolutionTabHelper < handle
             ui.RangeGrid.Visible = obj.onOff(isFunction) ;
             ui.ModelGrid.Visible = obj.onOff(strcmp(source, 'Model')) ;
             if strcmp(source, 'Table')
-                ui.Grid.RowHeight = {26, 26, '1x', 26, 0, 0, 0, 0, 0, 0} ;
+                ui.Grid.RowHeight = {38, 26, 26, '1x', 26, 0, 0, 0, 0, 0, 0} ;
             elseif strcmp(source, 'Piecewise')
-                ui.Grid.RowHeight = {26, 26, 0, 26, 24, '1x', 0, 0, 0, 0} ;
+                ui.Grid.RowHeight = {38, 26, 26, 0, 26, 24, '1x', 0, 0, 0, 0} ;
             elseif strcmp(source, 'Function')
-                ui.Grid.RowHeight = {26, 26, 0, 0, 0, 0, 24, 26, 0, 0} ;
+                ui.Grid.RowHeight = {38, 26, 26, 0, 0, 0, 0, 24, 26, 0, 0} ;
             elseif strcmp(source, 'Model')
-                ui.Grid.RowHeight = {26, 26, 0, 0, 0, 0, 0, 0, '1x', '1x'} ;
+                ui.Grid.RowHeight = {38, 26, 26, 0, 0, 0, 0, 0, 0, '1x', '1x'} ;
             else
-                ui.Grid.RowHeight = {26, 26, 0, 0, 0, 0, 0, 0, 0, 0} ;
+                ui.Grid.RowHeight = {38, 26, 26, 0, 0, 0, 0, 0, 0, 0, 0} ;
             end
             obj.modelChanged(name) ;
         end
@@ -714,7 +732,7 @@ classdef ConvolutionTabHelper < handle
         end
 
         function value = isBlank(~, raw)
-            value = isempty(raw) ;
+            value = isempty(raw) || (isnumeric(raw) && isscalar(raw) && isnan(raw)) ;
             if ~value && (ischar(raw) || isstring(raw))
                 value = strlength(strtrim(string(raw))) == 0 ;
             end
@@ -780,8 +798,15 @@ classdef ConvolutionTabHelper < handle
 
         function addRow(obj, name)
             tableControl = obj.activeManualTable(name) ;
-            data = obj.cellTable(tableControl.Data, numel(tableControl.ColumnName)) ;
-            data(end + 1, 1:size(data, 2)) = {''} ;
+            columns = numel(tableControl.ColumnName) ;
+            if tableControl == obj.Signals.(name).Table
+                data = obj.cellTable(obj.numericEditorData( ...
+                    tableControl.Data, columns), columns) ;
+                data(end + 1, 1:columns) = {''} ;
+            else
+                data = obj.cellTable(tableControl.Data, columns) ;
+                data(end + 1, 1:columns) = {''} ;
+            end
             tableControl.Data = data ;
             tableControl.UserData = struct('selectedRow', []) ;
         end
@@ -789,9 +814,19 @@ classdef ConvolutionTabHelper < handle
         function removeRow(obj, name)
             tableControl = obj.activeManualTable(name) ;
             columns = numel(tableControl.ColumnName) ;
-            data = obj.cellTable(tableControl.Data, columns) ;
+            isNumericEditor = tableControl == obj.Signals.(name).Table ;
+            if isNumericEditor
+                data = obj.cellTable(obj.numericEditorData( ...
+                    tableControl.Data, columns), columns) ;
+            else
+                data = obj.cellTable(tableControl.Data, columns) ;
+            end
             if size(data, 1) <= 1
-                data = cell(1, columns) ;
+                if isNumericEditor
+                    data = cell(1, columns) ;
+                else
+                    data = cell(1, columns) ;
+                end
             else
                 selectedRow = [] ;
                 if isstruct(tableControl.UserData) && isfield(tableControl.UserData, 'selectedRow')
@@ -801,6 +836,9 @@ classdef ConvolutionTabHelper < handle
                     selectedRow = size(data, 1) ;
                 end
                 data(selectedRow, :) = [] ;
+            end
+            if isNumericEditor
+                data = obj.numericEditorData(data, columns) ;
             end
             tableControl.Data = data ;
             tableControl.UserData = struct('selectedRow', []) ;
@@ -815,13 +853,30 @@ classdef ConvolutionTabHelper < handle
             end
         end
 
-        function importTable(obj, name)
-            [file, path] = uigetfile( ...
-                {'*.xlsx;*.xls;*.csv;*.tsv', 'Data files (*.xlsx, *.xls, *.csv, *.tsv)'; ...
-                 '*.*', 'All files (*.*)'}, 'Select tracer signal data file') ;
-            if isequal(file, 0), return, end
+        function importTable(obj, name, selectedFile)
+            if nargin < 3 || isempty(selectedFile)
+                [file, path] = uigetfile( ...
+                    {'*.xlsx;*.xls;*.csv;*.tsv', 'Data files (*.xlsx, *.xls, *.csv, *.tsv)'; ...
+                     '*.*', 'All files (*.*)'}, 'Select experimental data file') ;
+                if isequal(file, 0), return, end
+                fullPath = fullfile(path, file) ;
+            else
+                fullPath = char(string(selectedFile)) ;
+                [~, baseName, extension] = fileparts(fullPath) ;
+                file = [baseName extension] ;
+            end
             try
-                data = readmatrix(fullfile(path, file)) ;
+                [~, ~, extension] = fileparts(file) ;
+                switch lower(extension)
+                    case {'.xlsx', '.xls'}
+                        data = readmatrix(fullPath) ;
+                    case '.csv'
+                        data = readmatrix(fullPath, 'Delimiter', ',') ;
+                    case '.tsv'
+                        data = readmatrix(fullPath, 'Delimiter', '\t') ;
+                    otherwise
+                        data = readmatrix(fullPath) ;
+                end
                 if size(data, 2) < 2
                     error('NonIdealReactorApp:ConvolutionImportColumns', ...
                         'The file must have at least two columns (time and value).') ;
@@ -841,6 +896,57 @@ classdef ConvolutionTabHelper < handle
                 else
                     rethrow(exception) ;
                 end
+            end
+        end
+
+        function tableCellEdited(obj, tableControl, event)
+            cells = obj.cellTable(tableControl.Data, ...
+                numel(tableControl.ColumnName)) ;
+            row = event.Indices(1) ;
+            column = event.Indices(2) ;
+            try
+                cells{row, column} = obj.parseScalar(event.NewData) ;
+            catch exception
+                cells{row, column} = event.PreviousData ;
+                obj.SetStatus(['Invalid table value: ' exception.message]) ;
+            end
+            tableControl.Data = obj.numericEditorData(cells, ...
+                numel(tableControl.ColumnName)) ;
+        end
+
+        function data = numericEditorData(obj, raw, columns)
+            cells = obj.cellTable(raw, columns) ;
+            values = nan(size(cells, 1), columns) ;
+            blank = false(size(cells, 1), columns) ;
+            for row = 1:size(cells, 1)
+                for column = 1:columns
+                    blank(row, column) = obj.isBlank(cells{row, column}) ;
+                    if ~blank(row, column)
+                        values(row, column) = obj.parseScalar(cells{row, column}) ;
+                    end
+                end
+            end
+            data = num2cell(values) ;
+            data(blank) = {''} ;
+        end
+
+        function description = signalDescription(~, name)
+            switch name
+                case 'Cin'
+                    description = ['Inlet tracer concentration C_in(t), used in ' ...
+                        'Convolution and Deconvolution.'] ;
+                case 'Cout'
+                    description = ['Outlet tracer concentration C_out(t), used in ' ...
+                        'Deconvolution.'] ;
+                case 'E'
+                    description = ['Residence-time distribution E(t), used in ' ...
+                        'Convolution.'] ;
+                case 'E1'
+                    description = ['Residence-time distribution E1(t) of the first ' ...
+                        'vessel, used in Series composition.'] ;
+                otherwise
+                    description = ['Residence-time distribution E2(t) of the second ' ...
+                        'vessel, used in Series composition.'] ;
             end
         end
 
