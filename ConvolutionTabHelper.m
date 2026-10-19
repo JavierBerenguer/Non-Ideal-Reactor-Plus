@@ -3,7 +3,7 @@ classdef ConvolutionTabHelper < handle
 % All times passed to nirp.conv are expressed in seconds.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 9, 2026. Last update: October 19, 2026
+% Created: October 9, 2026. Last update: October 20, 2026
 % =========================================================================
 
     properties (SetAccess = private)
@@ -62,10 +62,6 @@ classdef ConvolutionTabHelper < handle
                     'concentrationUnit', ui.ConcentrationUnit.Value, ...
                     'tableData', {ui.Table.Data}, ...
                     'piecewiseData', {ui.PiecewiseTable.Data}, ...
-                    'functionExpression', ui.FunctionExpression.Value, ...
-                    'functionStart', ui.FunctionStart.Value, ...
-                    'functionEnd', ui.FunctionEnd.Value, ...
-                    'functionStep', ui.FunctionStep.Value, ...
                     'model', ui.Model.Value, 'tau', ui.Tau.Value, ...
                     'n', ui.N.Value, 'bo', ui.Bo.Value) ;
             end
@@ -91,7 +87,17 @@ classdef ConvolutionTabHelper < handle
                 if ~isfield(storedSignals, name), continue, end
                 state = storedSignals.(name) ;
                 ui = obj.Signals.(name) ;
-                obj.setDropdown(ui.Source, obj.getField(state, 'source', 'Table')) ;
+                source = obj.getField(state, 'source', 'Table') ;
+                piecewiseData = obj.getField(state, 'piecewiseData', ui.PiecewiseTable.Data) ;
+                if strcmp(source, 'Piecewise')
+                    source = 'Function' ;
+                elseif strcmp(source, 'Function') && ...
+                        all(isfield(state, {'functionExpression', 'functionStart', 'functionEnd'}))
+                    piecewiseData = {obj.getField(state, 'functionStart', 0), ...
+                        obj.getField(state, 'functionEnd', 10), ...
+                        char(string(obj.getField(state, 'functionExpression', 'exp(-t)')))} ;
+                end
+                obj.setDropdown(ui.Source, source) ;
                 obj.setDropdown(ui.TimeUnit, obj.getField(state, 'timeUnit', legacyTimeUnit)) ;
                 obj.setDropdown(ui.ConcentrationUnit, ...
                     obj.getField(state, 'concentrationUnit', 'mol/m^3')) ;
@@ -101,11 +107,7 @@ classdef ConvolutionTabHelper < handle
                 else
                     ui.Table.Data = obj.numericEditorData(storedTableData, 2) ;
                 end
-                ui.PiecewiseTable.Data = obj.getField(state, 'piecewiseData', ui.PiecewiseTable.Data) ;
-                ui.FunctionExpression.Value = char(string(obj.getField(state, 'functionExpression', 'exp(-t)'))) ;
-                ui.FunctionStart.Value = obj.getField(state, 'functionStart', 0) ;
-                ui.FunctionEnd.Value = obj.getField(state, 'functionEnd', 10) ;
-                ui.FunctionStep.Value = obj.getField(state, 'functionStep', 1) ;
+                ui.PiecewiseTable.Data = piecewiseData ;
                 obj.setDropdown(ui.Model, obj.getField(state, 'model', 'CSTR')) ;
                 ui.Tau.Value = obj.getField(state, 'tau', 5) ;
                 ui.N.Value = obj.getField(state, 'n', 2) ;
@@ -272,8 +274,8 @@ classdef ConvolutionTabHelper < handle
 
         function createSignalEditor(obj, name, titleText, allowRTD)
             tab = uitab(obj.SignalTabs, 'Title', titleText, 'Tag', ['ConvSignal' name]) ;
-            grid = uigridlayout(tab, [11 2], ...
-                'RowHeight', {38, 26, 26, '1x', 26, 0, 0, 0, 0, 0, 0}, ...
+            grid = uigridlayout(tab, [9 2], ...
+                'RowHeight', {38, 26, 26, '1x', 26, 0, 0, 0, 0}, ...
                 'RowSpacing', 3, 'ColumnWidth', {125, '1x'}, 'Padding', [4 4 4 4]) ;
             description = uilabel(grid, 'Text', obj.signalDescription(name), ...
                 'Interpreter', 'latex', 'WordWrap', 'on', 'Tag', ['ConvDescription' name], ...
@@ -281,7 +283,7 @@ classdef ConvolutionTabHelper < handle
             description.Layout.Row = 1 ; description.Layout.Column = [1 2] ;
             sourceLabel = uilabel(grid, 'Text', '$\mathrm{Source}$', 'Interpreter', 'latex') ;
             sourceLabel.Layout.Row = 2 ;
-            items = {'Table', 'Piecewise', 'Function'} ;
+            items = {'Table', 'Function'} ;
             if allowRTD
                 items = [items {'RTD from tab 1', 'Model'}] ;
             end
@@ -335,43 +337,24 @@ classdef ConvolutionTabHelper < handle
                 'Tag', ['ConvImport' name], ...
                 'Tooltip', 'Import the first two numeric columns from Excel, CSV, or TSV into this signal.', ...
                 'ButtonPushedFcn', @(src,~) obj.importTable(name, src.UserData)) ;
-            pieceLabel = uilabel(grid, 'Text', '$\mathrm{From~/~To~/~expression~in~}t$', ...
+            pieceLabel = uilabel(grid, ...
+                'Text', '$\mathrm{Function:~expression~of~}t\mathrm{~on~one~or~more~intervals}$', ...
                 'Interpreter', 'latex', ...
-                'Visible', 'off', 'Tooltip', 'Define consecutive signal expressions over intervals in the selected time unit.') ;
+                'Visible', 'off', ...
+                'Tag', ['ConvFunctionDescription' name], ...
+                'Tooltip', 'Define an expression of t on one or more intervals in the selected time unit.') ;
             pieceLabel.Layout.Row = 6 ; pieceLabel.Layout.Column = [1 2] ;
             pieceTable = uitable(grid, 'Data', cell(3, 3), ...
                 'ColumnName', {'From t', 'To t', 'Expression in t'}, ...
                 'ColumnEditable', [true true true], 'Visible', 'off', ...
                 'CellSelectionCallback', @(src,event) obj.rememberSelection(src, event), ...
-                'Tooltip', 'Enter interval bounds and a MATLAB expression in t for each segment.', ...
-                'Tag', ['ConvPiecewise' name]) ;
+                'Tooltip', 'Enter interval bounds and a MATLAB expression in t for each interval.', ...
+                'Tag', ['ConvFunctionTable' name]) ;
             pieceTable.Layout.Row = 7 ; pieceTable.Layout.Column = [1 2] ;
-            functionLabel = uilabel(grid, 'Text', '$\mathrm{Expression~in~}t$', ...
-                'Interpreter', 'latex', 'Visible', 'off') ;
-            functionExpression = uieditfield(grid, 'text', 'Value', 'exp(-t)', ...
-                'Visible', 'off', 'Tag', ['ConvFunction' name], ...
-                'Tooltip', 'MATLAB expression for this signal, using t in the selected input time unit.') ;
-            functionLabel.Tooltip = functionExpression.Tooltip ;
-            rangeGrid = uigridlayout(grid, [1 6], ...
-                'ColumnWidth', {35, '1x', 30, '1x', 32, '1x'}, ...
-                'Padding', [0 0 0 0], 'Visible', 'off') ;
-            rangeGrid.Layout.Row = 9 ; rangeGrid.Layout.Column = [1 2] ;
-            uilabel(rangeGrid, 'Text', '$t_{\mathrm{start}}$', 'Interpreter', 'latex') ;
-            functionStart = uieditfield(rangeGrid, 'numeric', 'Value', 0, ...
-                'Tag', ['ConvFunctionStart' name], ...
-                'Tooltip', 'First time evaluated for the function source.') ;
-            uilabel(rangeGrid, 'Text', '$t_{\mathrm{end}}$', 'Interpreter', 'latex') ;
-            functionEnd = uieditfield(rangeGrid, 'numeric', 'Value', 10, ...
-                'Tag', ['ConvFunctionEnd' name], ...
-                'Tooltip', 'Last time evaluated for the function source.') ;
-            uilabel(rangeGrid, 'Text', '$\Delta t$', 'Interpreter', 'latex') ;
-            functionStep = uieditfield(rangeGrid, 'numeric', 'Value', 1, ...
-                'Limits', [eps Inf], 'Tag', ['ConvFunctionStep' name]) ;
-            functionStep.Tooltip = 'Sampling step for the function source.' ;
             modelGrid = uigridlayout(grid, [2 4], ...
                 'ColumnWidth', {50, '1x', 50, '1x'}, 'Padding', [0 0 0 0], ...
                 'Visible', 'off') ;
-            modelGrid.Layout.Row = [10 11] ; modelGrid.Layout.Column = [1 2] ;
+            modelGrid.Layout.Row = [8 9] ; modelGrid.Layout.Column = [1 2] ;
             uilabel(modelGrid, 'Text', '$\mathrm{Model}$', 'Interpreter', 'latex') ;
             model = uidropdown(modelGrid, ...
                 'Items', {'CSTR', 'PFR', 'Tanks-in-Series', 'Dispersion'}, ...
@@ -394,12 +377,10 @@ classdef ConvolutionTabHelper < handle
                 'Description', description, 'Source', source, ...
                 'TimeUnit', timeUnit, 'ConcentrationUnit', concentrationUnit, ...
                 'Table', tableInput, 'PieceLabel', pieceLabel, ...
-                'PiecewiseTable', pieceTable, 'FunctionLabel', functionLabel, ...
+                'PiecewiseTable', pieceTable, ...
                 'TableButtons', tableButtons, 'AddRow', addRow, ...
                 'RemoveRow', removeRow, 'ImportButton', importButton, ...
-                'FunctionExpression', functionExpression, 'RangeGrid', rangeGrid, ...
-                'FunctionStart', functionStart, 'FunctionEnd', functionEnd, ...
-                'FunctionStep', functionStep, 'ModelGrid', modelGrid, ...
+                'ModelGrid', modelGrid, ...
                 'Model', model, 'Tau', tau, 'N', n, 'Bo', bo) ;
         end
 
@@ -433,25 +414,20 @@ classdef ConvolutionTabHelper < handle
             ui = obj.Signals.(name) ;
             source = ui.Source.Value ;
             ui.Table.Visible = obj.onOff(strcmp(source, 'Table')) ;
-            ui.TableButtons.Visible = obj.onOff(any(strcmp(source, {'Table', 'Piecewise'}))) ;
+            ui.TableButtons.Visible = obj.onOff(any(strcmp(source, {'Table', 'Function'}))) ;
             ui.ImportButton.Visible = obj.onOff(strcmp(source, 'Table')) ;
-            ui.PieceLabel.Visible = obj.onOff(strcmp(source, 'Piecewise')) ;
-            ui.PiecewiseTable.Visible = obj.onOff(strcmp(source, 'Piecewise')) ;
             isFunction = strcmp(source, 'Function') ;
-            ui.FunctionLabel.Visible = obj.onOff(isFunction) ;
-            ui.FunctionExpression.Visible = obj.onOff(isFunction) ;
-            ui.RangeGrid.Visible = obj.onOff(isFunction) ;
+            ui.PieceLabel.Visible = obj.onOff(isFunction) ;
+            ui.PiecewiseTable.Visible = obj.onOff(isFunction) ;
             ui.ModelGrid.Visible = obj.onOff(strcmp(source, 'Model')) ;
             if strcmp(source, 'Table')
-                ui.Grid.RowHeight = {38, 26, 26, '1x', 26, 0, 0, 0, 0, 0, 0} ;
-            elseif strcmp(source, 'Piecewise')
-                ui.Grid.RowHeight = {38, 26, 26, 0, 26, 24, '1x', 0, 0, 0, 0} ;
+                ui.Grid.RowHeight = {38, 26, 26, '1x', 26, 0, 0, 0, 0} ;
             elseif strcmp(source, 'Function')
-                ui.Grid.RowHeight = {38, 26, 26, 0, 0, 0, 0, 24, 26, 0, 0} ;
+                ui.Grid.RowHeight = {38, 26, 26, 0, 26, 38, '1x', 0, 0} ;
             elseif strcmp(source, 'Model')
-                ui.Grid.RowHeight = {38, 26, 26, 0, 0, 0, 0, 0, 0, '1x', '1x'} ;
+                ui.Grid.RowHeight = {38, 26, 26, 0, 0, 0, 0, '1x', '1x'} ;
             else
-                ui.Grid.RowHeight = {38, 26, 26, 0, 0, 0, 0, 0, 0, 0, 0} ;
+                ui.Grid.RowHeight = {38, 26, 26, 0, 0, 0, 0, 0, 0} ;
             end
             obj.modelChanged(name) ;
         end
@@ -559,19 +535,6 @@ classdef ConvolutionTabHelper < handle
                     signal = nirp.conv.signal(values(:, 1)' * scale, ...
                         values(:, 2)' * valueScale) ;
                 case 'Function'
-                    f = obj.expressionHandle(ui.FunctionExpression.Value) ;
-                    startTime = ui.FunctionStart.Value * scale ;
-                    endTime = ui.FunctionEnd.Value * scale ;
-                    step = ui.FunctionStep.Value * scale ;
-                    if endTime <= startTime
-                        error('NonIdealReactorApp:ConvolutionRange', ...
-                            'Function end time must be greater than start time.') ;
-                    end
-                    t = startTime:step:endTime ;
-                    if t(end) < endTime, t(end + 1) = endTime ; end
-                    signal = nirp.conv.fromFunction( ...
-                        @(seconds) f(seconds / scale) * valueScale, t) ;
-                case 'Piecewise'
                     signal = obj.buildPiecewise(ui.PiecewiseTable.Data, scale, ...
                         valueScale, targetDt, name) ;
                 case 'RTD from tab 1'
@@ -610,7 +573,7 @@ classdef ConvolutionTabHelper < handle
                 last = obj.parseScalar(values{row, 2}) * scale ;
                 if last <= first
                     error('NonIdealReactorApp:ConvolutionPiecewiseRange', ...
-                        '%s piecewise rows require To t > From t.', name) ;
+                        '%s Function rows require To t > From t.', name) ;
                 end
                 userHandle = obj.expressionHandle(values{row, 3}) ;
                 segments(end + 1) = struct('first', first, 'last', last, ...
@@ -618,14 +581,14 @@ classdef ConvolutionTabHelper < handle
             end
             if isempty(segments)
                 error('NonIdealReactorApp:ConvolutionEmptyPiecewise', ...
-                    '%s requires at least one complete piecewise row.', name) ;
+                    '%s requires at least one complete Function row.', name) ;
             end
             [~, order] = sort([segments.first]) ; segments = segments(order) ;
             edges = segments(1).first ; handles = {} ;
             for k = 1:numel(segments)
                 if segments(k).first < edges(end)
                     error('NonIdealReactorApp:ConvolutionOverlap', ...
-                        '%s piecewise segments cannot overlap.', name) ;
+                        '%s Function intervals cannot overlap.', name) ;
                 elseif segments(k).first > edges(end)
                     edges(end + 1) = segments(k).first ; %#ok<AGROW>
                     handles{end + 1} = @(t) zeros(size(t)) ; %#ok<AGROW>
@@ -1026,7 +989,7 @@ classdef ConvolutionTabHelper < handle
 
         function tableControl = activeManualTable(obj, name)
             ui = obj.Signals.(name) ;
-            if strcmp(ui.Source.Value, 'Piecewise')
+            if strcmp(ui.Source.Value, 'Function')
                 tableControl = ui.PiecewiseTable ;
             else
                 tableControl = ui.Table ;

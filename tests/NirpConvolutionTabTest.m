@@ -2,7 +2,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
     % NirpConvolutionTabTest verifies the app integration of nirp.conv.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 9, 2026. Last update: October 19, 2026
+    % Created: October 9, 2026. Last update: October 20, 2026
     % =========================================================================
 
     properties
@@ -100,6 +100,47 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             testCase.verifyEqual(testCase.control('ConvDiagnostics').Interpreter, 'latex') ;
         end
 
+        function functionIsTheOnlyExpressionSource(testCase)
+            source = testCase.control('ConvSourceCin') ;
+            testCase.verifyEqual(string(source.Items), ["Table" "Function"]) ;
+            testCase.verifyFalse(any(string(source.Items) == "Piecewise")) ;
+            testCase.verifyEmpty(findall(testCase.Figure, 'Tag', 'ConvFunctionCin')) ;
+            testCase.verifyEmpty(findall(testCase.Figure, 'Tag', 'ConvFunctionStartCin')) ;
+            testCase.verifyEmpty(findall(testCase.Figure, 'Tag', 'ConvFunctionEndCin')) ;
+            testCase.verifyEmpty(findall(testCase.Figure, 'Tag', 'ConvFunctionStepCin')) ;
+            testCase.choose(source, 'Function') ;
+            description = testCase.control('ConvFunctionDescriptionCin') ;
+            testCase.verifySubstring(description.Tooltip, 'one or more intervals') ;
+            testCase.verifyEqual(char(testCase.control('ConvFunctionTableCin').Visible), 'on') ;
+        end
+
+        function oneIntervalFunctionUsesCommonStep(testCase)
+            testCase.setDropdown('ConvSourceCin', 'Function') ;
+            testCase.control('ConvFunctionTableCin').Data = {0 2 't'} ;
+            testCase.control('ConvTableE').Data = [0 0; 1 1; 2 0] ;
+            testCase.control('ConvDt').Value = 1 ;
+
+            testCase.press(testCase.control('ConvCompute')) ;
+
+            result = testCase.control('ConvResultTable').Data ;
+            testCase.verifyEqual(result(:, 1).', 0:4, 'AbsTol', 1e-12) ;
+            testCase.verifyEqual(result(:, 2).', [0 0 1 2 0], 'AbsTol', 1e-12) ;
+        end
+
+        function twoIntervalFunctionUsesEveryExpression(testCase)
+            testCase.setDropdown('ConvSourceCin', 'Function') ;
+            testCase.control('ConvFunctionTableCin').Data = ...
+                {0 1 't'; 1 2 '2.*t'} ;
+            testCase.control('ConvTableE').Data = [0 0; 1 1; 2 0] ;
+            testCase.control('ConvDt').Value = 1 ;
+
+            testCase.press(testCase.control('ConvCompute')) ;
+
+            result = testCase.control('ConvResultTable').Data ;
+            testCase.verifyEqual(result(:, 1).', 0:4, 'AbsTol', 1e-12) ;
+            testCase.verifyEqual(result(:, 2).', [0 0 2 4 0], 'AbsTol', 1e-12) ;
+        end
+
         function topicExampleOneUsesAddedTableRows(testCase)
             Cin = [0:4; 0 8 4 6 0].' ;
             E = [2:6; 0 .05 .5 .35 0].' ;
@@ -163,9 +204,9 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             testCase.press(testCase.control('ConvRemoveRowCin')) ;
             testCase.verifySize(tableControl.Data, [1 2]) ;
 
-            testCase.choose(testCase.control('ConvSourceCin'), 'Piecewise') ;
+            testCase.choose(testCase.control('ConvSourceCin'), 'Function') ;
             testCase.press(testCase.control('ConvAddRowCin')) ;
-            testCase.verifySize(testCase.control('ConvPiecewiseCin').Data, [4 3]) ;
+            testCase.verifySize(testCase.control('ConvFunctionTableCin').Data, [4 3]) ;
         end
 
         function modelCstrAndCurrentRTDAreAvailable(testCase)
@@ -372,6 +413,52 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             testCase.verifyEqual(testCase.control('ConvConcentrationUnitCin').Value, 'mol/m^3') ;
             testCase.verifyEqual(testCase.control('ConvOutputConcentrationUnit').Value, 'mol/m^3') ;
         end
+
+        function legacyFunctionSessionLoadsAsOneRowAndCalculates(testCase)
+            saved = fullfile(testCase.Folder, 'legacy-function.mat') ;
+            testCase.control('ConvTableE').Data = [0 0; 1 1; 2 0] ;
+            testCase.control('ConvDt').Value = 1 ;
+            testCase.App.saveSessionToFile(saved, 'legacy-function') ;
+            loaded = load(saved, 'sessionData') ;
+            state = loaded.sessionData.convolution.signals.Cin ;
+            state.source = 'Function' ;
+            state.functionExpression = 't' ;
+            state.functionStart = 0 ;
+            state.functionEnd = 2 ;
+            state.functionStep = 0.25 ;
+            loaded.sessionData.convolution.signals.Cin = state ;
+            sessionData = loaded.sessionData ; %#ok<NASGU>
+            save(saved, 'sessionData') ;
+
+            testCase.App.loadSessionFromFile(saved) ;
+            testCase.verifyEqual(testCase.control('ConvSourceCin').Value, 'Function') ;
+            testCase.verifyEqual(testCase.control('ConvFunctionTableCin').Data, {0 2 't'}) ;
+            testCase.press(testCase.control('ConvCompute')) ;
+            result = testCase.control('ConvResultTable').Data ;
+            testCase.verifyEqual(result(:, 2).', [0 0 1 2 0], 'AbsTol', 1e-12) ;
+        end
+
+        function legacyPiecewiseSessionLoadsAsFunctionAndCalculates(testCase)
+            saved = fullfile(testCase.Folder, 'legacy-piecewise.mat') ;
+            testCase.control('ConvTableE').Data = [0 0; 1 1; 2 0] ;
+            testCase.control('ConvDt').Value = 1 ;
+            testCase.App.saveSessionToFile(saved, 'legacy-piecewise') ;
+            loaded = load(saved, 'sessionData') ;
+            state = loaded.sessionData.convolution.signals.Cin ;
+            state.source = 'Piecewise' ;
+            state.piecewiseData = {0 1 't'; 1 2 '2.*t'} ;
+            loaded.sessionData.convolution.signals.Cin = state ;
+            sessionData = loaded.sessionData ; %#ok<NASGU>
+            save(saved, 'sessionData') ;
+
+            testCase.App.loadSessionFromFile(saved) ;
+            testCase.verifyEqual(testCase.control('ConvSourceCin').Value, 'Function') ;
+            testCase.verifyEqual(testCase.control('ConvFunctionTableCin').Data, ...
+                {0 1 't'; 1 2 '2.*t'}) ;
+            testCase.press(testCase.control('ConvCompute')) ;
+            result = testCase.control('ConvResultTable').Data ;
+            testCase.verifyEqual(result(:, 2).', [0 0 2 4 0], 'AbsTol', 1e-12) ;
+        end
     end
 
     methods (Access = private)
@@ -424,17 +511,14 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             testCase.setDropdown('ConvSourceCin', 'Function') ;
             output = [.9 1.8 2.1 5.2 3.6 4.5 1.7 .8 .7 .5].' ;
             if strcmp(unit, 'min')
-                testCase.control('ConvFunctionCin').Value = 't.*exp(-t/2)' ;
-                testCase.control('ConvFunctionStartCin').Value = 0 ;
-                testCase.control('ConvFunctionEndCin').Value = 4 ;
-                testCase.control('ConvFunctionStepCin').Value = 1 ;
+                testCase.control('ConvDt').Value = 1 ;
+                testCase.control('ConvFunctionTableCin').Data = ...
+                    {0 4 't.*exp(-t/2)'} ;
                 testCase.control('ConvTableCout').Data = [(4:13).', output] ;
             else
-                testCase.control('ConvFunctionCin').Value = ...
-                    '(t/60).*exp(-(t/60)/2)' ;
-                testCase.control('ConvFunctionStartCin').Value = 0 ;
-                testCase.control('ConvFunctionEndCin').Value = 240 ;
-                testCase.control('ConvFunctionStepCin').Value = 60 ;
+                testCase.control('ConvDt').Value = 60 ;
+                testCase.control('ConvFunctionTableCin').Data = ...
+                    {0 240 '(t/60).*exp(-(t/60)/2)'} ;
                 testCase.control('ConvTableCout').Data = [(240:60:780).', output] ;
             end
         end
