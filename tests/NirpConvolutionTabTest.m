@@ -125,10 +125,13 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             testCase.verifyEqual(result(:, 1).', 2:10, 'AbsTol', 1e-12) ;
             testCase.verifyEqual(result(:, 2).', ...
                 [0 0 .4 4.2 5.1 4.4 2.1 0 0], 'AbsTol', 1e-12) ;
-            resultsText = testCase.control('ConvDiagnostics').Text ;
+            resultsText = testCase.control('ConvResultValue1').Text ;
             testCase.verifySubstring(resultsText, ...
                 '[0,\;0,\;0.4,\;4.2,\;5.1,\;4.4,\;2.1,\;0,\;0]') ;
             testCase.verifySubstring(resultsText, '\mathrm{mol/m^3}') ;
+            testCase.verifyEqual(testCase.control('ConvResultTable').ColumnName{2}, ...
+                'Cₒᵤₜ(t) [mol/m^3]') ;
+            testCase.verifyEqual(char(testCase.control('ConvDiagnostics').Visible), 'off') ;
         end
 
         function excelImportMatchesRTDAnalysisAndStoresNumbers(testCase)
@@ -201,7 +204,11 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             testCase.verifyEqual(result(:, 1).', 4:9, 'AbsTol', 1e-12) ;
             testCase.verifyEqual(result(:, 2).', [1.79 2.33 2.58 0 1.24 0], ...
                 'AbsTol', 2e-2) ;
-            testCase.verifySubstring(testCase.control('ConvDiagnostics').Text, '\|r\|_2') ;
+            testCase.verifyEqual(testCase.control('ConvResultTable').ColumnName{2}, ...
+                'Ê(t) [min⁻¹]') ;
+            testCase.verifyEqual(testCase.control('ConvResultLabel5').Text, '$\|r\|_2$') ;
+            testCase.verifyNotEmpty(testCase.control('ConvResultValue5').Text) ;
+            testCase.verifyEqual(char(testCase.control('ConvDiagnostics').Visible), 'on') ;
             testCase.verifyEqual(char(testCase.control('ConvVerificationAxes').Visible), 'on') ;
             testCase.verifyEqual(char(testCase.control('ConvUseAsRTD').Enable), 'on') ;
             testCase.press(testCase.control('ConvUseAsRTD')) ;
@@ -222,11 +229,10 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             testCase.press(testCase.control('ConvCompute')) ;
 
             resultTable = testCase.control('ConvResultTable') ;
-            testCase.verifyEqual(resultTable.ColumnName{2}, 'E₁₂(t) [1/s]') ;
-            testCase.verifySubstring(testCase.control('ConvDiagnostics').Text, ...
-                '\tau_{12}') ;
-            testCase.verifySubstring(testCase.control('ConvDiagnostics').Text, ...
-                '\sigma_{12}^2') ;
+            testCase.verifyEqual(resultTable.ColumnName{2}, 'E₁₂(t) [s⁻¹]') ;
+            testCase.verifyEqual(testCase.control('ConvResultLabel1').Text, '$\tau_{12}$') ;
+            testCase.verifyEqual(testCase.control('ConvResultLabel3').Text, '$\sigma_{12}^2$') ;
+            testCase.verifyEqual(char(testCase.control('ConvDiagnostics').Visible), 'off') ;
             lines = findall(testCase.control('ConvAxes'), 'Type', 'Line') ;
             testCase.verifyEqual(sort(string({lines.DisplayName})), ...
                 sort(["$E_1(t)$", "$E_2(t)$", "$E_{12}(t)$"])) ;
@@ -251,12 +257,13 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
                 [eMoments.area, eMoments.mean / 60, eMoments.variance / 60^2], ...
                 'RelTol', 1e-12) ;
             testCase.verifyEqual(minuteE{2}, 5.8, 'AbsTol', 0.1) ;
-            minuteDiagnostics = testCase.control('ConvDiagnostics').Text ;
+            minuteTau = testCase.control('ConvResultValue2').Text ;
             expectedDisplayedArea = nirp.conv.moments(expectedE) ;
-            testCase.verifySubstring(minuteDiagnostics, ...
-                sprintf('A_E=%.6g', expectedDisplayedArea.area)) ;
-            testCase.verifySubstring(minuteDiagnostics, '\sigma_\theta^2') ;
-            testCase.verifySubstring(minuteDiagnostics, 'WARNING') ;
+            testCase.verifyEqual(testCase.control('ConvResultLabel1').Text, '$A_E$') ;
+            testCase.verifySubstring(testCase.control('ConvResultValue1').Text, ...
+                sprintf('%.6g', expectedDisplayedArea.area)) ;
+            testCase.verifyEqual(testCase.control('ConvResultLabel4').Text, '$\sigma_\theta^2$') ;
+            testCase.verifySubstring(testCase.control('ConvDiagnostics').Text, 'Warning') ;
             testCase.verifyNotEqual(expectedInfo.areaE, expectedDisplayedArea.area, ...
                 'The fixture must distinguish rectangular and trapezoidal areas.') ;
 
@@ -271,8 +278,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             testCase.verifyEqual(secondE{1}, minuteE{1}, 'RelTol', 1e-12) ;
             testCase.verifyEqual(secondE{2}, minuteE{2} * 60, 'RelTol', 1e-12) ;
             testCase.verifyEqual(secondE{3}, minuteE{3} * 60^2, 'RelTol', 1e-12) ;
-            testCase.verifyNotEqual(testCase.control('ConvDiagnostics').Text, ...
-                minuteDiagnostics) ;
+            testCase.verifyNotEqual(testCase.control('ConvResultValue2').Text, minuteTau) ;
         end
 
         function oldSessionsLoadWithoutNewWarnings(testCase)
