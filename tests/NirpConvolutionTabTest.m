@@ -63,29 +63,41 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             testCase.verifyEqual(tableControl.Layout.Row, 4) ;
         end
 
-        function everySignalTabDescribesUseAndInactiveMode(testCase)
-            expected = struct( ...
-                'Cin', 'Inlet tracer concentration C_in(t), used in Convolution and Deconvolution.', ...
-                'Cout', 'Outlet tracer concentration C_out(t), used in Deconvolution.', ...
-                'E', 'Residence-time distribution E(t), used in Convolution.', ...
-                'E1', ['Residence-time distribution E1(t) of the first vessel, ' ...
-                    'used in Series composition.'], ...
-                'E2', ['Residence-time distribution E2(t) of the second vessel, ' ...
-                    'used in Series composition.']) ;
-            names = fieldnames(expected) ;
-            for k = 1:numel(names)
-                label = testCase.control(['ConvDescription' names{k}]) ;
-                testCase.verifySubstring(label.Text, expected.(names{k})) ;
-            end
-            testCase.verifyFalse(contains( ...
-                testCase.control('ConvDescriptionCin').Text, 'Not used')) ;
-            testCase.verifySubstring(testCase.control('ConvDescriptionCout').Text, ...
-                'Not used in the selected mode.') ;
+        function modeShowsOnlyItsDescriptiveSignalTabs(testCase)
+            tabs = testCase.control('ConvSignalTabs') ;
+            testCase.verifyEqual(sort(string({tabs.Children.Title})), ...
+                sort(["Inlet signal Cᵢₙ(t)", "RTD E(t)"])) ;
+            testCase.verifyEqual(char(testCase.control('ConvVerificationAxes').Visible), 'off') ;
+            testCase.verifyEqual(char(testCase.control('ConvUseAsRTD').Visible), 'off') ;
+
+            testCase.selectMode('Deconvolution') ;
+            testCase.verifyEqual(sort(string({tabs.Children.Title})), ...
+                sort(["Inlet signal Cᵢₙ(t)", "Outlet signal Cₒᵤₜ(t)"])) ;
+            testCase.verifyEqual(char(testCase.control('ConvVerificationAxes').Visible), 'on') ;
+            testCase.verifyEqual(char(testCase.control('ConvUseAsRTD').Visible), 'on') ;
+            testCase.verifyEqual(char(testCase.control('ConvUseAsRTD').Enable), 'off') ;
+
             testCase.selectMode('Series composition') ;
+            testCase.verifyEqual(sort(string({tabs.Children.Title})), ...
+                sort(["RTD vessel 1 E₁(t)", "RTD vessel 2 E₂(t)"])) ;
+            testCase.verifyEqual(char(testCase.control('ConvVerificationAxes').Visible), 'off') ;
+            testCase.verifyEqual(char(testCase.control('ConvUseAsRTD').Visible), 'off') ;
+            saved = fullfile(testCase.Folder, 'series-active-signals.mat') ;
+            testCase.App.saveSessionToFile(saved, 'series-active-signals') ;
+            stored = load(saved, 'sessionData') ;
+            testCase.verifyEqual(sort(string(fieldnames( ...
+                stored.sessionData.convolution.signals))), sort(["E1"; "E2"])) ;
+        end
+
+        function supportedTextUsesLatex(testCase)
+            testCase.verifyEqual(testCase.control('ConvDescriptionCin').Interpreter, 'latex') ;
             testCase.verifySubstring(testCase.control('ConvDescriptionCin').Text, ...
-                'Not used in the selected mode.') ;
-            testCase.verifyFalse(contains( ...
-                testCase.control('ConvDescriptionE1').Text, 'Not used')) ;
+                'C_{\mathrm{in}}(t)') ;
+            axesControl = testCase.control('ConvAxes') ;
+            testCase.verifyEqual(axesControl.XLabel.Interpreter, 'latex') ;
+            testCase.verifyEqual(axesControl.YLabel.Interpreter, 'latex') ;
+            testCase.verifyEqual(axesControl.Title.Interpreter, 'latex') ;
+            testCase.verifyEqual(testCase.control('ConvDiagnostics').Interpreter, 'latex') ;
         end
 
         function topicExampleOneUsesAddedTableRows(testCase)
@@ -113,6 +125,10 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             testCase.verifyEqual(result(:, 1).', 2:10, 'AbsTol', 1e-12) ;
             testCase.verifyEqual(result(:, 2).', ...
                 [0 0 .4 4.2 5.1 4.4 2.1 0 0], 'AbsTol', 1e-12) ;
+            resultsText = testCase.control('ConvDiagnostics').Text ;
+            testCase.verifySubstring(resultsText, ...
+                '[0,\;0,\;0.4,\;4.2,\;5.1,\;4.4,\;2.1,\;0,\;0]') ;
+            testCase.verifySubstring(resultsText, '\mathrm{mol/m^3}') ;
         end
 
         function excelImportMatchesRTDAnalysisAndStoresNumbers(testCase)
@@ -156,7 +172,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             testCase.control('ConvTauE').Value = 5 ;
             testCase.press(testCase.control('ConvCompute')) ;
             lines = findall(testCase.control('ConvAxes'), 'Type', 'Line') ;
-            eLine = lines(strcmp({lines.DisplayName}, 'E')) ;
+            eLine = lines(strcmp({lines.DisplayName}, '$E(t)$')) ;
             expected = nirp.conv.fromRTD(RTD.ideal_cstr(5), 1) ;
             testCase.verifyEqual(eLine.YData, expected.C, 'AbsTol', 1e-12) ;
 
@@ -170,7 +186,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             testCase.setDropdown('ConvSourceE', 'RTD from tab 1') ;
             testCase.press(testCase.control('ConvCompute')) ;
             lines = findall(testCase.control('ConvAxes'), 'Type', 'Line') ;
-            eLine = lines(strcmp({lines.DisplayName}, 'E')) ;
+            eLine = lines(strcmp({lines.DisplayName}, '$E(t)$')) ;
             expected = nirp.conv.fromRTD(expectedRTD, 1) ;
             testCase.verifyEqual(eLine.XData, expected.t, 'AbsTol', 1e-12) ;
             testCase.verifyEqual(eLine.YData, expected.C, 'AbsTol', 1e-12) ;
@@ -185,6 +201,9 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             testCase.verifyEqual(result(:, 1).', 4:9, 'AbsTol', 1e-12) ;
             testCase.verifyEqual(result(:, 2).', [1.79 2.33 2.58 0 1.24 0], ...
                 'AbsTol', 2e-2) ;
+            testCase.verifySubstring(testCase.control('ConvDiagnostics').Text, '\|r\|_2') ;
+            testCase.verifyEqual(char(testCase.control('ConvVerificationAxes').Visible), 'on') ;
+            testCase.verifyEqual(char(testCase.control('ConvUseAsRTD').Enable), 'on') ;
             testCase.press(testCase.control('ConvUseAsRTD')) ;
             saved = fullfile(testCase.Folder, 'deconvolved.mat') ;
             testCase.App.saveSessionToFile(saved, 'deconvolved') ;
@@ -195,26 +214,39 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
                 'AbsTol', 1e-12) ;
         end
 
+        function seriesCompositionHasDedicatedResults(testCase)
+            testCase.selectMode('Series composition') ;
+            testCase.control('ConvTableE1').Data = [0 0; 1 1; 2 0] ;
+            testCase.control('ConvTableE2').Data = [0 0; 1 1; 2 0] ;
+
+            testCase.press(testCase.control('ConvCompute')) ;
+
+            resultTable = testCase.control('ConvResultTable') ;
+            testCase.verifyEqual(resultTable.ColumnName{2}, 'E₁₂(t) [1/s]') ;
+            testCase.verifySubstring(testCase.control('ConvDiagnostics').Text, ...
+                '\tau_{12}') ;
+            testCase.verifySubstring(testCase.control('ConvDiagnostics').Text, ...
+                '\sigma_{12}^2') ;
+            lines = findall(testCase.control('ConvAxes'), 'Type', 'Line') ;
+            testCase.verifyEqual(sort(string({lines.DisplayName})), ...
+                sort(["$E_1(t)$", "$E_2(t)$", "$E_{12}(t)$"])) ;
+        end
+
         function momentsUseSelectedTimeUnit(testCase)
             testCase.configureCourseDeconvolution('min') ;
             testCase.press(testCase.control('ConvCompute')) ;
 
             minuteTable = testCase.control('ConvMomentsTable') ;
             testCase.verifyEqual(minuteTable.ColumnName(:), ...
-                {'Signal'; 'Trapezoidal area'; 'Mean [min]'; 'Variance [min^2]'}) ;
+                {'Signal'; 'Area'; 'τ [min]'; 'σ² [min²]'}) ;
             minuteData = minuteTable.Data ;
-            minuteCin = minuteData(strcmp(minuteData(:, 1), 'Input'), 2:4) ;
-            minuteE = minuteData(strcmp(minuteData(:, 1), 'E'), 2:4) ;
+            minuteE = minuteData(strcmp(minuteData(:, 1), 'Estimated E'), 2:4) ;
             tCin = (0:4) * 60 ;
             cin = nirp.conv.signal(tCin, (0:4) .* exp(-(0:4) / 2)) ;
             cout = nirp.conv.signal((4:13) * 60, ...
                 [.9 1.8 2.1 5.2 3.6 4.5 1.7 .8 .7 .5]) ;
             [expectedE, expectedInfo] = nirp.conv.deconvolve(cin, cout) ;
-            cinMoments = nirp.conv.moments(cin) ;
             eMoments = nirp.conv.moments(expectedE) ;
-            testCase.verifyEqual([minuteCin{:}], ...
-                [cinMoments.area / 60, cinMoments.mean / 60, ...
-                cinMoments.variance / 60^2], 'RelTol', 1e-12) ;
             testCase.verifyEqual([minuteE{:}], ...
                 [eMoments.area, eMoments.mean / 60, eMoments.variance / 60^2], ...
                 'RelTol', 1e-12) ;
@@ -222,7 +254,9 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             minuteDiagnostics = testCase.control('ConvDiagnostics').Text ;
             expectedDisplayedArea = nirp.conv.moments(expectedE) ;
             testCase.verifySubstring(minuteDiagnostics, ...
-                sprintf('Trapezoidal area of E: %.6g', expectedDisplayedArea.area)) ;
+                sprintf('A_E=%.6g', expectedDisplayedArea.area)) ;
+            testCase.verifySubstring(minuteDiagnostics, '\sigma_\theta^2') ;
+            testCase.verifySubstring(minuteDiagnostics, 'WARNING') ;
             testCase.verifyNotEqual(expectedInfo.areaE, expectedDisplayedArea.area, ...
                 'The fixture must distinguish rectangular and trapezoidal areas.') ;
 
@@ -231,17 +265,13 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
 
             secondTable = testCase.control('ConvMomentsTable') ;
             testCase.verifyEqual(secondTable.ColumnName(:), ...
-                {'Signal'; 'Trapezoidal area'; 'Mean [s]'; 'Variance [s^2]'}) ;
+                {'Signal'; 'Area'; 'τ [s]'; 'σ² [s²]'}) ;
             secondData = secondTable.Data ;
-            secondCin = secondData(strcmp(secondData(:, 1), 'Input'), 2:4) ;
-            secondE = secondData(strcmp(secondData(:, 1), 'E'), 2:4) ;
-            testCase.verifyEqual(secondCin{1}, minuteCin{1} * 60, 'RelTol', 1e-12) ;
-            testCase.verifyEqual(secondCin{2}, minuteCin{2} * 60, 'RelTol', 1e-12) ;
-            testCase.verifyEqual(secondCin{3}, minuteCin{3} * 60^2, 'RelTol', 1e-12) ;
+            secondE = secondData(strcmp(secondData(:, 1), 'Estimated E'), 2:4) ;
             testCase.verifyEqual(secondE{1}, minuteE{1}, 'RelTol', 1e-12) ;
             testCase.verifyEqual(secondE{2}, minuteE{2} * 60, 'RelTol', 1e-12) ;
             testCase.verifyEqual(secondE{3}, minuteE{3} * 60^2, 'RelTol', 1e-12) ;
-            testCase.verifyEqual(testCase.control('ConvDiagnostics').Text, ...
+            testCase.verifyNotEqual(testCase.control('ConvDiagnostics').Text, ...
                 minuteDiagnostics) ;
         end
 
