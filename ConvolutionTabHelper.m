@@ -28,6 +28,7 @@ classdef ConvolutionTabHelper < handle
         ResultTable
         MomentsTable
         ResultsPanel
+        ResultsDescription
         ResultLabels = {}
         ResultValues = {}
         DiagnosticsLabel
@@ -248,19 +249,30 @@ classdef ConvolutionTabHelper < handle
                 'Tooltip', 'Trapezoidal area, mean time, and variance for each displayed signal.') ;
             obj.ResultsPanel = uipanel(obj.ResultsGrid, 'Title', 'Results', ...
                 'Tag', 'ConvResultsPanel') ;
-            results = uigridlayout(obj.ResultsPanel, [8 2], ...
-                'ColumnWidth', {235, '1x'}, ...
-                'RowHeight', repmat({20}, 1, 8), ...
-                'RowSpacing', 1, 'Padding', [6 3 6 3], ...
+            results = uigridlayout(obj.ResultsPanel, [4 6], ...
+                'ColumnWidth', {'fit', '1x', 'fit', '1x', 'fit', '1x'}, ...
+                'RowHeight', {34, 20, 20, 0}, ...
+                'RowSpacing', 2, 'ColumnSpacing', 5, 'Padding', [6 3 6 3], ...
+                'Scrollable', 'off', ...
                 'Tag', 'ConvResultsRows') ;
+            obj.ResultsDescription = uilabel(results, 'Text', '', ...
+                'Interpreter', 'latex', 'WordWrap', 'on', ...
+                'Tag', 'ConvResultsDescription') ;
+            obj.ResultsDescription.Layout.Row = 1 ;
+            obj.ResultsDescription.Layout.Column = [1 6] ;
             for k = 1:7
                 label = uilabel(results, 'Text', '', 'Interpreter', 'latex', ...
                     'HorizontalAlignment', 'right', ...
                     'Tag', sprintf('ConvResultLabel%d', k)) ;
                 value = uilabel(results, 'Text', '', 'Interpreter', 'latex', ...
                     'Tag', sprintf('ConvResultValue%d', k)) ;
-                label.Layout.Row = k ; label.Layout.Column = 1 ;
-                value.Layout.Row = k ; value.Layout.Column = 2 ;
+                initialIndex = min(k, 6) ;
+                initialRow = 1 + ceil(initialIndex / 3) ;
+                initialColumn = 1 + 2 * mod(initialIndex - 1, 3) ;
+                label.Layout.Row = initialRow ;
+                label.Layout.Column = initialColumn ;
+                value.Layout.Row = initialRow ;
+                value.Layout.Column = initialColumn + 1 ;
                 obj.ResultLabels{k} = label ;
                 obj.ResultValues{k} = value ;
             end
@@ -268,8 +280,8 @@ classdef ConvolutionTabHelper < handle
                 'Interpreter', 'latex', 'FontColor', [0.75 0.1 0.1], ...
                 'WordWrap', 'on', 'Tag', 'ConvDiagnostics', ...
                 'Tooltip', 'Warning shown when the estimated RTD area differs materially from one.') ;
-            obj.DiagnosticsLabel.Layout.Row = 8 ;
-            obj.DiagnosticsLabel.Layout.Column = [1 2] ;
+            obj.DiagnosticsLabel.Layout.Row = 4 ;
+            obj.DiagnosticsLabel.Layout.Column = [1 6] ;
             obj.modeChanged() ;
         end
 
@@ -403,6 +415,7 @@ classdef ConvolutionTabHelper < handle
             end
             obj.SignalTabs.SelectedTab = obj.Signals.(visibleNames{1}).Tab ;
             obj.configureResultLayout(mode) ;
+            obj.ResultsDescription.Text = obj.resultDescription(mode) ;
             obj.UseRTDButton.Visible = obj.onOff(strcmp(mode, 'Deconvolution')) ;
             obj.UseRTDButton.Enable = obj.onOff(strcmp(mode, 'Deconvolution') && ...
                 isstruct(obj.LastResult) && isfield(obj.LastResult, 't')) ;
@@ -875,24 +888,29 @@ classdef ConvolutionTabHelper < handle
         function configureResultLayout(obj, mode)
             obj.VerificationAxes.Visible = obj.onOff(strcmp(mode, 'Deconvolution')) ;
             if strcmp(mode, 'Deconvolution')
-                obj.ResultsGrid.RowHeight = {'1x', '1x', '0.7x', 70, 206} ;
+                obj.ResultsGrid.RowHeight = {'1x', '1x', '0.7x', 70, 156} ;
             else
-                obj.ResultsGrid.RowHeight = {'2x', 0, '1x', 104, 126} ;
+                obj.ResultsGrid.RowHeight = {'2x', 0, '1x', 104, 156} ;
             end
         end
 
         function setResultRows(obj, labels, values, warningText)
             if nargin < 4, warningText = '' ; end
             grid = obj.ResultLabels{1}.Parent ;
-            rowHeights = repmat({0}, 1, 8) ;
+            pairRows = max(1, ceil(numel(labels) / 3)) ;
             for k = 1:numel(obj.ResultLabels)
                 visible = k <= numel(labels) ;
                 obj.ResultLabels{k}.Visible = obj.onOff(visible) ;
                 obj.ResultValues{k}.Visible = obj.onOff(visible) ;
                 if visible
                     obj.ResultLabels{k}.Text = labels{k} ;
-                    obj.ResultValues{k}.Text = values{k} ;
-                    rowHeights{k} = 19 ;
+                    obj.ResultValues{k}.Text = ['$=\;' values{k}(2:end)] ;
+                    pairRow = 1 + ceil(k / 3) ;
+                    pairColumn = 1 + 2 * mod(k - 1, 3) ;
+                    obj.ResultLabels{k}.Layout.Row = pairRow ;
+                    obj.ResultLabels{k}.Layout.Column = pairColumn ;
+                    obj.ResultValues{k}.Layout.Row = pairRow ;
+                    obj.ResultValues{k}.Layout.Column = pairColumn + 1 ;
                 else
                     obj.ResultLabels{k}.Text = '' ;
                     obj.ResultValues{k}.Text = '' ;
@@ -901,8 +919,28 @@ classdef ConvolutionTabHelper < handle
             hasWarning = ~isempty(warningText) ;
             obj.DiagnosticsLabel.Text = warningText ;
             obj.DiagnosticsLabel.Visible = obj.onOff(hasWarning) ;
-            if hasWarning, rowHeights{8} = 42 ; end
-            grid.RowHeight = rowHeights ;
+            grid.RowHeight = [{34}, repmat({20}, 1, pairRows), ...
+                repmat({0}, 1, 2 - pairRows), {0}] ;
+            if hasWarning, grid.RowHeight{4} = 36 ; end
+        end
+
+        function text = resultDescription(~, mode)
+            if strcmp(mode, 'Convolution')
+                text = ['$\mathrm{Areas\ check\ the\ tracer\ balance}\ ' ...
+                    '(A_{\mathrm{out}}=A_{\mathrm{in}}A_E);\ ' ...
+                    '\bar{t}_{\mathrm{out}}=\bar{t}_{\mathrm{in}}+\tau_E\ ' ...
+                    '\mathrm{and}\ \sigma_{\mathrm{out}}^2=' ...
+                    '\sigma_{\mathrm{in}}^2+\sigma_E^2\ ' ...
+                    '\mathrm{verify\ the\ result.}$'] ;
+            elseif strcmp(mode, 'Deconvolution')
+                text = ['$A_E\ \mathrm{is\ area,}\ \tau\ \mathrm{is\ mean\ time,}\ ' ...
+                    '\sigma^2\ \mathrm{is\ variance,\ and}\ \sigma_\theta^2\ ' ...
+                    '\mathrm{is\ dimensionless\ variance;}\ ' ...
+                    '\mathrm{the\ relative\ residual\ checks\ reconvolution.}$'] ;
+            else
+                text = ['$E_{12}=E_1*E_2;\ \tau_{12}=\tau_1+\tau_2\ ' ...
+                    '\mathrm{and}\ \sigma_{12}^2=\sigma_1^2+\sigma_2^2.$'] ;
+            end
         end
 
         function value = relativeResidual(obj)

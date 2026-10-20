@@ -118,6 +118,27 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             testCase.verifyEqual(axesControl.YLabel.Interpreter, 'latex') ;
             testCase.verifyEqual(axesControl.Title.Interpreter, 'latex') ;
             testCase.verifyEqual(testCase.control('ConvDiagnostics').Interpreter, 'latex') ;
+            testCase.verifyEqual(testCase.control('ConvResultsDescription').Interpreter, 'latex') ;
+        end
+
+        function resultsAreHorizontalVisibleAndDescribedInEveryMode(testCase)
+            testCase.Figure.Position = [100 100 1200 750] ;
+            testCase.control('ConvTableCin').Data = [0 0; 1 1; 2 0] ;
+            testCase.control('ConvTableE').Data = [0 0; 1 1; 2 0] ;
+            testCase.press(testCase.control('ConvCompute')) ;
+            testCase.verifyResultGeometry(6, 'tracer\ balance') ;
+
+            testCase.selectMode('Deconvolution') ;
+            testCase.control('ConvTableCin').Data = [0 0; 1 1; 2 0] ;
+            testCase.control('ConvTableCout').Data = [0 0; 1 1; 2 0] ;
+            testCase.press(testCase.control('ConvCompute')) ;
+            testCase.verifyResultGeometry(5, 'estimated\ RTD') ;
+
+            testCase.selectMode('Series composition') ;
+            testCase.control('ConvTableE1').Data = [0 0; 1 1; 2 0] ;
+            testCase.control('ConvTableE2').Data = [0 0; 1 1; 2 0] ;
+            testCase.press(testCase.control('ConvCompute')) ;
+            testCase.verifyResultGeometry(4, 'E_{12}=E_1*E_2') ;
         end
 
         function functionIsTheOnlyExpressionSource(testCase)
@@ -616,6 +637,33 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
     end
 
     methods (Access = private)
+        function verifyResultGeometry(testCase, count, descriptionText)
+            drawnow ;
+            panel = testCase.control('ConvResultsPanel') ;
+            grid = testCase.control('ConvResultsRows') ;
+            testCase.verifySubstring(testCase.control( ...
+                'ConvResultsDescription').Text, descriptionText) ;
+            testCase.verifyLessThanOrEqual(count, 6) ;
+            for k = 1:count
+                label = testCase.control(sprintf('ConvResultLabel%d', k)) ;
+                value = testCase.control(sprintf('ConvResultValue%d', k)) ;
+                testCase.verifyEqual(char(label.Visible), 'on') ;
+                testCase.verifyEqual(char(value.Visible), 'on') ;
+                testCase.verifyGreaterThanOrEqual(label.Position(1:2), [0 0]) ;
+                testCase.verifyGreaterThanOrEqual(value.Position(1:2), [0 0]) ;
+                testCase.verifyLessThanOrEqual(label.Position(1) + label.Position(3), ...
+                    grid.Position(3) + 1) ;
+                testCase.verifyLessThanOrEqual(value.Position(1) + value.Position(3), ...
+                    grid.Position(3) + 1) ;
+                testCase.verifyLessThanOrEqual(label.Position(2) + label.Position(4), ...
+                    grid.Position(4) + 1) ;
+                testCase.verifyLessThanOrEqual(value.Position(2) + value.Position(4), ...
+                    grid.Position(4) + 1) ;
+            end
+            testCase.verifyLessThanOrEqual(grid.Position(3), panel.Position(3) + 1) ;
+            testCase.verifyLessThanOrEqual(grid.Position(4), panel.Position(4) + 1) ;
+        end
+
         function value = control(testCase, tag)
             values = findall(testCase.Figure, 'Tag', tag) ;
             testCase.assertNumElements(values, 1, ['Missing control: ' tag]) ;
