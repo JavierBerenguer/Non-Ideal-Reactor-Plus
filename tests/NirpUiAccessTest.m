@@ -108,6 +108,18 @@ classdef (SharedTestFixtures={nirptest.ExamplesFixture}) ...
             testCase.verifyEqual(string({tools.Children.Text}),"Unit Converter") ;
         end
 
+        function fileMenuUsesEnglishActionNames(testCase)
+            app = NonIdealReactorApp() ;
+            figureHandle = findall(groot,'Type','Figure', ...
+                'Name','Non-Ideal Reactor Analysis') ;
+            set(figureHandle,'Visible','off') ;
+            testCase.addTeardown(@() deleteIfValid(app)) ;
+            fileMenu = findall(figureHandle(1),'Type','uimenu','Text','File') ;
+            testCase.assertNumElements(fileMenu,1) ;
+            testCase.verifyEqual(string({fileMenu.Children.Text}), ...
+                ["Exit" "Restart" "Load" "Save" "New"]) ;
+        end
+
         function missingFeedMessageListsValidFeeds(testCase)
             load_system(char(testCase.Files(1))) ;
             set_param('ex1_cstr_isothermal/F1','NameChangeFcn','') ;

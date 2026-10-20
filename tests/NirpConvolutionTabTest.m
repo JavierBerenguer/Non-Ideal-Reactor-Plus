@@ -126,13 +126,13 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             testCase.control('ConvTableCin').Data = [0 0; 1 1; 2 0] ;
             testCase.control('ConvTableE').Data = [0 0; 1 1; 2 0] ;
             testCase.press(testCase.control('ConvCompute')) ;
-            testCase.verifyResultGeometry(6, 'tracer\ balance') ;
+            testCase.verifyResultGeometry(2, 'tracer\ balance') ;
 
             testCase.selectMode('Deconvolution') ;
             testCase.control('ConvTableCin').Data = [0 0; 1 1; 2 0] ;
             testCase.control('ConvTableCout').Data = [0 0; 1 1; 2 0] ;
             testCase.press(testCase.control('ConvCompute')) ;
-            testCase.verifyResultGeometry(5, 'estimated\ RTD') ;
+            testCase.verifyResultGeometry(5, 'relative\ residual') ;
 
             testCase.selectMode('Series composition') ;
             testCase.control('ConvTableE1').Data = [0 0; 1 1; 2 0] ;
@@ -240,22 +240,15 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             testCase.verifyEqual(result(:, 1).', 2:10, 'AbsTol', 1e-12) ;
             testCase.verifyEqual(result(:, 2).', ...
                 [0 0 .4 4.2 5.1 4.4 2.1 0 0], 'AbsTol', 1e-12) ;
-            resultLabels = strings(1, 7) ;
-            resultValues = strings(1, 7) ;
-            for k = 1:7
-                resultLabels(k) = string(testCase.control( ...
-                    sprintf('ConvResultLabel%d', k)).Text) ;
-                resultValues(k) = string(testCase.control( ...
-                    sprintf('ConvResultValue%d', k)).Text) ;
-            end
-            testCase.verifyFalse(any(contains(resultLabels, ...
-                'C_{\mathrm{out}}(t)'))) ;
-            testCase.verifyFalse(any(contains(resultValues, '['))) ;
-            testCase.verifyEqual(resultLabels(1:6), ...
-                ["$A_{C_{\mathrm{in}}}$" "$A_E$" "$A_{C_{\mathrm{out}}}$" ...
-                "$\bar{t}_{\mathrm{out}}$" "$\sigma_{\mathrm{out}}^2$" ...
-                "$m_{\mathrm{out}}/(m_{\mathrm{in}}A_E)$"]) ;
-            testCase.verifyEqual(char(testCase.control('ConvResultLabel7').Visible), ...
+            testCase.verifyEqual(testCase.control('ConvResultLabel1').Text, ...
+                '$C_{\mathrm{out}}(t)$') ;
+            resultsText = testCase.control('ConvResultValue1').Text ;
+            testCase.verifySubstring(resultsText, ...
+                '[0,\;0,\;0.4,\;4.2,\;5.1,\;4.4,\;2.1,\;0,\;0]') ;
+            testCase.verifySubstring(resultsText, '\mathrm{mol/m^3}') ;
+            testCase.verifyEqual(testCase.control('ConvResultLabel2').Text, ...
+                '$m_{\mathrm{out}}/(m_{\mathrm{in}}A_E)$') ;
+            testCase.verifyEqual(char(testCase.control('ConvResultLabel3').Visible), ...
                 'off') ;
             testCase.verifyEqual(testCase.control('ConvResultTable').ColumnName{2}, ...
                 'Cₒᵤₜ(t) [mol/m^3]') ;
