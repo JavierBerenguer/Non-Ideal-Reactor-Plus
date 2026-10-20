@@ -339,6 +339,37 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
                 'AbsTol', 1e-12) ;
         end
 
+        function sec02SessionWithTruncatedOutletWindowComputes(testCase)
+            testCase.configureSec02Deconvolution() ;
+            saved = fullfile(testCase.Folder, 'SEC02-sanitized.mat') ;
+            testCase.App.saveSessionToFile(saved, 'SEC02-sanitized') ;
+            testCase.control('ConvFunctionTableCin').Data = cell(3, 3) ;
+            testCase.control('ConvTableCout').Data = cell(3, 2) ;
+
+            testCase.App.loadSessionFromFile(saved) ;
+            testCase.verifyEqual(testCase.control('ConvSourceCin').Value, 'Function') ;
+            testCase.verifyEqual(testCase.control('ConvFunctionTableCin').Data, ...
+                {'4' '13' 't.*exp(-t/2)'}) ;
+            testCase.press(testCase.control('ConvCompute')) ;
+
+            result = testCase.control('ConvResultTable').Data ;
+            testCase.verifyEqual(result(:, 1).', 0:9, 'AbsTol', 1e-12) ;
+            testCase.verifyEqual(result(:, 2).', ...
+                [1.6681 2.0727 1.4144 6.5749 0 1.0635 0 0 0 0], ...
+                'AbsTol', 5e-4) ;
+        end
+
+        function sec02InputsEnteredDirectlyCompute(testCase)
+            testCase.configureSec02Deconvolution() ;
+
+            testCase.press(testCase.control('ConvCompute')) ;
+
+            result = testCase.control('ConvResultTable').Data ;
+            testCase.verifySize(result, [10 2]) ;
+            testCase.verifyEqual(result(:, 1).', 0:9, 'AbsTol', 1e-12) ;
+            testCase.verifyEqual(testCase.control('ConvResultLabel5').Text, '$\|r\|_2$') ;
+        end
+
         function seriesCompositionHasDedicatedResults(testCase)
             testCase.selectMode('Series composition') ;
             testCase.control('ConvTableE1').Data = [0 0; 1 1; 2 0] ;
@@ -601,6 +632,16 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
                     {0 240 '(t/60).*exp(-(t/60)/2)'} ;
                 testCase.control('ConvTableCout').Data = [(240:60:780).', output] ;
             end
+        end
+
+        function configureSec02Deconvolution(testCase)
+            testCase.selectMode('Deconvolution') ;
+            testCase.setDropdown('ConvSourceCin', 'Function') ;
+            testCase.control('ConvFunctionTableCin').Data = ...
+                {'4' '13' 't.*exp(-t/2)'} ;
+            testCase.control('ConvTableCout').Data = num2cell([(4:13).' ...
+                [.9 1.8 2.1 5.2 3.6 4.5 1.7 .8 .7 .5].']) ;
+            testCase.control('ConvDt').Value = 0 ;
         end
 
     end

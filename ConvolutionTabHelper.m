@@ -456,6 +456,13 @@ classdef ConvolutionTabHelper < handle
                     [obj.LastResult, obj.LastInfo] = nirp.conv.convolve(signals.E, signals.Cin) ;
                 elseif strcmp(mode, 'Deconvolution')
                     nE = numel(signals.Cout.C) - numel(signals.Cin.C) + 1 ;
+                    if nE < 2
+                        % Equal or overlapping acquisition windows contain a
+                        % truncated outlet response rather than the complete
+                        % convolution tail. Estimate every observable causal
+                        % lag instead of passing a one-point RTD downstream.
+                        nE = numel(signals.Cout.C) ;
+                    end
                     [obj.LastResult, obj.LastInfo] = nirp.conv.deconvolve( ...
                         signals.Cin, signals.Cout, nE) ;
                     signals.E = obj.LastResult ;
