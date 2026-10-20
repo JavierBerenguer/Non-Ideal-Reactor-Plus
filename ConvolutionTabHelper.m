@@ -53,7 +53,8 @@ classdef ConvolutionTabHelper < handle
                 'outputTimeUnit', obj.OutputTimeUnit.Value, ...
                 'outputConcentrationUnit', obj.OutputConcentrationUnit.Value, ...
                 'signals', struct(), 'lastSignals', obj.LastSignals, ...
-                'lastResult', obj.LastResult, 'lastInfo', obj.LastInfo) ;
+                'lastResult', obj.LastResult, ...
+                'lastInfo', obj.portableInfo()) ;
             names = obj.activeSignalNames(obj.ModeGroup.SelectedObject.Text) ;
             for k = 1:numel(names)
                 ui = obj.Signals.(names{k}) ;
@@ -248,7 +249,7 @@ classdef ConvolutionTabHelper < handle
             obj.ResultsPanel = uipanel(obj.ResultsGrid, 'Title', 'Results', ...
                 'Tag', 'ConvResultsPanel') ;
             results = uigridlayout(obj.ResultsPanel, [8 2], ...
-                'ColumnWidth', {175, '1x'}, ...
+                'ColumnWidth', {235, '1x'}, ...
                 'RowHeight', repmat({20}, 1, 8), ...
                 'RowSpacing', 1, 'Padding', [6 3 6 3], ...
                 'Tag', 'ConvResultsRows') ;
@@ -456,6 +457,7 @@ classdef ConvolutionTabHelper < handle
                     [obj.LastResult, obj.LastInfo] = nirp.conv.convolve(signals.E, signals.Cin) ;
                 elseif strcmp(mode, 'Deconvolution')
                     nE = numel(signals.Cout.C) - numel(signals.Cin.C) + 1 ;
+                    truncatedWindow = nE < 2 ;
                     if nE < 2
                         % Equal or overlapping acquisition windows contain a
                         % truncated outlet response rather than the complete
@@ -465,6 +467,9 @@ classdef ConvolutionTabHelper < handle
                     end
                     [obj.LastResult, obj.LastInfo] = nirp.conv.deconvolve( ...
                         signals.Cin, signals.Cout, nE) ;
+                    obj.LastInfo.truncatedWindow = truncatedWindow ;
+                    obj.LastInfo.relativeResidual = obj.LastInfo.residualNorm / ...
+                        max(norm(signals.Cout.C), eps) ;
                     signals.E = obj.LastResult ;
                     signals.Reconvolved = obj.LastInfo.reconvolved ;
                 else
@@ -479,14 +484,20 @@ classdef ConvolutionTabHelper < handle
                 obj.LastSignals = signals ;
                 obj.showResults() ;
                 if usedDefaultStep
-                    obj.SetStatus(sprintf( ...
+                    status = sprintf( ...
                         'Ready - automatic default dt = %.6g s (200 intervals over the Function domain).', ...
-                        dt)) ;
+                        dt) ;
                 elseif wasResampled
-                    obj.SetStatus(sprintf('Ready - signals resampled to dt = %.6g s.', dt)) ;
+                    status = sprintf('Ready - signals resampled to dt = %.6g s.', dt) ;
                 else
-                    obj.SetStatus(sprintf('Ready - common dt = %.6g s.', dt)) ;
+                    status = sprintf('Ready - common dt = %.6g s.', dt) ;
                 end
+                if strcmp(mode, 'Deconvolution') && ...
+                        obj.getField(obj.LastInfo, 'truncatedWindow', false)
+                    status = [status ' Output treated as a truncated window: ' ...
+                        'E is estimated assuming no tracer entered before the first C_in sample.'] ;
+                end
+                obj.SetStatus(status) ;
             catch exception
                 obj.SetStatus(['Convolution error: ' exception.message]) ;
                 ancestorFigure = ancestor(obj.Tab, 'figure') ;
@@ -690,28 +701,29 @@ classdef ConvolutionTabHelper < handle
                 momentRows = obj.momentRows({'Estimated E'}, {result}, true, ...
                     timeScale, concentrationScale) ;
                 moments = nirp.conv.moments(result) ;
-                relativeResidual = obj.LastInfo.residualNorm / ...
-                    max(norm(obj.LastSignals.Cout.C), eps) ;
+                relativeResidual = obj.relativeResidual() ;
                 sigmaTheta = moments.variance / max(moments.mean^2, eps) ;
-                warningText = '' ;
+                warnings = {} ;
                 if abs(moments.area - 1) > 0.01
-                    warningText = ['$\mathbf{Warning:}\ A_E\ne1;\ ' ...
-                        '\mathrm{the\ estimated\ RTD\ is\ not\ normalized.}$'] ;
+                    warnings{end + 1} = ['$\mathbf{Warning:}\ A_E\ne1;\ ' ...
+                        '\mathrm{the\ estimated\ RTD\ is\ not\ normalized.}$'] ; %#ok<AGROW>
+                end
+                if obj.getField(obj.LastInfo, 'truncatedWindow', false)
+                    warnings{end + 1} = ['$\mathbf{Truncated\ window:}\ ' ...
+                        '\mathrm{E\ is\ estimated\ assuming\ no\ tracer\ entered\ ' ...
+                        'before\ the\ first\ C_{in}\ sample.}$'] ; %#ok<AGROW>
                 end
                 obj.setResultRows({ ...
                     '$A_E$', '$\tau$', '$\sigma^2$', '$\sigma_\theta^2$', ...
-                    '$\|r\|_2$', '$\|r\|_2/\|C_{\mathrm{out}}\|_2$', ...
-                    '$m_{\mathrm{out}}/m_{\mathrm{in}}$'}, { ...
+                    '$\mathrm{Relative\ reconvolution\ residual}$'}, { ...
                     ['$' sprintf('%.6g', moments.area) '$'], ...
                     ['$' sprintf('%.6g', moments.mean / timeScale) ...
                     '\;\mathrm{' obj.latexUnit(timeUnit) '}$'], ...
                     ['$' sprintf('%.6g', moments.variance / timeScale^2) ...
                     '\;\mathrm{' obj.latexUnit(timeUnit) '^2}$'], ...
                     ['$' sprintf('%.6g', sigmaTheta) '$'], ...
-                    ['$' sprintf('%.6g', obj.LastInfo.residualNorm) '$'], ...
-                    ['$' sprintf('%.6g', relativeResidual) '$'], ...
-                    ['$' sprintf('%.6g', obj.LastInfo.massBalance) '$']}, ...
-                    warningText) ;
+                    ['$' sprintf('%.6g', relativeResidual) '$']}, ...
+                    strjoin(warnings, newline)) ;
             else
                 hold(obj.Axes, 'on') ;
                 firstLine = obj.plotSignal(obj.Axes, obj.LastSignals.E1, true, ...
@@ -764,7 +776,7 @@ classdef ConvolutionTabHelper < handle
         function export(obj)
             exported = obj.LastSignals ;
             exported.result = obj.LastResult ;
-            exported.info = obj.LastInfo ;
+            exported.info = obj.portableInfo() ;
             exported.mode = obj.ModeGroup.SelectedObject.Text ;
             exported.units = struct('time', obj.OutputTimeUnit.Value, ...
                 'concentration', obj.OutputConcentrationUnit.Value) ;
@@ -878,8 +890,26 @@ classdef ConvolutionTabHelper < handle
             hasWarning = ~isempty(warningText) ;
             obj.DiagnosticsLabel.Text = warningText ;
             obj.DiagnosticsLabel.Visible = obj.onOff(hasWarning) ;
-            if hasWarning, rowHeights{8} = 22 ; end
+            if hasWarning, rowHeights{8} = 42 ; end
             grid.RowHeight = rowHeights ;
+        end
+
+        function value = relativeResidual(obj)
+            value = obj.getField(obj.LastInfo, 'relativeResidual', []) ;
+            if ~isempty(value), return, end
+            residual = obj.getField(obj.LastInfo, 'residual', []) ;
+            value = norm(residual) / max(norm(obj.LastSignals.Cout.C), eps) ;
+        end
+
+        function info = portableInfo(obj)
+            info = obj.LastInfo ;
+            if ~strcmp(obj.ModeGroup.SelectedObject.Text, 'Deconvolution') || ...
+                    ~isstruct(info) || isempty(fieldnames(info))
+                return
+            end
+            info.relativeResidual = obj.relativeResidual() ;
+            obsolete = intersect(fieldnames(info), {'residualNorm'; 'massBalance'}) ;
+            if ~isempty(obsolete), info = rmfield(info, obsolete) ; end
         end
 
         function line = plotSignal(~, axesControl, signal, isRTD, timeScale, ...

@@ -320,8 +320,13 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
                 'AbsTol', 2e-2) ;
             testCase.verifyEqual(testCase.control('ConvResultTable').ColumnName{2}, ...
                 'Ê(t) [min⁻¹]') ;
-            testCase.verifyEqual(testCase.control('ConvResultLabel5').Text, '$\|r\|_2$') ;
+            testCase.verifyEqual(testCase.control('ConvResultLabel5').Text, ...
+                '$\mathrm{Relative\ reconvolution\ residual}$') ;
             testCase.verifyNotEmpty(testCase.control('ConvResultValue5').Text) ;
+            testCase.verifyEqual(char(testCase.control('ConvResultLabel6').Visible), 'off') ;
+            testCase.verifyEqual(char(testCase.control('ConvResultLabel7').Visible), 'off') ;
+            testCase.verifyFalse(contains(testCase.control('ConvDiagnostics').Text, ...
+                'Truncated')) ;
             testCase.verifyEqual(char(testCase.control('ConvDiagnostics').Visible), 'on') ;
             testCase.verifyEqual(char(testCase.control('ConvVerificationAxes').Visible), 'on') ;
             testCase.verifyEqual(char(testCase.control('ConvUseAsRTD').Enable), 'on') ;
@@ -357,6 +362,11 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             testCase.verifyEqual(result(:, 2).', ...
                 [1.6681 2.0727 1.4144 6.5749 0 1.0635 0 0 0 0], ...
                 'AbsTol', 5e-4) ;
+            testCase.verifySubstring(testCase.control('ConvDiagnostics').Text, ...
+                'Truncated') ;
+            labels = findall(testCase.Figure, 'Type', 'uilabel') ;
+            testCase.verifyTrue(any(contains(string({labels.Text}), ...
+                'Output treated as a truncated window'))) ;
         end
 
         function sec02InputsEnteredDirectlyCompute(testCase)
@@ -367,7 +377,27 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             result = testCase.control('ConvResultTable').Data ;
             testCase.verifySize(result, [10 2]) ;
             testCase.verifyEqual(result(:, 1).', 0:9, 'AbsTol', 1e-12) ;
-            testCase.verifyEqual(testCase.control('ConvResultLabel5').Text, '$\|r\|_2$') ;
+            testCase.verifyEqual(testCase.control('ConvResultLabel5').Text, ...
+                '$\mathrm{Relative\ reconvolution\ residual}$') ;
+            testCase.verifySubstring(testCase.control('ConvDiagnostics').Text, ...
+                'Truncated') ;
+
+            saved = fullfile(testCase.Folder, 'SEC02-results.mat') ;
+            testCase.App.saveSessionToFile(saved, 'SEC02-results') ;
+            session = load(saved, 'sessionData') ;
+            testCase.verifyTrue(session.sessionData.convolution.lastInfo.truncatedWindow) ;
+            testCase.verifyTrue(isfield(session.sessionData.convolution.lastInfo, ...
+                'relativeResidual')) ;
+            testCase.verifyFalse(isfield(session.sessionData.convolution.lastInfo, ...
+                'residualNorm')) ;
+            testCase.verifyFalse(isfield(session.sessionData.convolution.lastInfo, ...
+                'massBalance')) ;
+
+            testCase.press(testCase.control('ConvExport')) ;
+            exported = evalin('base', 'convolutionResult') ;
+            testCase.verifyTrue(isfield(exported.info, 'relativeResidual')) ;
+            testCase.verifyFalse(isfield(exported.info, 'residualNorm')) ;
+            testCase.verifyFalse(isfield(exported.info, 'massBalance')) ;
         end
 
         function seriesCompositionHasDedicatedResults(testCase)
