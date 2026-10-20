@@ -173,6 +173,23 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             testCase.verifyEqual(testCase.control('ConvResultTable').ColumnName{2}, ...
                 'Cₒᵤₜ(t) [mol/m^3]') ;
             testCase.verifyEqual(char(testCase.control('ConvDiagnostics').Visible), 'off') ;
+
+            axesControl = testCase.control('ConvAxes') ;
+            meanLines = findall(axesControl, 'Type', 'ConstantLine') ;
+            testCase.verifyNumElements(meanLines, 3) ;
+            testCase.verifyEqual(sort([meanLines.Value]), ...
+                sort([1.8889 4.3333 6.2222]), 'AbsTol', 5e-5) ;
+            testCase.verifyEqual(string({meanLines.LineStyle}), repmat("--", 1, 3)) ;
+            curves = findall(axesControl, 'Type', 'Line') ;
+            testCase.verifyEqual(sort(vertcat(meanLines.Color), 1), ...
+                sort(vertcat(curves.Color), 1), 'AbsTol', 1e-12) ;
+
+            testCase.choose(testCase.control('ConvOutputTimeUnit'), 'min') ;
+
+            minuteLines = findall(axesControl, 'Type', 'ConstantLine') ;
+            testCase.verifyNumElements(minuteLines, 3) ;
+            testCase.verifyEqual(sort([minuteLines.Value]), ...
+                sort([1.8889 4.3333 6.2222] / 60), 'AbsTol', 1e-6) ;
         end
 
         function excelImportMatchesRTDAnalysisAndStoresNumbers(testCase)
@@ -252,6 +269,10 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             testCase.verifyEqual(char(testCase.control('ConvDiagnostics').Visible), 'on') ;
             testCase.verifyEqual(char(testCase.control('ConvVerificationAxes').Visible), 'on') ;
             testCase.verifyEqual(char(testCase.control('ConvUseAsRTD').Enable), 'on') ;
+            testCase.verifyNumElements(findall(testCase.control('ConvAxes'), ...
+                'Type', 'ConstantLine'), 1) ;
+            testCase.verifyNumElements(findall(testCase.control('ConvVerificationAxes'), ...
+                'Type', 'ConstantLine'), 2) ;
             testCase.press(testCase.control('ConvUseAsRTD')) ;
             saved = fullfile(testCase.Folder, 'deconvolved.mat') ;
             testCase.App.saveSessionToFile(saved, 'deconvolved') ;
@@ -277,6 +298,9 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             lines = findall(testCase.control('ConvAxes'), 'Type', 'Line') ;
             testCase.verifyEqual(sort(string({lines.DisplayName})), ...
                 sort(["$E_1(t)$", "$E_2(t)$", "$E_{12}(t)$"])) ;
+            meanLines = findall(testCase.control('ConvAxes'), 'Type', 'ConstantLine') ;
+            testCase.verifyNumElements(meanLines, 3) ;
+            testCase.verifyEqual(sort([meanLines.Value]), [1 1 2], 'AbsTol', 1e-12) ;
         end
 
         function momentsUseSelectedTimeUnit(testCase)
