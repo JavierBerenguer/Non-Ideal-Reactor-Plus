@@ -2,7 +2,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
     % NirpConvolutionTabTest verifies the app integration of nirp.conv.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 9, 2026. Last update: October 20, 2026
+    % Created: October 9, 2026. Last update: October 21, 2026
     % =========================================================================
 
     properties
@@ -61,6 +61,26 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             tableControl = testCase.control('ConvTableCin') ;
             testCase.verifyEqual(tableControl.Parent.RowHeight{4}, '1x') ;
             testCase.verifyEqual(tableControl.Layout.Row, 4) ;
+        end
+
+        function functionButtonsMatchTablePositionBelowEditor(testCase)
+            tableControl = testCase.control('ConvTableCin') ;
+            addButton = testCase.control('ConvAddRowCin') ;
+            buttonsGrid = addButton.Parent ;
+            testCase.verifyEqual(tableControl.Layout.Row, 4) ;
+            testCase.verifyEqual(buttonsGrid.Layout.Row, 5) ;
+            drawnow ;
+            tableButtonPosition = buttonsGrid.Position ;
+
+            testCase.choose(testCase.control('ConvSourceCin'), 'Function') ;
+            functionTable = testCase.control('ConvFunctionTableCin') ;
+            functionGrid = functionTable.Parent ;
+            drawnow ;
+
+            testCase.verifyEqual(functionGrid.Layout.Row, 4) ;
+            testCase.verifyEqual(buttonsGrid.Layout.Row, 5) ;
+            testCase.verifyEqual(buttonsGrid.Position, tableButtonPosition, 'AbsTol', 1) ;
+            testCase.verifyGreaterThan(functionGrid.Position(2), buttonsGrid.Position(2)) ;
         end
 
         function modeShowsOnlyItsDescriptiveSignalTabs(testCase)
@@ -139,6 +159,39 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             result = testCase.control('ConvResultTable').Data ;
             testCase.verifyEqual(result(:, 1).', 0:4, 'AbsTol', 1e-12) ;
             testCase.verifyEqual(result(:, 2).', [0 0 2 4 0], 'AbsTol', 1e-12) ;
+        end
+
+        function automaticStepUsesTableBeforeBuildingFunction(testCase)
+            testCase.selectMode('Deconvolution') ;
+            testCase.setDropdown('ConvSourceCin', 'Function') ;
+            testCase.control('ConvFunctionTableCin').Data = ...
+                {4 13 't.*exp(-t./2)'} ;
+            testCase.control('ConvTableCout').Data = ...
+                [(4:13).', [.9 1.8 2.1 5.2 3.6 4.5 1.7 .8 .7 .5].'] ;
+            testCase.control('ConvDt').Value = 1 ;
+            testCase.press(testCase.control('ConvCompute')) ;
+            expected = testCase.control('ConvResultTable').Data ;
+
+            testCase.control('ConvDt').Value = 0 ;
+            testCase.press(testCase.control('ConvCompute')) ;
+
+            actual = testCase.control('ConvResultTable').Data ;
+            testCase.verifyEqual(actual, expected, 'AbsTol', 1e-12) ;
+        end
+
+        function automaticStepDefaultsAcrossFunctionDomain(testCase)
+            testCase.setDropdown('ConvSourceCin', 'Function') ;
+            testCase.setDropdown('ConvSourceE', 'Function') ;
+            testCase.control('ConvFunctionTableCin').Data = {0 2 '1'} ;
+            testCase.control('ConvFunctionTableE').Data = {0 2 'exp(-t)'} ;
+            testCase.control('ConvDt').Value = 0 ;
+
+            testCase.press(testCase.control('ConvCompute')) ;
+
+            testCase.verifyNotEmpty(testCase.control('ConvResultTable').Data) ;
+            labels = findall(testCase.Figure, 'Type', 'uilabel') ;
+            testCase.verifyTrue(any(contains(string({labels.Text}), ...
+                'automatic default dt'))) ;
         end
 
         function topicExampleOneUsesAddedTableRows(testCase)
@@ -223,7 +276,10 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
 
             testCase.choose(testCase.control('ConvSourceCin'), 'Function') ;
             testCase.press(testCase.control('ConvAddRowCin')) ;
-            testCase.verifySize(testCase.control('ConvFunctionTableCin').Data, [4 3]) ;
+            functionTable = testCase.control('ConvFunctionTableCin') ;
+            testCase.verifySize(functionTable.Data, [4 3]) ;
+            testCase.press(testCase.control('ConvRemoveRowCin')) ;
+            testCase.verifySize(functionTable.Data, [3 3]) ;
         end
 
         function modelCstrAndCurrentRTDAreAvailable(testCase)

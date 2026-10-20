@@ -3,7 +3,7 @@ classdef ConvolutionTabHelper < handle
 % All times passed to nirp.conv are expressed in seconds.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 9, 2026. Last update: October 20, 2026
+% Created: October 9, 2026. Last update: October 21, 2026
 % =========================================================================
 
     properties (SetAccess = private)
@@ -337,20 +337,23 @@ classdef ConvolutionTabHelper < handle
                 'Tag', ['ConvImport' name], ...
                 'Tooltip', 'Import the first two numeric columns from Excel, CSV, or TSV into this signal.', ...
                 'ButtonPushedFcn', @(src,~) obj.importTable(name, src.UserData)) ;
-            pieceLabel = uilabel(grid, ...
+            functionGrid = uigridlayout(grid, [2 1], ...
+                'RowHeight', {38, '1x'}, 'Padding', [0 0 0 0], ...
+                'RowSpacing', 3, 'Visible', 'off') ;
+            functionGrid.Layout.Row = 4 ; functionGrid.Layout.Column = [1 2] ;
+            pieceLabel = uilabel(functionGrid, ...
                 'Text', '$\mathrm{Function:~expression~of~}t\mathrm{~on~one~or~more~intervals}$', ...
                 'Interpreter', 'latex', ...
-                'Visible', 'off', ...
                 'Tag', ['ConvFunctionDescription' name], ...
                 'Tooltip', 'Define an expression of t on one or more intervals in the selected time unit.') ;
-            pieceLabel.Layout.Row = 6 ; pieceLabel.Layout.Column = [1 2] ;
-            pieceTable = uitable(grid, 'Data', cell(3, 3), ...
+            pieceLabel.Layout.Row = 1 ;
+            pieceTable = uitable(functionGrid, 'Data', cell(3, 3), ...
                 'ColumnName', {'From t', 'To t', 'Expression in t'}, ...
-                'ColumnEditable', [true true true], 'Visible', 'off', ...
+                'ColumnEditable', [true true true], ...
                 'CellSelectionCallback', @(src,event) obj.rememberSelection(src, event), ...
                 'Tooltip', 'Enter interval bounds and a MATLAB expression in t for each interval.', ...
                 'Tag', ['ConvFunctionTable' name]) ;
-            pieceTable.Layout.Row = 7 ; pieceTable.Layout.Column = [1 2] ;
+            pieceTable.Layout.Row = 2 ;
             modelGrid = uigridlayout(grid, [2 4], ...
                 'ColumnWidth', {50, '1x', 50, '1x'}, 'Padding', [0 0 0 0], ...
                 'Visible', 'off') ;
@@ -377,7 +380,7 @@ classdef ConvolutionTabHelper < handle
                 'Description', description, 'Source', source, ...
                 'TimeUnit', timeUnit, 'ConcentrationUnit', concentrationUnit, ...
                 'Table', tableInput, 'PieceLabel', pieceLabel, ...
-                'PiecewiseTable', pieceTable, ...
+                'FunctionGrid', functionGrid, 'PiecewiseTable', pieceTable, ...
                 'TableButtons', tableButtons, 'AddRow', addRow, ...
                 'RemoveRow', removeRow, 'ImportButton', importButton, ...
                 'ModelGrid', modelGrid, ...
@@ -417,13 +420,12 @@ classdef ConvolutionTabHelper < handle
             ui.TableButtons.Visible = obj.onOff(any(strcmp(source, {'Table', 'Function'}))) ;
             ui.ImportButton.Visible = obj.onOff(strcmp(source, 'Table')) ;
             isFunction = strcmp(source, 'Function') ;
-            ui.PieceLabel.Visible = obj.onOff(isFunction) ;
-            ui.PiecewiseTable.Visible = obj.onOff(isFunction) ;
+            ui.FunctionGrid.Visible = obj.onOff(isFunction) ;
             ui.ModelGrid.Visible = obj.onOff(strcmp(source, 'Model')) ;
             if strcmp(source, 'Table')
                 ui.Grid.RowHeight = {38, 26, 26, '1x', 26, 0, 0, 0, 0} ;
             elseif strcmp(source, 'Function')
-                ui.Grid.RowHeight = {38, 26, 26, 0, 26, 38, '1x', 0, 0} ;
+                ui.Grid.RowHeight = {38, 26, 26, '1x', 26, 0, 0, 0, 0} ;
             elseif strcmp(source, 'Model')
                 ui.Grid.RowHeight = {38, 26, 26, 0, 0, 0, 0, '1x', '1x'} ;
             else
@@ -449,7 +451,7 @@ classdef ConvolutionTabHelper < handle
                 else
                     names = {'E1', 'E2'} ;
                 end
-                [signals, dt, wasResampled] = obj.buildSignals(names) ;
+                [signals, dt, wasResampled, usedDefaultStep] = obj.buildSignals(names) ;
                 if strcmp(mode, 'Convolution')
                     [obj.LastResult, obj.LastInfo] = nirp.conv.convolve(signals.E, signals.Cin) ;
                 elseif strcmp(mode, 'Deconvolution')
@@ -469,7 +471,11 @@ classdef ConvolutionTabHelper < handle
                 end
                 obj.LastSignals = signals ;
                 obj.showResults() ;
-                if wasResampled
+                if usedDefaultStep
+                    obj.SetStatus(sprintf( ...
+                        'Ready - automatic default dt = %.6g s (200 intervals over the Function domain).', ...
+                        dt)) ;
+                elseif wasResampled
                     obj.SetStatus(sprintf('Ready - signals resampled to dt = %.6g s.', dt)) ;
                 else
                     obj.SetStatus(sprintf('Ready - common dt = %.6g s.', dt)) ;
@@ -485,11 +491,11 @@ classdef ConvolutionTabHelper < handle
             end
         end
 
-        function [signals, dt, wasResampled] = buildSignals(obj, names)
+        function [signals, dt, wasResampled, usedDefaultStep] = buildSignals(obj, names)
             raw = struct() ; steps = [] ;
             for k = 1:numel(names)
                 name = names{k} ;
-                if any(strcmp(obj.Signals.(name).Source.Value, {'Model', 'RTD from tab 1'}))
+                if ~strcmp(obj.Signals.(name).Source.Value, 'Table')
                     continue
                 end
                 raw.(name) = obj.buildRawSignal(name, []) ;
@@ -498,13 +504,14 @@ classdef ConvolutionTabHelper < handle
             end
             requestedDt = obj.DtField.Value * ...
                 UnitConverterHelper.factorToSI('Time', obj.DtUnit.Value) ;
+            usedDefaultStep = false ;
             if requestedDt > 0
                 dt = requestedDt ;
             elseif ~isempty(steps)
                 dt = min(steps) ;
             else
-                error('NonIdealReactorApp:ConvolutionMissingStep', ...
-                    'A positive common time step is required.') ;
+                dt = obj.defaultFunctionStep(names) ;
+                usedDefaultStep = true ;
             end
             signals = struct() ; wasResampled = false ;
             for k = 1:numel(names)
@@ -596,9 +603,7 @@ classdef ConvolutionTabHelper < handle
                 edges(end + 1) = segments(k).last ; %#ok<AGROW>
                 handles{end + 1} = segments(k).handle ; %#ok<AGROW>
             end
-            if isempty(targetDt)
-                targetDt = obj.FunctionStepFallback(scale) ;
-            end
+            if isempty(targetDt), targetDt = (edges(end) - edges(1)) / 200 ; end
             t = edges(1):targetDt:edges(end) ;
             if numel(t) < 2 || t(end) < edges(end), t(end + 1) = edges(end) ; end
             signal = nirp.conv.piecewise(edges, handles, t) ;
@@ -940,10 +945,28 @@ classdef ConvolutionTabHelper < handle
             value = strrep(char(string(unit)), '_', '\_') ;
         end
 
-        function value = FunctionStepFallback(obj, scale)
-            value = obj.DtField.Value * ...
-                UnitConverterHelper.factorToSI('Time', obj.DtUnit.Value) ;
-            if value <= 0, value = scale ; end
+        function dt = defaultFunctionStep(obj, names)
+            first = [] ; last = [] ;
+            for k = 1:numel(names)
+                ui = obj.Signals.(names{k}) ;
+                if ~strcmp(ui.Source.Value, 'Function'), continue, end
+                scale = UnitConverterHelper.factorToSI('Time', ui.TimeUnit.Value) ;
+                values = obj.cellTable(ui.PiecewiseTable.Data, 3) ;
+                for row = 1:size(values, 1)
+                    if all(cellfun(@(v) obj.isBlank(v), values(row, :))), continue, end
+                    first(end + 1) = obj.parseScalar(values{row, 1}) * scale ; %#ok<AGROW>
+                    last(end + 1) = obj.parseScalar(values{row, 2}) * scale ; %#ok<AGROW>
+                end
+            end
+            if isempty(first) || any(last <= first)
+                error('NonIdealReactorApp:ConvolutionMissingStep', ...
+                    'Automatic time step requires a valid Table or Function interval.') ;
+            end
+            dt = (max(last) - min(first)) / 200 ;
+            if ~isfinite(dt) || dt <= 0
+                error('NonIdealReactorApp:ConvolutionMissingStep', ...
+                    'Automatic time step requires a positive Function domain.') ;
+            end
         end
 
         function refreshPresentation(obj)
