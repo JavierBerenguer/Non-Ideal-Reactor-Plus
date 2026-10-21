@@ -2,7 +2,7 @@ classdef NirpGuidesTest < matlab.unittest.TestCase
     % NirpGuidesTest verifies the navigable user-guide pages and assets.
     % =====================================================================
     % Javier Berenguer Sabater
-    % Created: October 17, 2026. Last update: October 17, 2026
+    % Created: October 17, 2026. Last update: October 18, 2026
     % =====================================================================
 
     methods (Test)
@@ -103,6 +103,26 @@ classdef NirpGuidesTest < matlab.unittest.TestCase
                 'simulink-flowsheet.html')) ;
             testCase.verifySubstring(string(idealLegacy), '../IdealGuide.html') ;
             testCase.verifySubstring(string(flowLegacy), '../FlowsheetGuide.html') ;
+        end
+
+        function convolutionIsDocumentedAsTabSix(testCase)
+            root = fileparts(fileparts(mfilename('fullpath'))) ;
+            userGuide = string(fileread(fullfile(root, 'docs', 'UserGuide.html'))) ;
+            convolutionPath = fullfile(root, 'docs', 'guides', ...
+                'tab-6-convolution.html') ;
+            convolutionGuide = string(fileread(convolutionPath)) ;
+            tabOneGuide = string(fileread(fullfile(root, 'docs', 'guides', ...
+                'tab-1-rtd-analysis.html'))) ;
+
+            testCase.verifyTrue(isfile(convolutionPath)) ;
+            testCase.verifyFalse(isfile(fullfile(root, 'docs', 'guides', ...
+                'tab-convolution.html'))) ;
+            testCase.verifySubstring(userGuide, ...
+                'href="guides/tab-6-convolution.html"') ;
+            testCase.verifySubstring(convolutionGuide, 'Tab 6 - Convolution') ;
+            testCase.verifySubstring(convolutionGuide, ...
+                'Previous: Tab 5 - Design &amp; Optimization') ;
+            testCase.verifySubstring(tabOneGuide, 'RTD from Tab 6') ;
         end
 
         function topicBreadcrumbsStartAtTheirOwnHome(testCase)

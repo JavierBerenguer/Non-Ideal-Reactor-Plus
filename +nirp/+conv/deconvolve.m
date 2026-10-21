@@ -1,10 +1,13 @@
-function [E,info] = deconvolve(Cin,Cout,nE)
+function [E,info] = deconvolve(Cin,Cout,support)
 %DECONVOLVE Estimate a nonnegative RTD signal by least squares.
-%   CIN and COUT use seconds and must have a common uniform DT. NE defaults
-%   to numel(COUT)-numel(CIN)+1. The estimated E is not normalized.
+%   CIN and COUT use seconds and must have a common uniform DT. SUPPORT is
+%   either [TAUMIN TAUMAX] in seconds or the legacy scalar number of RTD
+%   samples. When omitted, the legacy complete-convolution length is used.
+%   CIN is zero outside its stated interval. The estimated E is not
+%   normalized.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 9, 2026. Last update: October 9, 2026
+% Created: October 9, 2026. Last update: October 21, 2026
 % =========================================================================
 
     Cin = nirp.conv.signal(Cin.t,Cin.C) ;
@@ -18,28 +21,43 @@ function [E,info] = deconvolve(Cin,Cout,nE)
              'Use nirp.conv.resample before deconvolution.']) ;
     end
 
-    if nargin < 3 || isempty(nE)
+    if nargin < 3 || isempty(support)
         nE = numel(Cout.C)-numel(Cin.C)+1 ;
-    end
-    if ~(isnumeric(nE) && isreal(nE) && isscalar(nE) && isfinite(nE) && ...
-            nE == fix(nE) && nE >= 1 && nE <= numel(Cout.C))
-        error('nirp:conv:InvalidLength', ...
-            'nE must be a positive integer no larger than the output length.') ;
-    end
-    if numel(Cout.C) < numel(Cin.C) && nargin < 3
-        error('nirp:conv:InvalidLength', ...
-            'The default nE is impossible when output is shorter than input.') ;
+        if nE < 1
+            error('nirp:conv:InvalidLength', ...
+                'The default nE is impossible when output is shorter than input.') ;
+        end
+        tau = Cout.t(1)-Cin.t(1)+(0:nE-1)*dtIn ;
+    elseif isnumeric(support) && isreal(support) && isscalar(support) && ...
+            isfinite(support)
+        nE = support ;
+        if nE ~= fix(nE) || nE < 1 || nE > numel(Cout.C)
+            error('nirp:conv:InvalidLength', ...
+                'nE must be a positive integer no larger than the output length.') ;
+        end
+        tau = Cout.t(1)-Cin.t(1)+(0:nE-1)*dtIn ;
+    elseif isnumeric(support) && isreal(support) && numel(support) == 2 && ...
+            all(isfinite(support)) && support(1) >= 0 && support(2) >= support(1)
+        support = double(support(:).') ;
+        intervals = (support(2)-support(1))/dtIn ;
+        if abs(intervals-round(intervals)) > 1e-9*max(1,abs(intervals))
+            error('nirp:conv:SupportGridMismatch', ...
+                'E support endpoints must lie on the common time-step grid.') ;
+        end
+        tau = support(1)+(0:round(intervals))*dtIn ;
+        nE = numel(tau) ;
+    else
+        error('nirp:conv:InvalidSupport', ...
+            'Support must be [tau_min tau_max] with 0 <= tau_min <= tau_max.') ;
     end
 
-    v = numel(Cout.C) ;
-    firstColumn = [Cin.C zeros(1,max(0,v-numel(Cin.C)))] ;
-    firstColumn = firstColumn(1:v).' ;
-    matrix = toeplitz(firstColumn,[Cin.C(1) zeros(1,nE-1)])*dtIn ;
+    sampleTimes = Cout.t(:)-tau ;
+    matrix = interp1(Cin.t,Cin.C,sampleTimes,'linear',0)*dtIn ;
     [estimated,resnorm,residual] = lsqnonneg(matrix,Cout.C.') ;
-    t0 = Cout.t(1)-Cin.t(1) ;
-    E = nirp.conv.signal(t0+(0:nE-1)*dtIn,estimated.') ;
+    E = nirp.conv.signal(tau,estimated.') ;
 
-    reconvolved = nirp.conv.convolve(E,Cin) ;
+    fitted = (matrix*estimated).' ;
+    reconvolved = nirp.conv.signal(Cout.t,fitted) ;
     areaE = sum(E.C)*dtIn ;
     areaIn = sum(Cin.C)*dtIn ;
     areaOut = sum(Cout.C)*dtIn ;
@@ -50,7 +68,9 @@ function [E,info] = deconvolve(Cin,Cout,nE)
     end
     info = struct('residualNorm',sqrt(resnorm),'residual',residual.', ...
         'areaE',areaE,'massBalance',massBalance, ...
-        'reconvolved',reconvolved) ;
+        'reconvolved',reconvolved,'support',tau([1 end]), ...
+        'numberOfEquations',numel(Cout.C),'numberOfUnknowns',nE, ...
+        'underdetermined',nE > numel(Cout.C)) ;
 end
 
 function dt = uniformStep(s)

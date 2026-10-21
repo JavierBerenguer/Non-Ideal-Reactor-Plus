@@ -2,7 +2,7 @@ classdef NirpLauncherTest < matlab.uitest.TestCase
     % NirpLauncherTest verifies the main launcher and startup feedback.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 16, 2026. Last update: October 17, 2026
+    % Created: October 16, 2026. Last update: October 18, 2026
     % =========================================================================
 
     methods (TestMethodSetup)
@@ -63,9 +63,9 @@ classdef NirpLauncherTest < matlab.uitest.TestCase
             testCase.verifyTrue(all(figureVisibility(1:7) == "off")) ;
             testCase.verifyEqual(figureVisibility(8), "on") ;
             testCase.verifyEqual(messages(8), "Ready") ;
-            expectedSteps = ["RTD Analysis", "Convolution", "Prediction", ...
+            expectedSteps = ["RTD Analysis", "Prediction", ...
                 "Tanks in Series", "Dispersion", ...
-                "Design & Optimization", "Final layout"] ;
+                "Design & Optimization", "Convolution", "Final layout"] ;
             for i = 1:numel(expectedSteps)
                 testCase.verifySubstring(messages(i), expectedSteps(i)) ;
             end

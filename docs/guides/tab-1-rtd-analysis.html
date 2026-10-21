@@ -26,7 +26,7 @@
       <div class="hero-grid">
         <div>
           <h1>Tab 1 - RTD Analysis</h1>
-          <p>Use this tab to generate or import the residence time distribution of the reactor. It is the hydrodynamic foundation of the app: the RTD created here can be reused by Prediction Models, Tanks-in-Series, Dispersion Model, and Design &amp; Optimization.</p>
+          <p>Use this tab to generate or import the residence time distribution of the reactor. It is the hydrodynamic foundation of the app: the RTD created here can be reused by Prediction Models, Tanks-in-Series, Dispersion Model, Design &amp; Optimization, and Convolution.</p>
         </div>
         <aside class="toc">
           <h2>On This Page</h2>
@@ -119,6 +119,9 @@
         <li><strong>Normalized variance</strong> matters when comparing RTDs independently of absolute time scale.</li>
         <li><strong>The RTD object itself</strong> is what downstream reactive models actually consume.</li>
       </ul>
+      <div class="callout info">
+        <strong>RTD from Tab 6:</strong> after a deconvolution, use <strong>Use as RTD in Tab 1</strong> in <a href="tab-6-convolution.html">Tab 6 - Convolution</a>. The recovered E(t) becomes the current Tab 1 RTD and is then available to the other prediction and design tabs.
+      </div>
       <div class="grid-2">
         <figure class="figure-card">
           <img src="../assets/rtd_et_sigma_overlay.png" alt="E(t) example with tau and sigma overlays">

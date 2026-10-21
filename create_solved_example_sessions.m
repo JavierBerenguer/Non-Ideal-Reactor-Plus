@@ -1,8 +1,27 @@
-function create_solved_example_sessions()
+function create_solved_example_sessions(scope)
 % create_solved_example_sessions
 % Build saved sessions (.mat) for solved examples 51-64 where feasible and
 % write a markdown registry describing which ones match well, partially, or
 % cannot be reproduced directly from the current app / transcribed data.
+%
+% Convolution session registry:
+%   SECT01 -> Topic 4, example 1 (PDF pages 13-14)
+%   SECT02 -> Topic 4, example 2 (PDF pages 17-19)
+%   SECT03 -> Topic 4, example 3 (PDF page 21)
+%   SEC01  -> P4 problem 1 (PDF page 1)
+%   SEC02  -> P4 problem 2 (PDF page 1)
+%   SEC03  -> P4 problem 3 (PDF page 1)
+%   SEC04  -> P4 problem 4 (PDF page 1)
+%   SEC05  -> P4 problem 5 (PDF pages 1-2)
+%   SEC06  -> P4 problem 6 (PDF page 2)
+%   SEC07  -> P4 problem 7 (PDF page 2)
+%   SEC08  -> P4 problem 8 (PDF page 2)
+%   SEC09  -> P4 problem 10 (PDF page 3; the PDF has no problem 9)
+
+if nargin < 1
+    scope = 'all' ;
+end
+scope = validatestring(scope, {'all', 'convolution'}) ;
 
 toolboxDir = fileparts(mfilename('fullpath')) ;
 projectDir = fileparts(toolboxDir) ;
@@ -11,6 +30,12 @@ reportPath = fullfile(projectDir, 'Problemas resueltos', 'SE_session_registry.md
 
 if ~exist(saveDir, 'dir')
     mkdir(saveDir) ;
+end
+
+generateConvolutionSessions(saveDir) ;
+if strcmp(scope, 'convolution')
+    fprintf('Convolution example sessions created in:\n%s\n', saveDir) ;
+    return
 end
 
 records_good = {} ;
@@ -370,6 +395,305 @@ note = sprintf(['Sesion creada para reproducir el solucionario usando k_eff = 5 
     'Con ello se obtiene F(4) = %.3f, Vmuerto = %.2f L, X_CSTR = %.3f, X_Seg = %.3f, X_MM = %.3f. ' ...
     'Con el k = 2.5 transcrito en el enunciado, la app no coincide con la hoja de soluciones.'], ...
     interp1(rtd.t, rtd.Ft, 4*60, 'linear', 'extrap'), 10 - rtd.tau*(2.5/60), X_cstr, seg.X_mean, mm.X_exit) ;
+end
+
+function generateConvolutionSessions(saveDir)
+names = {'SECT01', 'SECT02', 'SECT03', ...
+    'SEC01', 'SEC02', 'SEC03', 'SEC04', 'SEC05', 'SEC06', 'SEC07', 'SEC08', 'SEC09'} ;
+builders = {@buildSECT01, @buildSECT02, @buildSECT03, ...
+    @buildSEC01, @buildSEC02, @buildSEC03, @buildSEC04, @buildSEC05, ...
+    @buildSEC06, @buildSEC07, @buildSEC08, @buildSEC09} ;
+for k = 1:numel(names)
+    sessionData = builders{k}() ;
+    saveSessionData(saveDir, [names{k} '.mat'], sessionData) ;
+end
+end
+
+function sessionData = buildSECT01()
+tCin = 0:4 ;
+Cin = [0 8 4 6 0] ;
+tE = 2:6 ;
+E = [0 0.05 0.5 0.35 0] ;
+signals = struct( ...
+    'Cin', tableConvolutionState(tCin, Cin, 's', 'mol/L'), ...
+    'E', tableConvolutionState(tE, E, 's', 'mol/m^3')) ;
+[result, info] = nirp.conv.convolve( ...
+    convolutionSignal(tE, E, 's', '', true), ...
+    convolutionSignal(tCin, Cin, 's', 'mol/L', false)) ;
+sessionData = convolutionSession('SECT01', 'Convolution', 1, 's', ...
+    'mol/L', signals, [], result, info, ...
+    ['The published value at t = 6 s is 5.2 mol/L, but its printed ' ...
+     'sum and the app both give 5.1 mol/L.']) ;
+end
+
+function sessionData = buildSECT02()
+tCin = 0:4 ;
+Cin = tCin .* exp(-tCin / 2) ;
+tCout = 4:13 ;
+Cout = [0.9 1.8 2.1 5.2 3.6 4.5 1.7 0.8 0.7 0.5] ;
+signals = struct( ...
+    'Cin', functionConvolutionState({0 4 't.*exp(-t/2)'}, 'min', 'mol/L'), ...
+    'Cout', tableConvolutionState(tCout, Cout, 'min', 'mol/L')) ;
+[result, info] = nirp.conv.deconvolve( ...
+    convolutionSignal(tCin, Cin, 'min', 'mol/L', false), ...
+    convolutionSignal(tCout, Cout, 'min', 'mol/L', false), [4 9] * 60) ;
+info.relativeResidual = info.residualNorm / max(norm(Cout * 1000), eps) ;
+sessionData = convolutionSession('SECT02', 'Deconvolution', 1, 'min', ...
+    'mol/L', signals, [4 9], result, info, ...
+    'The E support is fixed to 4-9 min as stated by the worked example.') ;
+end
+
+function sessionData = buildSECT03()
+tCin = 0:11 ;
+Cin = [0 0 8 6 4 5 6 3 1 0 0 0] ;
+tE = 0:5 ;
+E = [0 0.05 0.5 0.35 0.1 0] ;
+signals = struct( ...
+    'Cin', tableConvolutionState(tCin, Cin, 's', 'mol/L'), ...
+    'E', tableConvolutionState(tE, E, 's', 'mol/m^3')) ;
+[result, info] = nirp.conv.convolve( ...
+    convolutionSignal(tE, E, 's', '', true), ...
+    convolutionSignal(tCin, Cin, 's', 'mol/L', false)) ;
+sessionData = convolutionSession('SECT03', 'Convolution', 1, 's', ...
+    'mol/L', signals, [], result, info, ...
+    'Uses the 12 samples in the printed table; the printed MATLAB code omits the final zero.') ;
+end
+
+function sessionData = buildSEC01()
+dt = 0.05 ;
+tE1 = 2:dt:11 ;
+E1 = zeros(size(tE1)) ;
+E1(tE1 <= 5) = (tE1(tE1 <= 5) - 2) / 18 ;
+middle = tE1 > 5 & tE1 <= 8 ;
+E1(middle) = 1 / 6 ;
+last = tE1 > 8 ;
+E1(last) = (11 - tE1(last)) / 18 ;
+tE2 = 0:dt:30 ;
+E2 = nirp.conv.signal(tE2, exp(-tE2 / 2) / 2) ;
+signals = struct( ...
+    'E1', functionConvolutionState( ...
+        {2 5 '(t-2)./18'; 5 8 '1./6'; 8 11 '(11-t)./18'}, 's', 'mol/m^3'), ...
+    'E2', functionConvolutionState({0 30 'exp(-t/2)./2'}, 's', 'mol/m^3')) ;
+result = nirp.conv.series(nirp.conv.signal(tE1, E1), E2) ;
+info = seriesInfo(nirp.conv.signal(tE1, E1), E2, result) ;
+sessionData = convolutionSession('SEC01', 'Series composition', dt, 's', ...
+    'mol/m^3', signals, [], result, info, ...
+    ['The trapezoid is normalized by its area, 18. The CSTR with tau = 2 s ' ...
+     'is entered as its E(t) function because series inputs do not offer Model as a source.']) ;
+end
+
+function sessionData = buildSEC02()
+tCin = 1:5 ;
+Cin = [0 8 4 6 0] ;
+tE = 5:10 ;
+E = [0 0.05 0.5 0.35 0.1 0] ;
+signals = struct( ...
+    'Cin', tableConvolutionState(tCin, Cin, 's', 'mol/L'), ...
+    'E', tableConvolutionState(tE, E, 's', 'mol/m^3')) ;
+[result, info] = nirp.conv.convolve( ...
+    convolutionSignal(tE, E, 's', '', true), ...
+    convolutionSignal(tCin, Cin, 's', 'mol/L', false)) ;
+sessionData = convolutionSession('SEC02', 'Convolution', 1, 's', ...
+    'mol/L', signals, [], result, info, ...
+    'Approximate transcription of the marked points in the two plots; no numerical solution is printed.') ;
+end
+
+function sessionData = buildSEC03()
+tCin = 0:11 ;
+Cin = [0 0 8 6 4 5 6 3 1 0 0 0] ;
+tE = 0:5 ;
+E = [0 0.05 0.5 0.35 0.1 0] ;
+signals = struct( ...
+    'Cin', tableConvolutionState(tCin, Cin, 's', 'mol/L'), ...
+    'E', tableConvolutionState(tE, E, 's', 'mol/m^3')) ;
+[result, info] = nirp.conv.convolve( ...
+    convolutionSignal(tE, E, 's', '', true), ...
+    convolutionSignal(tCin, Cin, 's', 'mol/L', false)) ;
+sessionData = convolutionSession('SEC03', 'Convolution', 1, 's', ...
+    'mol/L', signals, [], result, info, 'Direct transcription of both printed tables.') ;
+end
+
+function sessionData = buildSEC04()
+tCin = 0:11 ;
+Cin = [0 0 8 6 4 5 6 3 1 0 0 0] ;
+dt = 1 ;
+E = nirp.conv.fromRTD(RTD.ideal_cstr(5), dt) ;
+signals = struct( ...
+    'Cin', tableConvolutionState(tCin, Cin, 's', 'mol/L'), ...
+    'E', modelConvolutionState('CSTR', 5, 's')) ;
+[result, info] = nirp.conv.convolve(E, ...
+    convolutionSignal(tCin, Cin, 's', 'mol/L', false)) ;
+sessionData = convolutionSession('SEC04', 'Convolution', dt, 's', ...
+    'mol/L', signals, [], result, info, 'Uses the CSTR model with tau = 5 s.') ;
+end
+
+function sessionData = buildSEC05()
+tCin = 0:11 ;
+Cin = [0 0 8 6 4 5 6 3 1 0 0 0] ;
+dt = 1 ;
+E = nirp.conv.fromRTD(RTD.ideal_pfr(5), dt) ;
+signals = struct( ...
+    'Cin', tableConvolutionState(tCin, Cin, 's', 'mol/L'), ...
+    'E', modelConvolutionState('PFR', 5, 's')) ;
+[result, info] = nirp.conv.convolve(E, ...
+    convolutionSignal(tCin, Cin, 's', 'mol/L', false)) ;
+sessionData = convolutionSession('SEC05', 'Convolution', dt, 's', ...
+    'mol/L', signals, [], result, info, 'Uses the PFR model with tau = 5 s.') ;
+end
+
+function sessionData = buildSEC06()
+tCin = 0:11 ;
+Cin = [0 0 8 6 4 5 6 3 1 0 0 0] ;
+tCout = 0:15 ;
+Cout = [0 0 0 0.4 4.3 6 5.1 4.8 5.6 4.1 2.1 0.6 0.1 0 0 0] ;
+signals = struct( ...
+    'Cin', tableConvolutionState(tCin, Cin, 's', 'mol/L'), ...
+    'Cout', tableConvolutionState(tCout, Cout, 's', 'mol/L')) ;
+[result, info] = nirp.conv.deconvolve( ...
+    convolutionSignal(tCin, Cin, 's', 'mol/L', false), ...
+    convolutionSignal(tCout, Cout, 's', 'mol/L', false), [0 4]) ;
+info.relativeResidual = info.residualNorm / max(norm(Cout * 1000), eps) ;
+sessionData = convolutionSession('SEC06', 'Deconvolution', 1, 's', ...
+    'mol/L', signals, [0 4], result, info, ...
+    'The five-sample E support follows from the printed input and output vector lengths.') ;
+end
+
+function sessionData = buildSEC07()
+tCin = 0:4 ;
+Cin = [0 8 4 6 0] ;
+tE = 2:6 ;
+E = [0 0.05 0.5 0.35 0] ;
+signals = struct( ...
+    'Cin', tableConvolutionState(tCin, Cin, 's', 'mol/L'), ...
+    'E', tableConvolutionState(tE, E, 's', 'mol/m^3')) ;
+[result, info] = nirp.conv.convolve( ...
+    convolutionSignal(tE, E, 's', '', true), ...
+    convolutionSignal(tCin, Cin, 's', 'mol/L', false)) ;
+sessionData = convolutionSession('SEC07', 'Convolution', 1, 's', ...
+    'mol/L', signals, [], result, info, 'Direct transcription of both printed tables.') ;
+end
+
+function sessionData = buildSEC08()
+tCin = 0:0.25:4 ;
+Cin = max(0, pchip(0:4, [0 8 4 6 0], tCin)) ;
+tE = 2:0.25:7 ;
+E = max(0, pchip([2 3 4 4.5 5 6 7], ...
+    [0 0.01 0.30 0.50 0.48 0.25 0], tE)) ;
+E = E / trapz(tE, E) ;
+signals = struct( ...
+    'Cin', tableConvolutionState(tCin, Cin, 's', 'mol/L'), ...
+    'E', tableConvolutionState(tE, E, 's', 'mol/m^3')) ;
+[result, info] = nirp.conv.convolve( ...
+    convolutionSignal(tE, E, 's', '', true), ...
+    convolutionSignal(tCin, Cin, 's', 'mol/L', false)) ;
+sessionData = convolutionSession('SEC08', 'Convolution', 0.25, 's', ...
+    'mol/L', signals, [], result, info, ...
+    ['Approximate digitization of Figures 1 and 2. The RTD samples are ' ...
+     'normalized because the PDF provides plots rather than numerical data.']) ;
+end
+
+function sessionData = buildSEC09()
+tCin = 0:4 ;
+Cin = tCin .* exp(-tCin / 2) ;
+tCout = 4:8 ;
+Cout = [2.1 5.2 3.6 4.5 1.7] ;
+signals = struct( ...
+    'Cin', functionConvolutionState({0 4 't.*exp(-t/2)'}, 'min', 'mmol/L'), ...
+    'Cout', tableConvolutionState(tCout, Cout, 'min', 'mmol/L')) ;
+[result, info] = nirp.conv.deconvolve( ...
+    convolutionSignal(tCin, Cin, 'min', 'mmol/L', false), ...
+    convolutionSignal(tCout, Cout, 'min', 'mmol/L', false), [4 8] * 60) ;
+info.relativeResidual = info.residualNorm / max(norm(Cout), eps) ;
+sessionData = convolutionSession('SEC09', 'Deconvolution', 1, 'min', ...
+    'mmol/L', signals, [4 8], result, info, ...
+    ['The PDF gives only five outlet measurements and asks for the method, ' ...
+     'not a unique numerical RTD. mmol/L preserves the mg/L numerical values ' ...
+     'because the tab has no mass-concentration unit.']) ;
+end
+
+function sessionData = convolutionSession(name, mode, dt, timeUnit, ...
+        concentrationUnit, signals, support, result, info, note)
+sessionData = baseSession(name, 'Convolution', []) ;
+sessionData.session_version = 2 ;
+state = struct() ;
+state.mode = mode ;
+state.timeUnit = timeUnit ;
+state.dtUnit = timeUnit ;
+state.dt = dt ;
+state.supportMin = 0 ;
+state.supportMax = 10 ;
+state.supportUnit = timeUnit ;
+state.supportIsDefault = true ;
+if ~isempty(support)
+    state.supportMin = support(1) ;
+    state.supportMax = support(2) ;
+    state.supportIsDefault = false ;
+end
+state.outputTimeUnit = timeUnit ;
+state.outputConcentrationUnit = concentrationUnit ;
+state.signals = signals ;
+state.lastSignals = struct() ;
+state.lastResult = [] ;
+state.lastInfo = struct() ;
+state.referenceResult = result ;
+state.referenceInfo = info ;
+state.referenceTable = displayedConvolutionResult(result, mode, ...
+    timeUnit, concentrationUnit) ;
+state.referenceNote = note ;
+sessionData.convolution = state ;
+end
+
+function state = defaultConvolutionSignalState(timeUnit, concentrationUnit)
+state = struct('source', 'Table', 'timeUnit', timeUnit, ...
+    'concentrationUnit', concentrationUnit, 'tableData', {cell(3, 2)}, ...
+    'piecewiseData', {cell(3, 3)}, 'model', 'CSTR', ...
+    'tau', 5, 'n', 2, 'bo', 0.1) ;
+end
+
+function state = tableConvolutionState(t, values, timeUnit, concentrationUnit)
+state = defaultConvolutionSignalState(timeUnit, concentrationUnit) ;
+state.tableData = [t(:), values(:)] ;
+end
+
+function state = functionConvolutionState(rows, timeUnit, concentrationUnit)
+state = defaultConvolutionSignalState(timeUnit, concentrationUnit) ;
+state.source = 'Function' ;
+state.piecewiseData = rows ;
+end
+
+function state = modelConvolutionState(model, tau, timeUnit)
+state = defaultConvolutionSignalState(timeUnit, 'mol/m^3') ;
+state.source = 'Model' ;
+state.model = model ;
+state.tau = tau ;
+end
+
+function signal = convolutionSignal(t, values, timeUnit, concentrationUnit, isRTD)
+timeScale = UnitConverterHelper.factorToSI('Time', timeUnit) ;
+if isRTD
+    valueScale = 1 / timeScale ;
+else
+    valueScale = UnitConverterHelper.factorToSI('Concentration', concentrationUnit) ;
+end
+signal = nirp.conv.signal(t * timeScale, values * valueScale) ;
+end
+
+function info = seriesInfo(E1, E2, result)
+first = nirp.conv.moments(E1) ;
+second = nirp.conv.moments(E2) ;
+combined = nirp.conv.moments(result) ;
+info = struct('massBalance', combined.area / (first.area * second.area)) ;
+end
+
+function data = displayedConvolutionResult(result, mode, timeUnit, concentrationUnit)
+timeScale = UnitConverterHelper.factorToSI('Time', timeUnit) ;
+if strcmp(mode, 'Convolution')
+    valueScale = UnitConverterHelper.factorToSI('Concentration', concentrationUnit) ;
+    values = result.C / valueScale ;
+else
+    values = result.C * timeScale ;
+end
+data = [result.t(:) / timeScale, values(:)] ;
 end
 
 function sessionData = baseSession(sessionName, selectedTabTitle, rtdObj)

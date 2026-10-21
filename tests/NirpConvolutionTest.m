@@ -2,7 +2,7 @@ classdef NirpConvolutionTest < matlab.unittest.TestCase
     % NirpConvolutionTest verifies tracer convolution and deconvolution.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 9, 2026. Last update: October 9, 2026
+    % Created: October 9, 2026. Last update: October 21, 2026
     % =========================================================================
 
     methods (Test)
@@ -82,13 +82,30 @@ classdef NirpConvolutionTest < matlab.unittest.TestCase
             Cin = nirp.conv.fromFunction(@(x) x.*exp(-x/2),t) ;
             Cout = nirp.conv.signal(4:13,[.9 1.8 2.1 5.2 3.6 4.5 1.7 .8 .7 .5]) ;
 
-            [E,info] = nirp.conv.deconvolve(Cin,Cout,6) ;
+            [E,info] = nirp.conv.deconvolve(Cin,Cout,[4 9]) ;
 
             testCase.verifyEqual(E.t,4:9,'AbsTol',1e-12) ;
             testCase.verifyEqual(E.C,[1.79 2.33 2.58 0 1.24 0], ...
                 'AbsTol',2e-2) ;
             testCase.verifyGreaterThan(abs(info.areaE-1),1) ;
             testCase.verifySize(info.reconvolved.C,[1 10]) ;
+            testCase.verifyFalse(info.underdetermined) ;
+            testCase.verifyEqual(info.support,[4 9],'AbsTol',1e-12) ;
+        end
+
+        function explicitSupportUsesAllMeasuredSamples(testCase)
+            Cin = nirp.conv.fromFunction(@(t) t.*exp(-t/2),0:13) ;
+            Cout = nirp.conv.signal(4:13, ...
+                [.9 1.8 2.1 5.2 3.6 4.5 1.7 .8 .7 .5]) ;
+
+            [E,info] = nirp.conv.deconvolve(Cin,Cout,[0 13]) ;
+
+            testCase.verifyEqual(E.t,0:13,'AbsTol',1e-12) ;
+            testCase.verifyEqual(info.reconvolved.t,Cout.t,'AbsTol',1e-12) ;
+            testCase.verifySize(info.residual,size(Cout.C)) ;
+            testCase.verifyTrue(info.underdetermined) ;
+            testCase.verifyEqual(info.numberOfUnknowns,14) ;
+            testCase.verifyEqual(info.numberOfEquations,10) ;
         end
 
         function recoversNoisyProblemSixDistribution(testCase)

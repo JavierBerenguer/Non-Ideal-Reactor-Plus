@@ -59,6 +59,10 @@
           <strong>4. Move to Tab 5 for fit, consolidated reactive comparison, or optimization</strong>
           Use <a href="guides/tab-5-design-optimization.html">Design &amp; Optimization</a> after the RTD is already meaningful and the chemistry is loaded.
         </div>
+        <div class="flow-step">
+          <strong>5. Use Tab 6 for tracer-signal calculations</strong>
+          Use <a href="guides/tab-6-convolution.html">Convolution</a> to predict an outlet tracer signal, recover an RTD by deconvolution, or combine two RTDs in series. A recovered RTD can be sent back to Tab 1 and reused by Tabs 2-5.
+        </div>
       </div>
       <div class="callout info">
         <strong>Helpful companion:</strong> if you want a cross-tab explanation of how objects move, how restored sessions behave, and why a later tab may still need a fresh <code>Compute</code>, read the <a href="guides/appendix-cross-tab-workflow.html">Cross-Tab Workflow appendix</a>.
@@ -101,6 +105,17 @@
             <p>Diagnosis &amp; Fit, Reactive Performance, and Optimization each reuse part of the same internal state.</p>
           </div>
         </div>
+        <div class="dependency-row">
+          <div class="node">
+            <strong>Tab 6 - Convolution</strong>
+            <p>Uses its own tracer signals or the RTD from Tab 1 for convolution and series composition.</p>
+          </div>
+          <div class="arrow">&harr;</div>
+          <div class="node shared">
+            <strong>RTD exchange with Tab 1</strong>
+            <p>A deconvolved E(t) can be loaded into Tab 1; Tab 1 can then pass that RTD to Tabs 2-5.</p>
+          </div>
+        </div>
       </div>
       <div class="callout info">
         <strong>Main practical rule:</strong> if something in a later tab says an RTD, a reaction system, or a feed stream is missing, go back to the nearest upstream tab and confirm that the object has really been created and loaded there.
@@ -122,7 +137,7 @@
         <tr>
           <td>Generate an RTD, import experimental data, or inspect moments</td>
           <td><a href="guides/tab-1-rtd-analysis.html">Tab 1 - RTD Analysis</a></td>
-          <td>It is the only tab that builds the RTD itself.</td>
+          <td>It is the primary RTD workspace and accepts recovered E(t) from Tab 6.</td>
         </tr>
         <tr>
           <td>Estimate real-reactor conversion bounds with the measured RTD</td>
@@ -144,6 +159,11 @@
           <td><a href="guides/tab-5-design-optimization.html">Tab 5 - Design &amp; Optimization</a></td>
           <td>It is the integrated workspace for design-oriented analysis.</td>
         </tr>
+        <tr>
+          <td>Predict or reconstruct tracer signals, or compose RTDs in series</td>
+          <td><a href="guides/tab-6-convolution.html">Tab 6 - Convolution</a></td>
+          <td>It provides convolution, nonnegative deconvolution, and series composition in one workspace.</td>
+        </tr>
       </table>
     </section>
 
@@ -154,11 +174,6 @@
           <h3>Tab 1 - RTD Analysis</h3>
           <p>RTD sources, import routes, equations, moments, overlays, and common pitfalls.</p>
           <a class="button" href="guides/tab-1-rtd-analysis.html">Open Tab 1 guide</a>
-        </article>
-        <article class="card">
-          <h3>Convolution</h3>
-          <p>Predict tracer outputs, recover an RTD by nonnegative deconvolution, or compose two RTDs in series.</p>
-          <a class="button" href="guides/tab-convolution.html">Open Convolution guide</a>
         </article>
         <article class="card">
           <h3>Tab 2 - Prediction Models</h3>
@@ -179,6 +194,11 @@
           <h3>Tab 5 - Design &amp; Optimization</h3>
           <p>Workspace logic, fit/reactive/optimization subtabs, and how state is shared.</p>
           <a class="button" href="guides/tab-5-design-optimization.html">Open Tab 5 guide</a>
+        </article>
+        <article class="card">
+          <h3>Tab 6 - Convolution</h3>
+          <p>Predict tracer outputs, recover an RTD by nonnegative deconvolution, or compose two RTDs in series.</p>
+          <a class="button" href="guides/tab-6-convolution.html">Open Tab 6 guide</a>
         </article>
         <article class="card">
           <h3>Complete Manual Hub</h3>

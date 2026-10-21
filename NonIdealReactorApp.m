@@ -9,7 +9,7 @@ classdef NonIdealReactorApp < handle
 %
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: March 21, 2026. Last update: October 16, 2026
+% Created: March 21, 2026. Last update: October 18, 2026
 % =========================================================================
 
     properties (Access = private)
@@ -269,9 +269,9 @@ classdef NonIdealReactorApp < handle
             mFile = uimenu(app.UIFigure, 'Text', 'File') ;
             uimenu(mFile, 'Text', 'New', ...
                 'MenuSelectedFcn', @(~,~) NonIdealReactorApp()) ;
-            uimenu(mFile, 'Text', 'Guardar', ...
+            uimenu(mFile, 'Text', 'Save', ...
                 'MenuSelectedFcn', @(~,~) app.saveSession()) ;
-            uimenu(mFile, 'Text', 'Cargar', ...
+            uimenu(mFile, 'Text', 'Load', ...
                 'MenuSelectedFcn', @(~,~) app.loadSession()) ;
             uimenu(mFile, 'Text', 'Restart', ...
                 'Separator', 'on', ...
@@ -311,22 +311,23 @@ classdef NonIdealReactorApp < handle
                 'Building RTD Analysis (1/7)') ;
             app.createRTDTab() ;
             app.reportProgress(progressFcn, 1 / 7, ...
-                'Building Convolution (2/7)') ;
-            app.ConvolutionHelper = ConvolutionTabHelper(app.TabGroup, ...
-                @() app.rtd, @(signal) app.useConvolutionRTD(signal), ...
-                @(message) app.updateStatus(message)) ;
-            app.reportProgress(progressFcn, 2 / 7, ...
-                'Building Prediction (3/7)') ;
+                'Building Prediction (2/7)') ;
             app.createPredictionTab() ;
-            app.reportProgress(progressFcn, 3 / 7, ...
-                'Building Tanks in Series (4/7)') ;
+            app.reportProgress(progressFcn, 2 / 7, ...
+                'Building Tanks in Series (3/7)') ;
             app.createTISTab() ;
-            app.reportProgress(progressFcn, 4 / 7, ...
-                'Building Dispersion (5/7)') ;
+            app.reportProgress(progressFcn, 3 / 7, ...
+                'Building Dispersion (4/7)') ;
             app.createDispersionTab() ;
-            app.reportProgress(progressFcn, 5 / 7, ...
-                'Building Design & Optimization (6/7)') ;
+            app.reportProgress(progressFcn, 4 / 7, ...
+                'Building Design & Optimization (5/7)') ;
             app.createDesignTemplatesTab() ;
+            app.reportProgress(progressFcn, 5 / 7, ...
+                'Building Convolution (6/7)') ;
+            app.ConvolutionHelper = ConvolutionTabHelper(app.TabGroup, ...
+                @() app.rtd, @(signal, mode) app.useConvolutionRTD(signal, mode), ...
+                @(signal) app.useConvolutionTracer(signal), ...
+                @(message) app.updateStatus(message)) ;
             app.reportProgress(progressFcn, 6 / 7, ...
                 'Final layout: drawing the window, the first time can take a while (7/7)') ;
             app.RTD_updateFQuery() ;
@@ -1354,7 +1355,7 @@ classdef NonIdealReactorApp < handle
 
                 defaultFile = fullfile(saveDir, sprintf('session_%s.mat', char(datetime('now', 'Format', 'yyyyMMdd_HHmmss')))) ;
                 [fileName, ~] = uiputfile({'*.mat', 'MAT-files (*.mat)'}, ...
-                    'Guardar sesión', defaultFile) ;
+                    'Save session', defaultFile) ;
                 if isequal(fileName, 0)
                     return
                 end
@@ -1369,11 +1370,11 @@ classdef NonIdealReactorApp < handle
                     choice = uiconfirm(app.UIFigure, ...
                         sprintf('El archivo "%s" ya existe. ¿Deseas sobrescribirlo?', fileName), ...
                         'Confirmar sobreescritura', ...
-                        'Options', {'Sobrescribir', 'Cancelar'}, ...
+                        'Options', {'Overwrite', 'Cancel'}, ...
                         'DefaultOption', 2, ...
                         'CancelOption', 2, ...
                         'Icon', 'warning') ;
-                    if ~strcmp(choice, 'Sobrescribir')
+                    if ~strcmp(choice, 'Overwrite')
                         return
                     end
                 end
@@ -1402,7 +1403,7 @@ classdef NonIdealReactorApp < handle
             end
 
             [fileName, filePath] = uigetfile({'*.mat', 'MAT-files (*.mat)'}, ...
-                'Cargar sesión', saveDir) ;
+                'Load session', saveDir) ;
             if isequal(fileName, 0)
                 return
             end
@@ -3553,11 +3554,15 @@ classdef NonIdealReactorApp < handle
             drawnow limitrate ;
         end
 
-        function useConvolutionRTD(app, signal)
-            % Load a deconvolved signal as a normalized tabulated RTD.
+        function useConvolutionRTD(app, signal, mode)
+            % Load a calculated E signal as a normalized tabulated RTD.
             signal = nirp.conv.signal(signal.t, signal.C) ;
             app.rtd = RTD(signal.t, signal.C) ;
-            app.rtd.source = 'deconvolution' ;
+            if strcmp(mode, 'Deconvolution')
+                app.rtd.source = 'deconvolution' ;
+            else
+                app.rtd.source = 'series_composition' ;
+            end
             app.rtd.modelInfo = struct('source', 'Convolution tab') ;
             app.RTD_SourceDropdown.Value = 'Tabular Input' ;
             app.RTD_sourceChanged() ;
@@ -3569,7 +3574,27 @@ classdef NonIdealReactorApp < handle
             app.RTD_ExportButton.Enable = 'on' ;
             if ~isempty(app.Pred_RTDStatusLabel)
                 app.Pred_RTDStatusLabel.Text = app.htmlStatusTauSigma( ...
-                    'Deconvolution', app.rtd.tau, app.rtd.sigma2) ;
+                    mode, app.rtd.tau, app.rtd.sigma2) ;
+                app.Pred_RTDStatusLabel.FontColor = [0 0.5 0] ;
+            end
+        end
+
+        function useConvolutionTracer(app, signal)
+            % Load C_out as an experimental pulse-response signal in Tab 1.
+            signal = nirp.conv.signal(signal.t, signal.C) ;
+            app.rtd = RTD.from_pulse(signal.t, signal.C) ;
+            app.rtd.modelInfo = struct('source', 'Convolution tab C_out') ;
+            app.RTD_SourceDropdown.Value = 'Tabular Input' ;
+            app.RTD_sourceChanged() ;
+            app.RTD_DataTypeDropdown.Value = 'Pulse C(t)' ;
+            app.RTD_DataTable.Data = [signal.t(:), signal.C(:)] ;
+            app.RTD_updateResults() ;
+            app.RTD_updatePlots() ;
+            app.RTD_updateFQuery() ;
+            app.RTD_ExportButton.Enable = 'on' ;
+            if ~isempty(app.Pred_RTDStatusLabel)
+                app.Pred_RTDStatusLabel.Text = app.htmlStatusTauSigma( ...
+                    'Convolution C_out', app.rtd.tau, app.rtd.sigma2) ;
                 app.Pred_RTDStatusLabel.FontColor = [0 0.5 0] ;
             end
         end
