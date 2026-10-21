@@ -1,73 +1,79 @@
-# Non-Ideal Reactor Plus
+# Non-Ideal Reactor Plus (NIRP)
 
-`Non-Ideal Reactor Plus` is a MATLAB application for teaching and studying ideal and non-ideal reactors through RTD-based analysis, reactor-performance prediction, equivalent-model interpretation, design-oriented comparison tools, and Simulink flowsheets. The main launcher provides access to the ideal app, the non-ideal app, and the graphical flowsheet tools.
+First public release: **v1.0 (October 2026)**. NIRP is under active development as a master's thesis project at the University of Alicante.
 
-This project extends the original `ReactorApp` line developed at the University of Alicante. The current non-ideal-reactor branch keeps that educational spirit while adding RTD-driven prediction routes, visualization layers, session persistence, and a design workspace for fitting, reactive comparison, and process-side optimization.
+## Overview
+
+Non-Ideal Reactor Plus is a MATLAB application for teaching and studying ideal and non-ideal chemical reactors. Run `NonIdealReactorPlus` to open the main launcher and choose between the Ideal Reactor App, the Non-Ideal Reactor App, and the Simulink flowsheet tools.
+
+The current release includes:
+
+- An ideal-reactor application for defining streams and reaction systems, analysing ideal reactors, and working with reactor arrangements and utilities.
+- A non-ideal-reactor application with six main tabs:
+  1. **RTD Analysis** for residence-time-distribution data and ideal RTD models.
+  2. **Prediction Models** for segregation and maximum-mixedness predictions.
+  3. **Tanks-in-Series**.
+  4. **Dispersion Model**.
+  5. **Design & Optimization**, including diagnosis and fitting, reactive-performance comparisons, and optimization.
+  6. **Convolution**, with convolution, series composition, and deconvolution workflows.
+- A Simulink library for steady-state flowsheets built from continuous ideal units. Its blocks are **Stream**, **CSTR**, **PFR**, **Mixer**, **Splitter**, **Separator**, **Heater**, **Jacket**, **Recycle**, **Adjust**, and the **Flowsheet** controller.
+- Generatable Simulink example flowsheets and solved application sessions in `saves/`, including the convolution examples `SECT01`-`SECT03` and `SEC01`-`SEC09`.
 
 ## Requirements
 
-- MATLAB with support for `uifigure`-based apps
-- A local copy of this project extracted from the distributed ZIP package
+NIRP was developed and tested with **MATLAB R2025b** and requires:
+
+- Simulink
+- Optimization Toolbox
+- Global Optimization Toolbox
+- Symbolic Math Toolbox
+- Curve Fitting Toolbox
+- Statistics and Machine Learning Toolbox
+
+Simscape is not required.
 
 ## Installation and Launch
 
-There is no installer. Use the project as a normal MATLAB folder:
+There is no installer. Download and extract the repository ZIP, or clone the repository with Git. Then start MATLAB and either make the repository root the current folder or add that folder to the MATLAB path.
 
-1. Download the project ZIP.
-2. Extract it to any local folder.
-3. Open MATLAB.
-4. In MATLAB, either:
-   - set the extracted project folder as the current folder, or
-   - add the extracted folder to the MATLAB path.
-5. Open the `ReactorApp toolbox` folder inside MATLAB if needed.
-
-The recommended entry point is the main launcher:
+Launch the complete application from the repository root:
 
 ```matlab
 NonIdealReactorPlus
 ```
 
-It opens the ideal reactor app, the non-ideal reactor app, and the Simulink flowsheet tools with loading feedback. The launcher stays open so that you can open another part of the application.
+The launcher provides **Ideal Reactor App**, **Non-Ideal Reactor App**, and **Flowsheet (Simulink)** actions for opening the block library, choosing an example, or creating a new flowsheet.
 
-The individual reactor apps can also be launched directly:
-
-### Direct non-ideal launch
-
-Run:
-
-```matlab
-NonIdealReactorApp
-```
-
-### Direct ideal launch
-
-Run:
+The reactor applications can also be launched directly:
 
 ```matlab
 ReactorApp
+NonIdealReactorApp
 ```
 
-From `ReactorApp`, you can also open the non-ideal branch by selecting the corresponding non-ideal reactor option.
+## Documentation and Help
 
-## Academic Origin and Acknowledgment
+User documentation is stored in `docs/`. In the Non-Ideal Reactor App, open **Help > User Guide** or **Help > Technical Guide**. In the Ideal Reactor App, select **Help**. The flowsheet guide and its focused topics are also included under `docs/` and are linked from the Simulink workflow.
 
-This work is rooted in the original `ReactorApp` created by **Isabela Fons** at the **University of Alicante**. The original project should be cited through:
+## Verification Scripts
+
+The repository provides `scripts/runTests.m` for MATLAB tests, `simulink/run_examples.m` for generated flowsheet examples, and `simulink/run_validation.m` for Simulink validation cases.
+
+## Academic Origin and Credits
+
+NIRP extends **Non-Ideal-Reactor-App**, the undergraduate thesis work by **Javier Berenguer Sabater**, which in turn builds on the original **ReactorApp** created by **Isabela Fons** at the **University of Alicante**. NIRP is authored and maintained by Javier Berenguer Sabater.
+
+ReactorApp references:
 
 - [Journal article](https://www.sciencedirect.com/science/article/pii/S1749772826000096?ref=pdf_download&fr=RR-2&rr=a1a6adaa1fb8c112)
 - [University of Alicante repository (TFG)](https://hdl.handle.net/10045/107785)
 - [MathWorks File Exchange project](https://es.mathworks.com/matlabcentral/fileexchange/76917-reactorapp-toolbox?s_tid=prof_contriblnk)
 
-## Current NonIdealReactorApp Author
-
-The current `NonIdealReactorApp` branch and its non-ideal-reactor extensions are authored and maintained by the present project author.
+Non-Ideal-Reactor-App references:
 
 - [GitHub repository](https://github.com/JavierBerenguer/Trabajo-Final-de-Grado.git)
-- MathWorks project page  [![View Trabajo-Final-de-Grado on File Exchange](https://www.mathworks.com/matlabcentral/images/matlab-file-exchange.svg)](https://es.mathworks.com/matlabcentral/fileexchange/184241-trabajo-final-de-grado)
-- University of Alicante TFG repository entry: `[pending link]`
+- [MathWorks File Exchange project](https://es.mathworks.com/matlabcentral/fileexchange/184241-trabajo-final-de-grado)
 
-## Documentation
+## License
 
-This folder belongs to the technical documentation branch. For user-facing help inside the app, use:
-
-- `Help > User Guide`
-- `Help > Technical Guide`
+NIRP is distributed under the [MIT License](LICENSE). The original ReactorApp components retain their [BSD license and copyright notice](license.txt).
