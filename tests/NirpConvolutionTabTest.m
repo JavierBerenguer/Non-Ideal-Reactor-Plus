@@ -258,14 +258,12 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             testCase.verifyEqual(result(:, 1).', 2:10, 'AbsTol', 1e-12) ;
             testCase.verifyEqual(result(:, 2).', ...
                 [0 0 .4 4.2 5.1 4.4 2.1 0 0], 'AbsTol', 1e-12) ;
-            testCase.verifyEqual(testCase.control('ConvResultLabel1').Text, ...
-                '$C_{\mathrm{out}}(t)$') ;
-            resultsText = testCase.control('ConvResultValue1').Text ;
+            resultsText = testCase.resultValue('$C_{\mathrm{out}}(t)$') ;
             testCase.verifySubstring(resultsText, ...
                 '[0,\;0,\;0.4,\;4.2,\;5.1,\;4.4,\;2.1,\;0,\;0]') ;
             testCase.verifySubstring(resultsText, '\mathrm{mol/m^3}') ;
-            testCase.verifyEqual(testCase.control('ConvResultLabel2').Text, ...
-                '$m_{\mathrm{out}}/(m_{\mathrm{in}}A_E)$') ;
+            testCase.verifyNotEmpty(testCase.resultValue( ...
+                '$m_{\mathrm{out}}/(m_{\mathrm{in}}A_E)$')) ;
             testCase.verifyEqual(char(testCase.control('ConvResultLabel3').Visible), ...
                 'off') ;
             testCase.verifyEqual(testCase.control('ConvResultTable').ColumnName{2}, ...
@@ -369,11 +367,10 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
                 'AbsTol', 2e-2) ;
             testCase.verifyEqual(testCase.control('ConvResultTable').ColumnName{2}, ...
                 'Ê(t) [min⁻¹]') ;
-            testCase.verifyEqual(testCase.control('ConvResultLabel5').Text, ...
-                '$N\simeq1/\sigma_\theta^2$') ;
-            testCase.verifyEqual(testCase.control('ConvResultLabel6').Text, ...
-                '$\mathrm{Relative\ residual}$') ;
-            testCase.verifyNotEmpty(testCase.control('ConvResultValue6').Text) ;
+            testCase.verifyNotEmpty(testCase.resultValue( ...
+                '$N\simeq1/\sigma_\theta^2$')) ;
+            testCase.verifyNotEmpty(testCase.resultValue( ...
+                '$\mathrm{Relative\ residual}$')) ;
             testCase.verifyEqual(char(testCase.control('ConvResultLabel7').Visible), 'off') ;
             testCase.verifyFalse(contains(testCase.control('ConvDiagnostics').Text, ...
                 'Truncated')) ;
@@ -430,8 +427,8 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             result = testCase.control('ConvResultTable').Data ;
             testCase.verifySize(result, [10 2]) ;
             testCase.verifyEqual(result(:, 1).', 0:9, 'AbsTol', 1e-12) ;
-            testCase.verifyEqual(testCase.control('ConvResultLabel6').Text, ...
-                '$\mathrm{Relative\ residual}$') ;
+            testCase.verifyNotEmpty(testCase.resultValue( ...
+                '$\mathrm{Relative\ residual}$')) ;
             testCase.verifyFalse(contains(testCase.control('ConvDiagnostics').Text, ...
                 'Truncated')) ;
 
@@ -472,7 +469,8 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
                 'AbsTol', 1e-12) ;
             testCase.verifyEqual(testCase.control('ConvSupportMax').Value, 13, ...
                 'AbsTol', 1e-12) ;
-            testCase.verifySubstring(testCase.control('ConvResultValue6').Text, ...
+            testCase.verifySubstring(testCase.resultValue( ...
+                '$\mathrm{Relative\ residual}$'), ...
                 'check data or E support') ;
             testCase.verifySubstring(testCase.control('ConvDiagnostics').Text, ...
                 'Underdetermined') ;
@@ -517,8 +515,8 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
 
             resultTable = testCase.control('ConvResultTable') ;
             testCase.verifyEqual(resultTable.ColumnName{2}, 'E₁₂(t) [s⁻¹]') ;
-            testCase.verifyEqual(testCase.control('ConvResultLabel1').Text, '$\tau_{12}$') ;
-            testCase.verifyEqual(testCase.control('ConvResultLabel3').Text, '$\sigma_{12}^2$') ;
+            testCase.verifyNotEmpty(testCase.resultValue('$\tau_{12}$')) ;
+            testCase.verifyNotEmpty(testCase.resultValue('$\sigma_{12}^2$')) ;
             testCase.verifyEqual(char(testCase.control('ConvDiagnostics').Visible), 'off') ;
             lines = findall(testCase.control('ConvAxes'), 'Type', 'Line') ;
             testCase.verifyEqual(sort(string({lines.DisplayName})), ...
@@ -536,11 +534,11 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             minuteTable = testCase.control('ConvMomentsTable') ;
             testCase.verifyEqual(char(minuteTable.Visible), 'off') ;
             testCase.verifyEmpty(minuteTable.Data) ;
-            minuteTau = testCase.control('ConvResultValue2').Text ;
-            testCase.verifyEqual(testCase.control('ConvResultLabel1').Text, '$A_E$') ;
-            testCase.verifyEqual(testCase.control('ConvResultLabel4').Text, '$\sigma_\theta^2$') ;
-            testCase.verifyEqual(testCase.control('ConvResultLabel5').Text, ...
-                '$N\simeq1/\sigma_\theta^2$') ;
+            minuteTau = testCase.resultValue('$\tau$') ;
+            testCase.verifyNotEmpty(testCase.resultValue('$A_E$')) ;
+            testCase.verifyNotEmpty(testCase.resultValue('$\sigma_\theta^2$')) ;
+            testCase.verifyNotEmpty(testCase.resultValue( ...
+                '$N\simeq1/\sigma_\theta^2$')) ;
             testCase.verifySubstring(testCase.control('ConvDiagnostics').Text, 'Warning') ;
 
             testCase.configureCourseDeconvolution('s') ;
@@ -548,7 +546,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
 
             secondTable = testCase.control('ConvMomentsTable') ;
             testCase.verifyEqual(char(secondTable.Visible), 'off') ;
-            testCase.verifyNotEqual(testCase.control('ConvResultValue2').Text, minuteTau) ;
+            testCase.verifyNotEqual(testCase.resultValue('$\tau$'), minuteTau) ;
         end
 
         function oldSessionsLoadWithoutNewWarnings(testCase)
@@ -707,6 +705,10 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             feval(compute.ButtonPushedFcn,compute,[]) ;
             testCase.verifyEqual(testCase.control('ConvResultTable').Data, ...
                 reference,'AbsTol',1e-9*max(1,max(abs(reference),[],'all'))) ;
+            testCase.verifyNotEmpty(testCase.resultValue( ...
+                '$\mathrm{Relative\ residual}$')) ;
+            testCase.verifyEqual(char(testCase.control( ...
+                'ConvResultLabel7').Visible),'off') ;
 
             regularization = testCase.control('ConvRegularization') ;
             regularization.Value = 'Tikhonov' ;
@@ -714,7 +716,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             feval(compute.ButtonPushedFcn,compute,[]) ;
 
             testCase.verifyEqual(testCase.control('ConvLowerPlot').Value,'L-curve') ;
-            testCase.verifySubstring(testCase.control('ConvResultValue6').Text,'L-curve') ;
+            testCase.verifySubstring(testCase.resultValue('$\lambda$'),'L-curve') ;
             testCase.verifyEqual(testCase.control('ConvVerificationAxes').XScale,'log') ;
             testCase.verifyEqual(testCase.control('ConvVerificationAxes').YScale,'log') ;
             testCase.verifyEqual(testCase.control('ConvRegularization').Layout.Column,[2 3]) ;
@@ -782,6 +784,20 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
                 end
             end
             drawnow ;
+        end
+
+        function value = resultValue(testCase, labelText)
+            matchingIndices = [] ;
+            for k = 1:7
+                label = testCase.control(sprintf('ConvResultLabel%d', k)) ;
+                if strcmp(label.Text, labelText) && strcmp(label.Visible, 'on')
+                    matchingIndices(end + 1) = k ; %#ok<AGROW>
+                end
+            end
+            testCase.assertNumElements(matchingIndices, 1, ...
+                ['Missing or duplicate result label: ' labelText]) ;
+            value = testCase.control(sprintf( ...
+                'ConvResultValue%d', matchingIndices(1))).Text ;
         end
 
         function setDropdown(testCase, tag, value)
