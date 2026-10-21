@@ -18,48 +18,144 @@
     <div class="crumbs">
       <a href="../UserGuide.html">User Guide</a> / <span>Tab 6 - Convolution</span>
     </div>
+
     <section class="hero">
       <span class="kicker">Tracer signal workflows</span>
-      <h1>Tab 6 - Convolution</h1>
-      <p>Tab 6 combines measured, analytical, piecewise, or model-based signals on one uniform time grid for convolution and deconvolution.</p>
+      <div class="hero-grid">
+        <div>
+          <h1>Tab 6 - Convolution</h1>
+          <p>Use <strong>Convolution</strong> to predict the outlet tracer signal from an inlet signal and a residence-time distribution (RTD). Use <strong>Deconvolution</strong> to estimate the RTD from measured inlet and outlet signals.</p>
+          <p class="meta">Both modes put the signals on one common time grid and keep input units separate from display units.</p>
+        </div>
+        <aside class="toc">
+          <h2>On This Page</h2>
+          <ol>
+            <li><a href="#before-start">Before You Start</a></li>
+            <li><a href="#signals">Signals, units, and time step</a></li>
+            <li><a href="#convolution">Convolution and SECT01</a></li>
+            <li><a href="#deconvolution">Deconvolution and SECT02</a></li>
+            <li><a href="#regularization">Tikhonov regularization</a></li>
+            <li><a href="#results">How to use every result</a></li>
+            <li><a href="#reuse">Reuse the result in Tab 1</a></li>
+          </ol>
+        </aside>
+      </div>
     </section>
-    <section class="section">
-      <h2>Workspace overview</h2>
-      <p>Choose the workflow and enter its signals on the left. The plot, result table, moments, and diagnostics remain together on the right. Hover over a label or control for a short description.</p>
-      <figure>
-        <img src="../assets/tab-convolution-integrated.png" alt="Convolution tab showing independent input units, row controls, display units, plot, and result tables">
-        <figcaption>The integrated Convolution workspace after calculating the first course example.</figcaption>
-      </figure>
+
+    <section class="section" id="before-start">
+      <h2>Before You Start</h2>
+      <div class="grid-2">
+        <div>
+          <h3>Choose Convolution when...</h3>
+          <ul>
+            <li>You know <em>C</em><sub>in</sub>(t) and E(t).</li>
+            <li>You want the predicted <em>C</em><sub>out</sub>(t).</li>
+            <li>You want to check tracer area, mean-time, and variance relationships through one vessel.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Choose Deconvolution when...</h3>
+          <ul>
+            <li>You measured <em>C</em><sub>in</sub>(t) and <em>C</em><sub>out</sub>(t).</li>
+            <li>You need an estimated nonnegative E(t).</li>
+            <li>You can state a physically plausible delay range for the vessel response.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="callout info"><strong>One vessel at a time:</strong> this tab estimates or applies one RTD. Vessel networks and series arrangements belong in the non-ideal tracer flowsheet; they are not a third mode here.</div>
     </section>
-    <section class="section">
-      <h2>Modes</h2>
+
+    <section class="section" id="signals">
+      <h2>Signals, Units, and the Common Time Step</h2>
       <table>
-        <tr><th>Mode</th><th>Inputs</th><th>Result</th></tr>
-        <tr><td>Convolution</td><td>C<sub>in</sub> and E</td><td>C<sub>out</sub> = C<sub>in</sub> &otimes; E</td></tr>
-        <tr><td>Deconvolution</td><td>C<sub>in</sub> and measured C<sub>out</sub></td><td>A nonnegative E and its reconvolution</td></tr>
+        <tr><th>Control</th><th>What to enter</th><th>Why it matters</th></tr>
+        <tr><td><strong>Table</strong></td><td>Time/value pairs. Use <strong>Add row</strong> and <strong>Remove row</strong>; <strong>Import Experimental Data</strong> reads the first two numeric columns of an Excel, CSV, or TSV file.</td><td>Best for sampled plant, laboratory, or manually transcribed data. Check that times increase and that the recorded window contains the complete signal.</td></tr>
+        <tr><td><strong>Function</strong></td><td>One or more rows with <strong>From t</strong>, <strong>To t</strong>, and an expression in <em>t</em>. Adjacent intervals may describe a piecewise signal.</td><td>Best for analytical pulses and idealized inputs. Intervals must not overlap.</td></tr>
+        <tr><td>Signal units</td><td>Select a time unit for every signal and a concentration unit for <em>C</em><sub>in</sub> and <em>C</em><sub>out</sub>. E is interpreted in the reciprocal of its selected time unit.</td><td>Inputs may use different units; the calculation converts them consistently before combining them.</td></tr>
+        <tr><td>&Delta;t<sub>common</sub></td><td>Enter the calculation step and its unit, or enter 0 for automatic selection.</td><td>All signals are resampled on this grid. A smaller step resolves sharper features but creates more points; the status bar reports the step actually used.</td></tr>
+        <tr><td><strong>Display units</strong></td><td>Choose the time and concentration units shown after calculation.</td><td>These selectors change axes, tables, and displayed moments only. They do not recalculate or alter the underlying result.</td></tr>
       </table>
-      <p>Each signal has its own time unit. Concentration signals also have their own concentration unit; E is entered in the reciprocal of its selected time unit. Set the common step to zero to use the finest input step, or choose its value and unit explicitly. A status message reports any resampling.</p>
-      <div class="callout info"><strong>Vessels in series:</strong> build the arrangement in the non-ideal tracer flowsheet. The <code>tracer_sec01_series</code> example reproduces the former SEC01 exercise.</div>
+      <div class="callout warn"><strong>Experimental data:</strong> remove baseline offsets, include the full tails when possible, and use compatible sampling density. Missing tails bias area and mean time; coarse sampling can hide a narrow RTD.</div>
     </section>
-    <section class="section">
-      <h2>Enter a signal</h2>
-      <p><strong>Table</strong> accepts time/value pairs. Use <strong>Add row</strong> and <strong>Remove row</strong> to resize it; Remove row deletes the selected row, or the last row when nothing is selected. <strong>Import file...</strong> reads the first two numeric columns from Excel, CSV, or TSV and ignores headers or incomplete rows.</p>
-      <p><strong>Piecewise</strong> accepts From t, To t, and an expression in <code>t</code>, with the same row controls. <strong>Function</strong> evaluates one expression over its range and step. E can also use the current RTD from Tab 1 - RTD Analysis or an ideal CSTR, PFR, tanks-in-series, or dispersion model.</p>
-    </section>
-    <section class="section">
-      <h2>Read and reuse results</h2>
-      <p>The <strong>Display units</strong> selectors convert the plot, result table, and moments without recalculating. The moments table and the deconvolution diagnostic both report the trapezoidal area, so one E has one displayed area throughout the tab.</p>
-      <p><strong>Export convolutionResult to Workspace</strong> creates <code>convolutionResult</code> with SI inputs and results plus diagnostics, mode, and display units. A deconvolved E can be loaded into RTD Analysis with <strong>Use as RTD in Tab 1</strong>.</p>
-    </section>
-    <section class="section">
-      <h2>Example: bulletin problem P3</h2>
+
+    <section class="section" id="convolution">
+      <h2>Convolution: Predict the Outlet Signal</h2>
+      <p>Convolution applies the vessel RTD to the inlet history. The result is the outlet history that would be observed if the vessel were linear and time invariant under the test conditions.</p>
+      <figure class="figure-card">
+        <img src="../assets/tab6-convolution-sect01.png" alt="SECT01 in Convolution mode with inlet, RTD, outlet, moment table, and tracer balance">
+        <figcaption><strong>SECT01:</strong> load <code>saves/SECT01.mat</code> from the File menu and select <strong>Compute</strong>. The table signals use seconds; the calculated outlet and its moments appear on the right.</figcaption>
+      </figure>
       <ol>
-        <li>Select <strong>Convolution</strong>, seconds for both signals, and automatic common step.</li>
-        <li>Add two rows and enter C<sub>in</sub>: t = 0...4 and C = [0 8 4 6 0].</li>
-        <li>Add two rows and enter E: t = 2...6 and E = [0 .05 .5 .35 0].</li>
-        <li>Compute. The output is [0 0 .4 4.2 5.1 4.4 2.1 0 0] at t = 2...10 s.</li>
+        <li>Select <strong>Convolution</strong>.</li>
+        <li>Define <em>C</em><sub>in</sub>(t) and E(t) from a Table or Function; E can also use the RTD currently held in Tab 1 or an available ideal model.</li>
+        <li>Choose &Delta;t<sub>common</sub> and select <strong>Compute</strong>.</li>
+        <li>Check the plotted alignment, the output table, and the area/mean/variance relationships before reusing the signal.</li>
       </ol>
-      <div class="callout info"><strong>Deconvolution note:</strong> experimental data may not conserve tracer mass. The estimated E is therefore not silently normalized; inspect its integral and the reported mass ratio before using it as an RTD.</div>
+    </section>
+
+    <section class="section" id="deconvolution">
+      <h2>Deconvolution: Estimate the RTD</h2>
+      <p>Deconvolution finds a nonnegative E(t) whose reconvolution with the inlet resembles the measured outlet. The estimate is constrained to the delay support from <strong>&tau;<sub>min</sub></strong> to <strong>&tau;<sub>max</sub></strong>. Use the narrowest range justified by the equipment and timing data: an unnecessarily wide support adds unknowns, while a range that is too narrow forces real response outside the model.</p>
+      <figure class="figure-card">
+        <img src="../assets/tab6-deconvolution-sect02.png" alt="SECT02 in Deconvolution mode with estimated RTD and reconvolution check">
+        <figcaption><strong>SECT02:</strong> load <code>saves/SECT02.mat</code> and select <strong>Compute</strong>. The inlet is a Function, the outlet is measured Table data, and the stated E support is 4 to 9 min.</figcaption>
+      </figure>
+      <ol>
+        <li>Select <strong>Deconvolution</strong> and enter <em>C</em><sub>in</sub>(t) and measured <em>C</em><sub>out</sub>(t).</li>
+        <li>Set &tau;<sub>min</sub>, &tau;<sub>max</sub>, and their unit from physical timing knowledge. The default is the widest support compatible with the signal windows.</li>
+        <li>Start with <strong>Regularization: None</strong> for exact or teaching data. Select <strong>Compute</strong>.</li>
+        <li>Use the lower <strong>Reconvolution check</strong> to compare measured points, the fitted outlet, and residual bars. Then inspect the relative residual and the E-area warning.</li>
+      </ol>
+    </section>
+
+    <section class="section" id="regularization">
+      <h2>Tikhonov Regularization for Noisy Data</h2>
+      <p>Deconvolution amplifies measurement noise. Select <strong>Tikhonov</strong> when an unregularized E follows point-to-point noise or contains implausibly sharp changes. Keep <strong>None</strong> for exact data unless there is a clear reason to smooth it: regularization can otherwise oversmooth the true RTD and increase the mismatch.</p>
+      <table>
+        <tr><th>Choice</th><th>Use it for</th><th>Interpretation</th></tr>
+        <tr><td><strong>Smoothing: second difference</strong></td><td>The usual noisy experimental RTD.</td><td>Discourages curvature, producing a smoother shape while allowing its overall level to be determined by the data.</td></tr>
+        <tr><td><strong>Smoothing: identity</strong></td><td>Cases where limiting the magnitude is more appropriate than smoothing curvature.</td><td>Penalizes the size of E itself and can shrink the whole estimate.</td></tr>
+        <tr><td><strong>&lambda;: Auto (L-curve)</strong></td><td>A defensible first choice when &lambda; is unknown.</td><td>Selects the marked corner that balances reconvolution error against the smoothing measure.</td></tr>
+        <tr><td><strong>&lambda;: Manual</strong></td><td>Sensitivity studies or a value justified from repeated experiments.</td><td>Enter the nonnegative strength directly; compare both the reconvolution and the resulting RTD as it changes.</td></tr>
+      </table>
+      <figure class="figure-card">
+        <img src="../assets/tab6-tikhonov-lcurve-sect02.png" alt="SECT02 with Tikhonov regularization and automatic lambda marked on the L-curve">
+        <figcaption>SECT02 shown with <strong>Tikhonov</strong>, second-difference smoothing, automatic &lambda;, and the <strong>L-curve</strong> lower plot. This view demonstrates the diagnostic; for the exact course data, the unregularized solution is the more faithful starting point.</figcaption>
+      </figure>
+      <div class="grid-2">
+        <div>
+          <h3>Reconvolution check</h3>
+          <p>Use it to see where the fitted outlet misses measured points. Structured residuals suggest a wrong support, baseline problem, timing mismatch, or model limitation rather than random noise alone.</p>
+        </div>
+        <div>
+          <h3>L-curve</h3>
+          <p>Use it to inspect the tradeoff behind automatic &lambda;. The marked point is the selected balance, not proof that the RTD is physically correct; still check area, support, shape, and reconvolution.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="results">
+      <h2>How to Use Every Result</h2>
+      <table>
+        <tr><th>Result</th><th>Meaning</th><th>Engineering use</th></tr>
+        <tr><td>Area</td><td>The trapezoidal integral of each signal. For E, A<sub>E</sub> should be near 1; in convolution, A<sub>out</sub> should equal A<sub>in</sub>A<sub>E</sub>.</td><td>Checks tracer balance and whether the recorded window includes the full response. A mismatch can expose lost tracer, a baseline error, truncated tails, or inconsistent units.</td></tr>
+        <tr><td>&tau;</td><td>The signal mean time; for an RTD it is the mean residence time. Mean times add in convolution: mean(<em>C</em><sub>out</sub>) = mean(<em>C</em><sub>in</sub>) + &tau;<sub>E</sub>.</td><td>Compare &tau;<sub>E</sub> with V/Q. Q&tau; below nominal V indicates inactive or dead volume; an unexpectedly early response can indicate short-circuiting. Mean times also add across independent vessels in series.</td></tr>
+        <tr><td>&sigma;<sup>2</sup></td><td>Variance in time units squared. Independent convolution variances add.</td><td>With measurements immediately before and after a vessel, obtain its contribution by the two-point method: &sigma;<sub>E</sub><sup>2</sup> = &sigma;<sub>out</sub><sup>2</sup> - &sigma;<sub>in</sub><sup>2</sup>. It separates spreading caused by the vessel from spreading already present at the inlet.</td></tr>
+        <tr><td>&sigma;<sub>&theta;</sub><sup>2</sup></td><td>Dimensionless variance, &sigma;<sup>2</sup>/&tau;<sup>2</sup>.</td><td>Compares RTD breadth independently of vessel time scale. Use N &asymp; 1/&sigma;<sub>&theta;</sub><sup>2</sup> as a tanks-in-series estimate. For axial dispersion, interpret breadth with the Peclet number Pe: high Pe means weak dispersion and a narrow RTD; low Pe means stronger dispersion and a broader RTD.</td></tr>
+        <tr><td>Relative residual</td><td>The reconvolution error relative to the measured outlet magnitude over the measured window.</td><td>Read the displayed rating as a fit screen: below 5% is good, 5&ndash;15% is acceptable, and above 15% asks you to check data or E support. A small value does not by itself validate the RTD physically.</td></tr>
+        <tr><td>Warning A<sub>E</sub> &ne; 1</td><td>The estimated E does not have unit area within the chosen support.</td><td>Check tracer recovery, baselines, tails, units, and support before accepting it. Sending it to Tab 1 normalizes it, but normalization does not repair poor data or a wrong support.</td></tr>
+        <tr><td>&lambda;</td><td>The Tikhonov regularization strength; the result shows whether automatic selection used the L-curve.</td><td>Larger &lambda; favors the selected smoothing rule more strongly and usually sacrifices reconvolution fit. Compare nearby values manually when the automatic corner gives an implausible RTD.</td></tr>
+      </table>
+    </section>
+
+    <section class="section" id="reuse">
+      <h2>Reuse and Export</h2>
+      <table>
+        <tr><th>Button</th><th>What it does</th><th>Important limitation</th></tr>
+        <tr><td><strong>Export to Workspace</strong></td><td>Creates <code>convolutionResult</code> with inputs, result, diagnostics, mode, and selected display units.</td><td>The stored calculation signals are in the app's consistent internal units; the selected display units describe presentation.</td></tr>
+        <tr><td><strong>Use C<sub>out</sub> as tracer response in Tab 1</strong></td><td>In Convolution mode, sends the calculated outlet pulse-response data to RTD Analysis.</td><td>The outlet curve equals the vessel RTD only when <em>C</em><sub>in</sub> is an ideal impulse. With a finite inlet pulse, it is a tracer response broadened by both input and vessel.</td></tr>
+        <tr><td><strong>Use Ê(t) as RTD in Tab 1</strong></td><td>In Deconvolution mode, normalizes the estimated E and loads it as the Tab 1 RTD.</td><td>Resolve warnings and judge the fit first. Normalization changes area, not the evidence quality or the chosen support.</td></tr>
+      </table>
       <div class="footer-nav">
         <a class="button" href="tab-5-design-optimization.html">Previous: Tab 5 - Design &amp; Optimization</a>
         <a class="button alt" href="../UserGuide.html">Back to User Guide</a>

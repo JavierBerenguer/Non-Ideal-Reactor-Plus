@@ -2,7 +2,7 @@ classdef NirpGuidesTest < matlab.unittest.TestCase
     % NirpGuidesTest verifies the navigable user-guide pages and assets.
     % =====================================================================
     % Javier Berenguer Sabater
-    % Created: October 17, 2026. Last update: October 18, 2026
+    % Created: October 17, 2026. Last update: October 22, 2026
     % =====================================================================
 
     methods (Test)
@@ -123,6 +123,47 @@ classdef NirpGuidesTest < matlab.unittest.TestCase
             testCase.verifySubstring(convolutionGuide, ...
                 'Previous: Tab 5 - Design &amp; Optimization') ;
             testCase.verifySubstring(tabOneGuide, 'RTD from Tab 6') ;
+        end
+
+        function convolutionGuideCoversFinalIndependentWorkflows(testCase)
+            root = fileparts(fileparts(mfilename('fullpath'))) ;
+            page = fullfile(root, 'docs', 'guides', ...
+                'tab-6-convolution.html') ;
+            html = string(fileread(page)) ;
+
+            requiredAnchors = ["before-start", "signals", "convolution", ...
+                "deconvolution", "regularization", "results", "reuse"] ;
+            for anchor = requiredAnchors
+                testCase.verifySubstring(html, "id=""" + anchor + """") ;
+                testCase.verifySubstring(html, "href=""#" + anchor + """") ;
+            end
+
+            requiredTopics = ["SECT01", "SECT02", "Add row", ...
+                "Remove row", "Import Experimental Data", "Display units", ...
+                "&Delta;t<sub>common</sub>", "&tau;<sub>min</sub>", ...
+                "&tau;<sub>max</sub>", "Tikhonov", "Auto (L-curve)", ...
+                "Reconvolution check", "Relative residual", ...
+                "Peclet number Pe", ...
+                "Use C<sub>out</sub> as tracer response in Tab 1", ...
+                "Use Ê(t) as RTD in Tab 1"] ;
+            for topic = requiredTopics
+                testCase.verifySubstring(html, topic) ;
+            end
+
+            expectedImages = ["tab6-convolution-sect01.png", ...
+                "tab6-deconvolution-sect02.png", ...
+                "tab6-tikhonov-lcurve-sect02.png"] ;
+            imageSources = extractImageSources(html) ;
+            for expectedImage = expectedImages
+                testCase.verifyTrue(any(endsWith(imageSources, expectedImage)), ...
+                    sprintf('Tab 6 guide does not use %s', expectedImage)) ;
+            end
+            testCase.verifyEqual(numel(unique(imageSources)), 3) ;
+
+            localLinks = regexp(html, 'href="([^"]+)"', 'tokens') ;
+            linkedTargets = string(cellfun(@(value) value{1}, localLinks, ...
+                'UniformOutput', false)) ;
+            testCase.verifyFalse(any(contains(linkedTargets, 'flowsheet'))) ;
         end
 
         function topicBreadcrumbsStartAtTheirOwnHome(testCase)
