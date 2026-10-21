@@ -325,7 +325,8 @@ classdef NonIdealReactorApp < handle
             app.reportProgress(progressFcn, 5 / 7, ...
                 'Building Convolution (6/7)') ;
             app.ConvolutionHelper = ConvolutionTabHelper(app.TabGroup, ...
-                @() app.rtd, @(signal) app.useConvolutionRTD(signal), ...
+                @() app.rtd, @(signal, mode) app.useConvolutionRTD(signal, mode), ...
+                @(signal) app.useConvolutionTracer(signal), ...
                 @(message) app.updateStatus(message)) ;
             app.reportProgress(progressFcn, 6 / 7, ...
                 'Final layout: drawing the window, the first time can take a while (7/7)') ;
@@ -3553,11 +3554,15 @@ classdef NonIdealReactorApp < handle
             drawnow limitrate ;
         end
 
-        function useConvolutionRTD(app, signal)
-            % Load a deconvolved signal as a normalized tabulated RTD.
+        function useConvolutionRTD(app, signal, mode)
+            % Load a calculated E signal as a normalized tabulated RTD.
             signal = nirp.conv.signal(signal.t, signal.C) ;
             app.rtd = RTD(signal.t, signal.C) ;
-            app.rtd.source = 'deconvolution' ;
+            if strcmp(mode, 'Deconvolution')
+                app.rtd.source = 'deconvolution' ;
+            else
+                app.rtd.source = 'series_composition' ;
+            end
             app.rtd.modelInfo = struct('source', 'Convolution tab') ;
             app.RTD_SourceDropdown.Value = 'Tabular Input' ;
             app.RTD_sourceChanged() ;
@@ -3569,7 +3574,27 @@ classdef NonIdealReactorApp < handle
             app.RTD_ExportButton.Enable = 'on' ;
             if ~isempty(app.Pred_RTDStatusLabel)
                 app.Pred_RTDStatusLabel.Text = app.htmlStatusTauSigma( ...
-                    'Deconvolution', app.rtd.tau, app.rtd.sigma2) ;
+                    mode, app.rtd.tau, app.rtd.sigma2) ;
+                app.Pred_RTDStatusLabel.FontColor = [0 0.5 0] ;
+            end
+        end
+
+        function useConvolutionTracer(app, signal)
+            % Load C_out as an experimental pulse-response signal in Tab 1.
+            signal = nirp.conv.signal(signal.t, signal.C) ;
+            app.rtd = RTD.from_pulse(signal.t, signal.C) ;
+            app.rtd.modelInfo = struct('source', 'Convolution tab C_out') ;
+            app.RTD_SourceDropdown.Value = 'Tabular Input' ;
+            app.RTD_sourceChanged() ;
+            app.RTD_DataTypeDropdown.Value = 'Pulse C(t)' ;
+            app.RTD_DataTable.Data = [signal.t(:), signal.C(:)] ;
+            app.RTD_updateResults() ;
+            app.RTD_updatePlots() ;
+            app.RTD_updateFQuery() ;
+            app.RTD_ExportButton.Enable = 'on' ;
+            if ~isempty(app.Pred_RTDStatusLabel)
+                app.Pred_RTDStatusLabel.Text = app.htmlStatusTauSigma( ...
+                    'Convolution C_out', app.rtd.tau, app.rtd.sigma2) ;
                 app.Pred_RTDStatusLabel.FontColor = [0 0.5 0] ;
             end
         end

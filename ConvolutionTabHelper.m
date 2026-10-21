@@ -13,12 +13,18 @@ classdef ConvolutionTabHelper < handle
     properties (Access = private)
         GetRTD
         SetRTD
+        SetTracer
         SetStatus
         ModeGroup
         DtUnit
         OutputTimeUnit
         OutputConcentrationUnit
         DtField
+        SupportPanel
+        SupportMin
+        SupportMax
+        SupportUnit
+        SupportIsDefault = true
         SignalTabs
         HiddenSignalTabs
         Signals = struct()
@@ -40,9 +46,10 @@ classdef ConvolutionTabHelper < handle
     end
 
     methods
-        function obj = ConvolutionTabHelper(parent, getRTD, setRTD, setStatus)
+        function obj = ConvolutionTabHelper(parent, getRTD, setRTD, setTracer, setStatus)
             obj.GetRTD = getRTD ;
             obj.SetRTD = setRTD ;
+            obj.SetTracer = setTracer ;
             obj.SetStatus = setStatus ;
             obj.buildUI(parent) ;
         end
@@ -51,6 +58,10 @@ classdef ConvolutionTabHelper < handle
             snapshot = struct('mode', obj.ModeGroup.SelectedObject.Text, ...
                 'timeUnit', obj.OutputTimeUnit.Value, ...
                 'dtUnit', obj.DtUnit.Value, 'dt', obj.DtField.Value, ...
+                'supportMin', obj.SupportMin.Value, ...
+                'supportMax', obj.SupportMax.Value, ...
+                'supportUnit', obj.SupportUnit.Value, ...
+                'supportIsDefault', obj.SupportIsDefault, ...
                 'outputTimeUnit', obj.OutputTimeUnit.Value, ...
                 'outputConcentrationUnit', obj.OutputConcentrationUnit.Value, ...
                 'signals', struct(), 'lastSignals', obj.LastSignals, ...
@@ -82,6 +93,11 @@ classdef ConvolutionTabHelper < handle
             obj.setDropdown(obj.OutputConcentrationUnit, ...
                 obj.getField(snapshot, 'outputConcentrationUnit', 'mol/m^3')) ;
             obj.DtField.Value = obj.getField(snapshot, 'dt', 0) ;
+            obj.SupportMin.Value = obj.getField(snapshot, 'supportMin', 0) ;
+            obj.SupportMax.Value = obj.getField(snapshot, 'supportMax', 10) ;
+            obj.setDropdown(obj.SupportUnit, ...
+                obj.getField(snapshot, 'supportUnit', legacyTimeUnit)) ;
+            obj.SupportIsDefault = obj.getField(snapshot, 'supportIsDefault', true) ;
             storedSignals = obj.getField(snapshot, 'signals', struct()) ;
             names = fieldnames(obj.Signals) ;
             for k = 1:numel(names)
@@ -133,6 +149,10 @@ classdef ConvolutionTabHelper < handle
             obj.OutputTimeUnit.Value = 's' ;
             obj.OutputConcentrationUnit.Value = 'mol/m^3' ;
             obj.DtField.Value = 0 ;
+            obj.SupportMin.Value = 0 ;
+            obj.SupportMax.Value = 10 ;
+            obj.SupportUnit.Value = 's' ;
+            obj.SupportIsDefault = true ;
             names = fieldnames(obj.Signals) ;
             for k = 1:numel(names)
                 ui = obj.Signals.(names{k}) ;
@@ -159,8 +179,8 @@ classdef ConvolutionTabHelper < handle
             root = uigridlayout(obj.Tab, [1 2], 'ColumnWidth', {430, '1x'}, ...
                 'Padding', [8 8 8 8], 'ColumnSpacing', 10) ;
 
-            controls = uigridlayout(root, [6 1], ...
-                'RowHeight', {54, 32, '1x', 34, 68, 34}, ...
+            controls = uigridlayout(root, [7 1], ...
+                'RowHeight', {54, 32, '1x', 0, 34, 68, 34}, ...
                 'RowSpacing', 4, 'Padding', [0 0 0 0]) ;
             modePanel = uipanel(controls, 'Title', 'Mode') ;
             obj.ModeGroup = uibuttongroup(modePanel, 'Position', [4 2 414 27], ...
@@ -197,12 +217,40 @@ classdef ConvolutionTabHelper < handle
             obj.createSignalEditor('E1', 'RTD vessel 1 E₁(t)', false) ;
             obj.createSignalEditor('E2', 'RTD vessel 2 E₂(t)', false) ;
 
+            obj.SupportPanel = uipanel(controls, 'Title', 'E support', ...
+                'Visible', 'off', 'Tag', 'ConvSupportPanel', ...
+                'Tooltip', ['Delays used as deconvolution unknowns. Defaults to the ' ...
+                'largest support compatible with the stated signal windows.']) ;
+            obj.SupportPanel.Layout.Row = 4 ;
+            supportGrid = uigridlayout(obj.SupportPanel, [2 6], ...
+                'ColumnWidth', {'fit', '1x', 'fit', '1x', 'fit', 58}, ...
+                'RowHeight', {22, 18}, 'Padding', [6 1 6 1], ...
+                'RowSpacing', 0) ;
+            uilabel(supportGrid, 'Text', '$\tau_{\min}$:', 'Interpreter', 'latex') ;
+            obj.SupportMin = uieditfield(supportGrid, 'numeric', 'Value', 0, ...
+                'Limits', [0 Inf], 'Tag', 'ConvSupportMin', ...
+                'ValueChangedFcn', @(~,~) obj.supportEdited()) ;
+            uilabel(supportGrid, 'Text', '$\tau_{\max}$:', 'Interpreter', 'latex') ;
+            obj.SupportMax = uieditfield(supportGrid, 'numeric', 'Value', 10, ...
+                'Limits', [0 Inf], 'Tag', 'ConvSupportMax', ...
+                'ValueChangedFcn', @(~,~) obj.supportEdited()) ;
+            uilabel(supportGrid, 'Text', '$\mathrm{Unit:}$', 'Interpreter', 'latex') ;
+            obj.SupportUnit = uidropdown(supportGrid, ...
+                'Items', UnitConverterHelper.getUnits('Time'), 'Value', 's', ...
+                'Tag', 'ConvSupportUnit', ...
+                'ValueChangedFcn', @(~,~) obj.supportEdited()) ;
+            supportDescription = uilabel(supportGrid, ...
+                'Text', 'Default: max(0, t_{out,start}-t_{in,end}) to t_{out,end}-t_{in,start}.', ...
+                'Interpreter', 'tex', 'FontSize', 10, 'Tag', 'ConvSupportDescription') ;
+            supportDescription.Layout.Row = 2 ;
+            supportDescription.Layout.Column = [1 6] ;
+
             computeButton = uibutton(controls, 'Text', 'Compute', ...
                 'FontWeight', 'bold', 'BackgroundColor', [0.3 0.6 0.9], ...
                 'FontColor', 'white', 'Tag', 'ConvCompute', ...
                 'Tooltip', 'Run the selected tracer-signal workflow and update all results.', ...
                 'ButtonPushedFcn', @(~,~) obj.compute()) ;
-            computeButton.Layout.Row = 4 ;
+            computeButton.Layout.Row = 5 ;
             displayPanel = uipanel(controls, 'Title', 'Display units') ;
             displayGrid = uigridlayout(displayPanel, [1 4], ...
                 'ColumnWidth', {55, '1x', 92, '1x'}, 'Padding', [6 4 6 4]) ;
@@ -220,9 +268,9 @@ classdef ConvolutionTabHelper < handle
                 'Tooltip', 'Choose the result concentration unit. This changes presentation only.') ;
             timeLabel.Tooltip = obj.OutputTimeUnit.Tooltip ;
             concentrationLabel.Tooltip = obj.OutputConcentrationUnit.Tooltip ;
-            buttons = uigridlayout(controls, [1 2], 'ColumnWidth', {'1.25x', '0.75x'}, ...
+            buttons = uigridlayout(controls, [1 2], 'ColumnWidth', {145, '1x'}, ...
                 'Padding', [0 0 0 0]) ;
-            obj.ExportButton = uibutton(buttons, 'Text', 'Export convolutionResult to Workspace', ...
+            obj.ExportButton = uibutton(buttons, 'Text', 'Export to Workspace', ...
                 'Enable', 'off', 'Tag', 'ConvExport', ...
                 'Tooltip', 'Export inputs, SI result, diagnostics, mode, and selected units as convolutionResult.', ...
                 'ButtonPushedFcn', @(~,~) obj.export()) ;
@@ -249,9 +297,9 @@ classdef ConvolutionTabHelper < handle
                 'Tooltip', 'Trapezoidal area, mean time, and variance for each displayed signal.') ;
             obj.ResultsPanel = uipanel(obj.ResultsGrid, 'Title', 'Results', ...
                 'Tag', 'ConvResultsPanel') ;
-            results = uigridlayout(obj.ResultsPanel, [4 6], ...
+            results = uigridlayout(obj.ResultsPanel, [5 6], ...
                 'ColumnWidth', {'fit', '1x', 'fit', '1x', 'fit', '1x'}, ...
-                'RowHeight', {34, 20, 20, 0}, ...
+                'RowHeight', {34, 20, 20, 0, 0}, ...
                 'RowSpacing', 2, 'ColumnSpacing', 5, 'Padding', [6 3 6 3], ...
                 'Scrollable', 'off', ...
                 'Tag', 'ConvResultsRows') ;
@@ -280,7 +328,7 @@ classdef ConvolutionTabHelper < handle
                 'Interpreter', 'latex', 'FontColor', [0.75 0.1 0.1], ...
                 'WordWrap', 'on', 'Tag', 'ConvDiagnostics', ...
                 'Tooltip', 'Warning shown when the estimated RTD area differs materially from one.') ;
-            obj.DiagnosticsLabel.Layout.Row = 4 ;
+            obj.DiagnosticsLabel.Layout.Row = 5 ;
             obj.DiagnosticsLabel.Layout.Column = [1 6] ;
             obj.modeChanged() ;
         end
@@ -414,11 +462,17 @@ classdef ConvolutionTabHelper < handle
                 obj.Signals.(names{k}).Description.Text = obj.signalDescription(names{k}) ;
             end
             obj.SignalTabs.SelectedTab = obj.Signals.(visibleNames{1}).Tab ;
+            isDeconvolution = strcmp(mode, 'Deconvolution') ;
+            obj.SupportPanel.Visible = obj.onOff(isDeconvolution) ;
+            controls = obj.SupportPanel.Parent ;
+            if isDeconvolution
+                controls.RowHeight{4} = 70 ;
+            else
+                controls.RowHeight{4} = 0 ;
+            end
             obj.configureResultLayout(mode) ;
             obj.ResultsDescription.Text = obj.resultDescription(mode) ;
-            obj.UseRTDButton.Visible = obj.onOff(strcmp(mode, 'Deconvolution')) ;
-            obj.UseRTDButton.Enable = obj.onOff(strcmp(mode, 'Deconvolution') && ...
-                isstruct(obj.LastResult) && isfield(obj.LastResult, 't')) ;
+            obj.configureUseButton(mode) ;
             if clearPrevious
                 obj.LastSignals = struct() ;
                 obj.LastResult = [] ;
@@ -454,6 +508,54 @@ classdef ConvolutionTabHelper < handle
             ui.Bo.Enable = obj.onOff(strcmp(ui.Model.Value, 'Dispersion')) ;
         end
 
+        function supportEdited(obj)
+            obj.SupportIsDefault = false ;
+        end
+
+        function support = deconvolutionSupport(obj, signals, dt)
+            scale = UnitConverterHelper.factorToSI('Time', obj.SupportUnit.Value) ;
+            if obj.SupportIsDefault
+                support = [max(0, signals.Cout.t(1)-signals.Cin.t(end)), ...
+                    signals.Cout.t(end)-signals.Cin.t(1)] ;
+                if support(2) < support(1)
+                    error('NonIdealReactorApp:ConvolutionSupport', ...
+                        'The signal windows do not define a nonnegative E support.') ;
+                end
+                obj.SupportMin.Value = support(1) / scale ;
+                obj.SupportMax.Value = support(2) / scale ;
+            else
+                support = [obj.SupportMin.Value obj.SupportMax.Value] * scale ;
+            end
+            if support(2) < support(1)
+                error('NonIdealReactorApp:ConvolutionSupport', ...
+                    'E support requires tau_max >= tau_min.') ;
+            end
+            intervals = (support(2)-support(1))/dt ;
+            if abs(intervals-round(intervals)) > 1e-9*max(1,abs(intervals))
+                error('NonIdealReactorApp:ConvolutionSupport', ...
+                    'E support endpoints must lie on the common time-step grid.') ;
+            end
+        end
+
+        function configureUseButton(obj, mode)
+            hasResult = isstruct(obj.LastResult) && isfield(obj.LastResult, 't') ;
+            obj.UseRTDButton.Visible = 'on' ;
+            obj.UseRTDButton.Enable = obj.onOff(hasResult) ;
+            if strcmp(mode, 'Convolution')
+                obj.UseRTDButton.Text = 'Use C_out as tracer response in Tab 1' ;
+                obj.UseRTDButton.Tooltip = ['C_out is the response to the given C_in; ' ...
+                    'it equals the RTD only if C_in is an ideal pulse.'] ;
+            elseif strcmp(mode, 'Deconvolution')
+                obj.UseRTDButton.Text = 'Use Ê(t) as RTD in Tab 1' ;
+                obj.UseRTDButton.Tooltip = ...
+                    'Normalize the estimated E(t) and load it into RTD Analysis.' ;
+            else
+                obj.UseRTDButton.Text = 'Use E₁₂(t) as RTD in Tab 1' ;
+                obj.UseRTDButton.Tooltip = ...
+                    'Normalize the series-composition RTD and load it into RTD Analysis.' ;
+            end
+        end
+
         function compute(obj)
             try
                 obj.SetStatus('Computing convolution workflow...') ;
@@ -469,18 +571,9 @@ classdef ConvolutionTabHelper < handle
                 if strcmp(mode, 'Convolution')
                     [obj.LastResult, obj.LastInfo] = nirp.conv.convolve(signals.E, signals.Cin) ;
                 elseif strcmp(mode, 'Deconvolution')
-                    nE = numel(signals.Cout.C) - numel(signals.Cin.C) + 1 ;
-                    truncatedWindow = nE < 2 ;
-                    if nE < 2
-                        % Equal or overlapping acquisition windows contain a
-                        % truncated outlet response rather than the complete
-                        % convolution tail. Estimate every observable causal
-                        % lag instead of passing a one-point RTD downstream.
-                        nE = numel(signals.Cout.C) ;
-                    end
+                    support = obj.deconvolutionSupport(signals, dt) ;
                     [obj.LastResult, obj.LastInfo] = nirp.conv.deconvolve( ...
-                        signals.Cin, signals.Cout, nE) ;
-                    obj.LastInfo.truncatedWindow = truncatedWindow ;
+                        signals.Cin, signals.Cout, support) ;
                     obj.LastInfo.relativeResidual = obj.LastInfo.residualNorm / ...
                         max(norm(signals.Cout.C), eps) ;
                     signals.E = obj.LastResult ;
@@ -505,10 +598,10 @@ classdef ConvolutionTabHelper < handle
                 else
                     status = sprintf('Ready - common dt = %.6g s.', dt) ;
                 end
-                if strcmp(mode, 'Deconvolution') && ...
-                        obj.getField(obj.LastInfo, 'truncatedWindow', false)
-                    status = [status ' Output treated as a truncated window: ' ...
-                        'E is estimated assuming no tracer entered before the first C_in sample.'] ;
+                if strcmp(mode, 'Deconvolution') && obj.LastInfo.underdetermined
+                    status = sprintf(['%s Underdetermined problem: %d E samples ' ...
+                        'from %d measured values; review the E support.'], status, ...
+                        obj.LastInfo.numberOfUnknowns, obj.LastInfo.numberOfEquations) ;
                 end
                 obj.SetStatus(status) ;
             catch exception
@@ -702,41 +795,63 @@ classdef ConvolutionTabHelper < handle
                 measuredLine = obj.plotSignal(obj.VerificationAxes, ...
                     obj.LastSignals.Cout, false, ...
                     timeScale, concentrationScale, '$C_{\mathrm{out,measured}}(t)$') ;
-                reconvolvedLine = obj.plotSignal(obj.VerificationAxes, ...
+                measuredLine.LineStyle = 'none' ;
+                measuredLine.Marker = 'o' ;
+                obj.plotSignal(obj.VerificationAxes, ...
                     obj.LastSignals.Reconvolved, false, ...
                     timeScale, concentrationScale, '$C_{\mathrm{out,reconvolved}}(t)$', 1.6) ;
-                obj.plotMeanTime(obj.VerificationAxes, obj.LastSignals.Cout, ...
-                    timeScale, measuredLine.Color, '$\bar{t}_{\mathrm{meas}}$') ;
-                obj.plotMeanTime(obj.VerificationAxes, ...
-                    obj.LastSignals.Reconvolved, timeScale, ...
-                    reconvolvedLine.Color, '$\bar{t}_{\mathrm{reconv}}$') ;
+                residualValues = obj.LastInfo.residual / concentrationScale ;
+                bar(obj.VerificationAxes, obj.LastSignals.Cout.t / timeScale, ...
+                    residualValues, 0.35, 'DisplayName', '$C_{\mathrm{measured}}-C_{\mathrm{fit}}$', ...
+                    'FaceAlpha', 0.35, 'EdgeColor', 'none') ;
+                xlim(obj.VerificationAxes, obj.LastSignals.Cout.t([1 end]) / timeScale) ;
                 hold(obj.VerificationAxes, 'off') ;
-                momentRows = obj.momentRows({'Estimated E'}, {result}, true, ...
-                    timeScale, concentrationScale) ;
+                momentRows = {} ;
                 moments = nirp.conv.moments(result) ;
                 relativeResidual = obj.relativeResidual() ;
                 sigmaTheta = moments.variance / max(moments.mean^2, eps) ;
-                warnings = {} ;
-                if abs(moments.area - 1) > 0.01
-                    warnings{end + 1} = ['$\mathbf{Warning:}\ A_E\ne1;\ ' ...
-                        '\mathrm{the\ estimated\ RTD\ is\ not\ normalized.}$'] ; %#ok<AGROW>
+                equivalentTanks = 1 / max(sigmaTheta, eps) ;
+                if relativeResidual < 0.05
+                    fitReading = 'good fit' ;
+                elseif relativeResidual <= 0.15
+                    fitReading = 'acceptable' ;
+                else
+                    fitReading = 'check data or E support' ;
                 end
-                if obj.getField(obj.LastInfo, 'truncatedWindow', false)
-                    warnings{end + 1} = ['$\mathbf{Truncated\ window:}\ ' ...
-                        '\mathrm{E\ is\ estimated\ assuming\ no\ tracer\ entered\ ' ...
-                        'before\ the\ first\ C_{in}\ sample.}$'] ; %#ok<AGROW>
+                warnings = {} ;
+                if abs(moments.area - 1) > 0.05
+                    warnings{end + 1} = ['$\mathbf{Warning:\ A_E\ne1;}\ ' ...
+                        '\mathrm{RTD\ not\ normalized;\ Tab\ 1\ normalizes\ it.}$'] ;
+                end
+                if obj.LastInfo.underdetermined
+                    warnings{end + 1} = ['$\mathbf{Underdetermined:}\ ' ...
+                        num2str(obj.LastInfo.numberOfUnknowns) ...
+                        '\ \mathrm{E\ samples,}\ ' ...
+                        num2str(obj.LastInfo.numberOfEquations) ...
+                        '\ \mathrm{measurements;}\ ' ...
+                        '\mathrm{review\ the\ E\ support.}$'] ;
                 end
                 obj.setResultRows({ ...
                     '$A_E$', '$\tau$', '$\sigma^2$', '$\sigma_\theta^2$', ...
-                    '$\mathrm{Relative\ reconvolution\ residual}$'}, { ...
+                    '$N\simeq1/\sigma_\theta^2$', ...
+                    '$\mathrm{Relative\ residual}$'}, { ...
                     ['$' sprintf('%.6g', moments.area) '$'], ...
                     ['$' sprintf('%.6g', moments.mean / timeScale) ...
                     '\;\mathrm{' obj.latexUnit(timeUnit) '}$'], ...
                     ['$' sprintf('%.6g', moments.variance / timeScale^2) ...
                     '\;\mathrm{' obj.latexUnit(timeUnit) '^2}$'], ...
                     ['$' sprintf('%.6g', sigmaTheta) '$'], ...
-                    ['$' sprintf('%.6g', relativeResidual) '$']}, ...
+                    ['$' sprintf('%.6g', equivalentTanks) '$'], ...
+                    ['$' sprintf('%.2f', relativeResidual * 100) '\%$']}, ...
                     strjoin(warnings, newline)) ;
+                obj.ResultLabels{6}.Layout.Row = 4 ;
+                obj.ResultLabels{6}.Layout.Column = 1 ;
+                obj.ResultValues{6}.Layout.Row = 4 ;
+                obj.ResultValues{6}.Layout.Column = [2 6] ;
+                obj.ResultValues{6}.Interpreter = 'none' ;
+                obj.ResultValues{6}.Text = sprintf('= %.2f%% (%s)', ...
+                    relativeResidual * 100, fitReading) ;
+                obj.ResultLabels{1}.Parent.RowHeight{4} = 20 ;
             else
                 hold(obj.Axes, 'on') ;
                 firstLine = obj.plotSignal(obj.Axes, obj.LastSignals.E1, true, ...
@@ -774,7 +889,7 @@ classdef ConvolutionTabHelper < handle
                 ['τ [' timeUnit ']'], ['σ² [' timeUnit '²]']} ;
             obj.MomentsTable.Data = momentRows ;
             obj.ExportButton.Enable = 'on' ;
-            obj.UseRTDButton.Enable = obj.onOff(strcmp(mode, 'Deconvolution')) ;
+            obj.configureUseButton(mode) ;
         end
 
         function clearResults(obj)
@@ -798,12 +913,22 @@ classdef ConvolutionTabHelper < handle
         end
 
         function useAsRTD(obj)
-            if ~strcmp(obj.ModeGroup.SelectedObject.Text, 'Deconvolution') || ...
-                    ~isstruct(obj.LastResult) || ~isfield(obj.LastResult, 't')
+            if ~isstruct(obj.LastResult) || ~isfield(obj.LastResult, 't')
                 return
             end
-            obj.SetRTD(obj.LastResult) ;
-            obj.SetStatus('Deconvolved E loaded as the Tab 1 RTD.') ;
+            mode = obj.ModeGroup.SelectedObject.Text ;
+            if strcmp(mode, 'Convolution')
+                obj.SetTracer(obj.LastResult) ;
+                obj.SetStatus(['C_out loaded as the Tab 1 pulse-response data. ' ...
+                    'It is an RTD only for an ideal-pulse C_in.']) ;
+            else
+                obj.SetRTD(obj.LastResult, mode) ;
+                if strcmp(mode, 'Deconvolution')
+                    obj.SetStatus('Estimated E normalized and loaded as the Tab 1 RTD.') ;
+                else
+                    obj.SetStatus('Series E_12 normalized and loaded as the Tab 1 RTD.') ;
+                end
+            end
         end
 
         function values = numericTable(obj, data, columns, name)
@@ -877,9 +1002,11 @@ classdef ConvolutionTabHelper < handle
         function configureResultLayout(obj, mode)
             obj.VerificationAxes.Visible = obj.onOff(strcmp(mode, 'Deconvolution')) ;
             if strcmp(mode, 'Deconvolution')
-                obj.ResultsGrid.RowHeight = {'1x', '1x', '0.7x', 70, 156} ;
+                obj.ResultsGrid.RowHeight = {'1x', '1x', '0.7x', 0, 190} ;
+                obj.MomentsTable.Visible = 'off' ;
             else
                 obj.ResultsGrid.RowHeight = {'2x', 0, '1x', 104, 156} ;
+                obj.MomentsTable.Visible = 'on' ;
             end
         end
 
@@ -909,8 +1036,8 @@ classdef ConvolutionTabHelper < handle
             obj.DiagnosticsLabel.Text = warningText ;
             obj.DiagnosticsLabel.Visible = obj.onOff(hasWarning) ;
             grid.RowHeight = [{34}, repmat({20}, 1, pairRows), ...
-                repmat({0}, 1, 2 - pairRows), {0}] ;
-            if hasWarning, grid.RowHeight{4} = 36 ; end
+                repmat({0}, 1, 3 - pairRows), {0}] ;
+            if hasWarning, grid.RowHeight{5} = 44 ; end
         end
 
         function text = resultDescription(~, mode)
@@ -924,8 +1051,8 @@ classdef ConvolutionTabHelper < handle
             elseif strcmp(mode, 'Deconvolution')
                 text = ['$A_E\ \mathrm{is\ area,}\ \tau\ \mathrm{is\ mean\ time,}\ ' ...
                     '\sigma^2\ \mathrm{is\ variance,\ and}\ \sigma_\theta^2\ ' ...
-                    '\mathrm{is\ dimensionless\ variance;}\ ' ...
-                    '\mathrm{the\ relative\ residual\ checks\ reconvolution.}$'] ;
+                    '\mathrm{gives}\ N\simeq1/\sigma_\theta^2;\ ' ...
+                    '\mathrm{the\ residual\ rates\ the\ fit\ in\ the\ measured\ window.}$'] ;
             else
                 text = ['$E_{12}=E_1*E_2;\ \tau_{12}=\tau_1+\tau_2\ ' ...
                     '\mathrm{and}\ \sigma_{12}^2=\sigma_1^2+\sigma_2^2.$'] ;
@@ -967,7 +1094,8 @@ classdef ConvolutionTabHelper < handle
             moments = nirp.conv.moments(signal) ;
             xline(axesControl, moments.mean / timeScale, '--', label, ...
                 'Color', color, 'HandleVisibility', 'off', ...
-                'Interpreter', 'latex', 'LineWidth', 1) ;
+                'Interpreter', 'latex', 'LineWidth', 1, ...
+                'LabelOrientation', 'horizontal', 'FontSize', 10) ;
         end
 
         function clearMeanTimes(obj)
