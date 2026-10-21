@@ -237,8 +237,11 @@ classdef NonIdealReactorApp < handle
             parser.FunctionName = 'NonIdealReactorApp' ;
             addParameter(parser, 'ProgressFcn', [], ...
                 @(value) isempty(value) || isa(value, 'function_handle')) ;
+            addParameter(parser, 'Visible', 'on', ...
+                @(value) any(strcmpi(char(string(value)), {'on', 'off'}))) ;
             parse(parser, varargin{:}) ;
             progressFcn = parser.Results.ProgressFcn ;
+            initialVisibility = lower(char(string(parser.Results.Visible))) ;
 
             loadingCleanup = [] ;
             if isempty(progressFcn)
@@ -341,7 +344,7 @@ classdef NonIdealReactorApp < handle
             % relayout all of its descendants repeatedly and can starve painting for minutes.
             app.applyFigureSize() ;
             app.UIFigure.SizeChangedFcn = @(~,~) app.onFigureResize() ;
-            app.UIFigure.Visible = 'on' ;
+            app.UIFigure.Visible = initialVisibility ;
             drawnow ;
             app.applyFigureSize() ;
             % Drawing the visible window is the slow part of a cold start: Ready only after it (Claude, T-161)

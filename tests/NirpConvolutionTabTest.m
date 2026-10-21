@@ -18,16 +18,17 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             fixture = testCase.applyFixture(TemporaryFolderFixture) ;
             testCase.Folder = fixture.Folder ;
             testCase.Root = fileparts(fileparts(mfilename('fullpath'))) ;
-            testCase.App = NonIdealReactorApp() ;
+            testCase.App = NonIdealReactorApp('ProgressFcn',@(~,~) [], ...
+                'Visible','off') ;
             figures = findall(groot, 'Type', 'Figure', ...
                 'Name', 'Non-Ideal Reactor Analysis') ;
             testCase.Figure = figures(1) ;
-            testCase.Figure.Visible = 'on' ;
+            testCase.Figure.Visible = 'off' ;
             testCase.addTeardown(@() closeFigures()) ;
         end
     end
 
-    methods (Test)
+    methods (Test, TestTags = {'Interactive'})
         function tabIsSixthAfterDesignWorkspace(testCase)
             group = findall(testCase.Figure, 'Type', 'uitabgroup') ;
             mainGroup = group(arrayfun(@(g) any(strcmp({g.Children.Title}, ...
@@ -663,6 +664,38 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             testCase.press(testCase.control('ConvCompute')) ;
             result = testCase.control('ConvResultTable').Data ;
             testCase.verifyEqual(result(:, 2).', [0 0 2 4 0], 'AbsTol', 1e-12) ;
+        end
+    end
+
+    methods (Test)
+        function tikhonovAutoIsHeadlessAndLegacySessionDefaultsToNone(testCase)
+            file = fullfile(testCase.Root,'saves','SECT02.mat') ;
+            stored = load(file,'sessionData') ;
+            reference = stored.sessionData.convolution.referenceTable ;
+            testCase.App.loadSessionFromFile(file) ;
+            testCase.verifyEqual(testCase.control('ConvRegularization').Value,'None') ;
+            compute = testCase.control('ConvCompute') ;
+            feval(compute.ButtonPushedFcn,compute,[]) ;
+            testCase.verifyEqual(testCase.control('ConvResultTable').Data, ...
+                reference,'AbsTol',1e-9*max(1,max(abs(reference),[],'all'))) ;
+
+            regularization = testCase.control('ConvRegularization') ;
+            regularization.Value = 'Tikhonov' ;
+            feval(regularization.ValueChangedFcn,regularization,[]) ;
+            feval(compute.ButtonPushedFcn,compute,[]) ;
+
+            testCase.verifyEqual(testCase.control('ConvLowerPlot').Value,'L-curve') ;
+            testCase.verifySubstring(testCase.control('ConvResultValue6').Text,'L-curve') ;
+            testCase.verifyGreaterThanOrEqual(numel( ...
+                testCase.control('ConvVerificationAxes').Children),2) ;
+            saved = fullfile(testCase.Folder,'tikhonov-auto.mat') ;
+            testCase.App.saveSessionToFile(saved,'tikhonov-auto') ;
+            roundTrip = load(saved,'sessionData') ;
+            testCase.verifyEqual(roundTrip.sessionData.convolution.regularization, ...
+                'Tikhonov') ;
+            testCase.verifyEqual(roundTrip.sessionData.convolution.lambdaMode, ...
+                'Auto (L-curve)') ;
+            testCase.verifyGreaterThan(roundTrip.sessionData.convolution.lastInfo.lambda,0) ;
         end
     end
 

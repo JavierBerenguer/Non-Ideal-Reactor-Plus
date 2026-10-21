@@ -93,6 +93,66 @@ classdef NirpConvolutionTest < matlab.unittest.TestCase
             testCase.verifyEqual(info.support,[4 9],'AbsTol',1e-12) ;
         end
 
+        function zeroRegularizationExactlyPreservesLegacyResult(testCase)
+            t = 0:4 ; % min, used consistently as the time unit in course data
+            Cin = nirp.conv.fromFunction(@(x) x.*exp(-x/2),t) ;
+            Cout = nirp.conv.signal(4:13,[.9 1.8 2.1 5.2 3.6 4.5 1.7 .8 .7 .5]) ;
+
+            legacy = nirp.conv.deconvolve(Cin,Cout,[4 9]) ;
+            [regularized,info] = nirp.conv.deconvolve(Cin,Cout,[4 9], ...
+                struct('lambda',0,'smoothing','identity')) ;
+
+            testCase.verifyEqual(regularized.C,legacy.C,'AbsTol',0) ;
+            testCase.verifyEqual(regularized.C,[1.79 2.33 2.58 0 1.24 0], ...
+                'AbsTol',2e-2) ;
+            testCase.verifyEqual(info.lambda,0,'AbsTol',0) ;
+            testCase.verifyFalse(info.lambdaSelectedAutomatically) ;
+            testCase.verifyEqual(info.smoothing,'identity') ;
+        end
+
+        function automaticTikhonovReducesFixedSeedNoiseError(testCase)
+            rng(187,'twister') ;
+            dt = 0.2 ; % s
+            t = 0:dt:20 ; % s
+            Cin = nirp.conv.fromFunction(@(x) exp(-((x-2)/0.7).^2),t) ;
+            trueE = nirp.conv.fromRTD(RTD.tanks_in_series(3,5,t),dt) ;
+            clean = nirp.conv.convolve(trueE,Cin) ;
+            noise = 0.05*max(clean.C)*randn(size(clean.C)) ;
+            measured = nirp.conv.signal(clean.t,max(0,clean.C+noise)) ;
+
+            unregularized = nirp.conv.deconvolve(Cin,measured,numel(trueE.C)) ;
+            [regularized,info] = nirp.conv.deconvolve(Cin,measured, ...
+                numel(trueE.C),struct('lambda','auto')) ;
+            rawError = norm(unregularized.C-trueE.C)/norm(trueE.C) ;
+            regularizedError = norm(regularized.C-trueE.C)/norm(trueE.C) ;
+            regularizedArea = trapz(regularized.t,regularized.C) ;
+
+            testCase.verifyGreaterThan(rawError,1) ;
+            testCase.verifyLessThan(regularizedError,0.1) ;
+            testCase.verifyLessThan(regularizedError,0.2*rawError) ;
+            testCase.verifyEqual(regularizedArea,1,'AbsTol',0.02) ;
+            testCase.verifyGreaterThan(info.lCurve.selectedIndex,1) ;
+            testCase.verifyLessThan(info.lCurve.selectedIndex, ...
+                numel(info.lCurve.lambda)) ;
+            testCase.verifyEqual(info.lambda, ...
+                info.lCurve.lambda(info.lCurve.selectedIndex),'RelTol',1e-12) ;
+        end
+
+        function manualIdentityTikhonovUsesAugmentedNnls(testCase)
+            Cin = nirp.conv.signal(0:2,[1 2 1]) ;
+            Cout = nirp.conv.signal(0:4,[0.2 1.2 2.6 2.1 0.7]) ;
+            lambda = 0.3 ;
+
+            [estimated,info] = nirp.conv.deconvolve(Cin,Cout,3, ...
+                struct('lambda',lambda,'smoothing','identity')) ;
+            A = interp1(Cin.t,Cin.C,Cout.t(:)-(0:2),'linear',0) ;
+            expected = lsqnonneg([A; lambda*eye(3)], ...
+                [Cout.C.'; zeros(3,1)]) ;
+
+            testCase.verifyEqual(estimated.C,expected.','AbsTol',1e-12) ;
+            testCase.verifyEqual(info.regularizationMatrix,eye(3),'AbsTol',0) ;
+        end
+
         function explicitSupportUsesAllMeasuredSamples(testCase)
             Cin = nirp.conv.fromFunction(@(t) t.*exp(-t/2),0:13) ;
             Cout = nirp.conv.signal(4:13, ...
