@@ -71,6 +71,7 @@ ReactorApp references:
 
 Non-Ideal-Reactor-App references:
 
+- [University of Alicante TFG repository entry](https://hdl.handle.net/10045/169730)
 - [GitHub repository](https://github.com/JavierBerenguer/Trabajo-Final-de-Grado.git)
 - [MathWorks File Exchange project](https://es.mathworks.com/matlabcentral/fileexchange/184241-trabajo-final-de-grado)
 
