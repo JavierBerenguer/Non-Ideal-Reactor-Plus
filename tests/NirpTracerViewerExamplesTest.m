@@ -20,7 +20,14 @@ classdef NirpTracerViewerExamplesTest < matlab.unittest.TestCase
                 'AppFactory',@()NonIdealReactorApp('Visible','off','ProgressFcn',@(~,~)[]));
             testCase.verifyEqual(result.rtdMoments.tau,4,'RelTol',1e-3);testCase.verifyEqual(result.rtdMoments.sigma2,8,'RelTol',1e-2);
             lines=findall(viewer.Axes,'Type','ConstantLine');testCase.verifyNumElements(lines,1);
-            curves=findall(viewer.Axes,'Type','Line');testCase.verifyGreaterThanOrEqual(numel(curves),2);
+            testCase.verifyEqual(string(viewer.TauLine.LabelOrientation),"horizontal");
+            testCase.verifyGreaterThanOrEqual(viewer.TauLine.FontSize,12);
+            testCase.verifyNotEmpty(viewer.SourceLine);testCase.verifyEqual(viewer.SourceLine.YData,source.C);
+            testCase.verifyEqual(viewer.SourceMarker.YData,max(source.C));
+            testCase.verifyLessThan(viewer.Axes.XLim(1),0);
+            testCase.verifyGreaterThan(viewer.SourceAxes.YLim(2),max(source.C));
+            testCase.verifyEqual(viewer.ResultsPanel.Title,'Results');
+            testCase.verifySubstring(viewer.Description.Text,'equivalent tanks-in-series');
             feval(viewer.UseButton.ButtonPushedFcn,viewer.UseButton,[]);
             appFigure=findall(groot,'Type','Figure','Name','Non-Ideal Reactor Analysis');app=getappdata(appFigure(1),'NirpNonIdealReactorApp');
             file=fullfile(testCase.Folder,'received.mat');app.saveSessionToFile(file,'received');loaded=load(file,'sessionData');rtd=loaded.sessionData.shared.rtd;
@@ -30,6 +37,16 @@ classdef NirpTracerViewerExamplesTest < matlab.unittest.TestCase
             grid=nirp.tracer.grid(.1,5);a=nirp.tracer.source(grid,1,ones(size(grid.t)),1);b=nirp.tracer.source(grid,1,ones(size(grid.t)),2);
             mixed=nirp.tracer.mixer(grid,{a,b});result=makeResult(grid,mixed,nan(size(grid.t)));viewer=nirp.tracerflowsheet.showResults(result,'Visible','off');
             testCase.verifyEqual(string(viewer.UseButton.Enable),"off");testCase.verifySubstring(viewer.Explanation.Text,'multiple tracer sources');
+        end
+        function peakDominatedResponseOffersPeakClipping(testCase)
+            grid=nirp.tracer.grid(.02,40);source=nirp.tracer.source(grid,1,50*[1 zeros(1,grid.length-1)],1);
+            pfr=nirp.tracer.rtdModel(grid,'pfr',struct('tau',3),1);cstr=nirp.tracer.rtdModel(grid,'cstr',struct('tau',3),1);
+            stream=nirp.tracer.vessel(grid,source,.25*pfr+.75*cstr);result=makeResult(grid,stream,source.C);viewer=nirp.tracerflowsheet.showResults(result,'Visible','off');
+            testCase.verifyTrue(viewer.PeakCheckBox.Value);testCase.verifyEqual(string(viewer.Axes.YScale),"linear");
+            testCase.verifyLessThan(viewer.Axes.YLim(2),max(stream.C));
+            testCase.verifySubstring(viewer.Explanation.Text,'area');
+            viewer.PeakCheckBox.Value=false;feval(viewer.PeakCheckBox.ValueChangedFcn,viewer.PeakCheckBox,[]);
+            testCase.verifyGreaterThanOrEqual(viewer.Axes.YLim(2),max(stream.C));
         end
         function launcherHasIndependentTracerGroupAndCallbacks(testCase)
             calls=strings(0,1);launcher=NonIdealReactorPlus('Visible','off');
