@@ -7,7 +7,7 @@ function validation = run_tracer_validation(folder)
     root=fileparts(fileparts(mfilename('fullpath')));addpath(root);addpath(fileparts(mfilename('fullpath')));
     owned=false;if nargin<1||isempty(folder),folder=tempname;mkdir(folder);owned=true;end
     cleanup=onCleanup(@()restore(folder,owned));files=build_tracer_examples(folder); %#ok<NASGU>
-    names=nirp.tracerflowsheet.exampleNames();labels=["N = 2 analytical";"Flow-weighted parallel sum";"Tab 6 SEC01"];
+    names=nirp.tracerflowsheet.exampleNames();labels=["N = 2 analytical";"Flow-weighted parallel sum";"Former SEC01 exercise"];
     maxAbsError=zeros(3,1);tau=zeros(3,1);sigma2=zeros(3,1);
     for k=1:3
         result=simulateOne(folder,names(k));grid=result.grid;actual=result.stream.E;
@@ -18,8 +18,10 @@ function validation = run_tracer_validation(folder)
                 pfr=nirp.tracer.rtdModel(grid,'pfr',struct('tau',3),1);
                 cstr=nirp.tracer.rtdModel(grid,'cstr',struct('tau',3),1);expected=.25*pfr+.75*cstr;
             case 3
-                loaded=load(fullfile(root,'saves','SEC01.mat'),'sessionData');reference=loaded.sessionData.convolution.referenceResult;
-                expected=interp1(reference.t,reference.C,grid.t,'linear',0);expected=expected/(grid.dt*sum(expected));
+                e1=zeros(size(grid.t));selected=grid.t>=2&grid.t<=5;e1(selected)=(grid.t(selected)-2)/18;
+                selected=grid.t>5&grid.t<=8;e1(selected)=1/6;selected=grid.t>8&grid.t<=11;e1(selected)=(11-grid.t(selected))/18;
+                e2=exp(-grid.t/2)/2;reference=nirp.conv.series(nirp.conv.signal(grid.t,e1),nirp.conv.signal(grid.t,e2));
+                expected=reference.C(1:grid.length);expected=expected/(grid.dt*sum(expected));
         end
         maxAbsError(k)=max(abs(actual-expected));mom=nirp.tracer.moments(grid,actual);tau(k)=mom.tau;sigma2(k)=mom.sigma2;
         assert(maxAbsError(k)<=5e-3,'nirp:tracerflowsheet:ValidationMismatch','Tracer example %s differs from its reference.',names(k));

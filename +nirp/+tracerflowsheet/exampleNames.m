@@ -5,5 +5,5 @@ function [names,descriptions] = exampleNames()
 % Created: October 22, 2026. Last update: October 22, 2026
 % =========================================================================
     names=["tracer_two_cstr";"tracer_pfr_cstr_parallel";"tracer_sec01_series"];
-    descriptions=["Two CSTRs in series";"PFR and CSTR in parallel";"Tab 6 SEC01 series composition"];
+    descriptions=["Two CSTRs in series";"PFR and CSTR in parallel";"Former SEC01 series exercise"];
 end

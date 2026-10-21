@@ -1,8 +1,8 @@
-classdef NirpConvolutionSessionsTest < matlab.uitest.TestCase
+classdef NirpConvolutionSessionsTest < matlab.unittest.TestCase
     % NirpConvolutionSessionsTest verifies the saved convolution examples.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 21, 2026. Last update: October 21, 2026
+    % Created: October 21, 2026. Last update: October 22, 2026
     % =========================================================================
 
     properties
@@ -27,8 +27,8 @@ classdef NirpConvolutionSessionsTest < matlab.uitest.TestCase
     methods (Test)
         function savedSessionsLoadAndComputeTheirReferences(testCase)
             names = ["SECT01" "SECT02" "SECT03" ...
-                "SEC01" "SEC02" "SEC03" "SEC04" "SEC05" ...
-                "SEC06" "SEC07" "SEC08" "SEC09"] ;
+                "SEC02" "SEC03" "SEC04" "SEC05" "SEC06" ...
+                "SEC07" "SEC08" "SEC09"] ;
             for k = 1:numel(names)
                 file = fullfile(testCase.Root, 'saves', names(k) + ".mat") ;
                 testCase.assertTrue(isfile(file), char(names(k))) ;

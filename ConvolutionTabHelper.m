@@ -3,7 +3,7 @@ classdef ConvolutionTabHelper < handle
 % All times passed to nirp.conv are expressed in seconds.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 9, 2026. Last update: October 21, 2026
+% Created: October 9, 2026. Last update: October 22, 2026
 % =========================================================================
 
     properties (SetAccess = private)
@@ -95,7 +95,13 @@ classdef ConvolutionTabHelper < handle
                 obj.reset() ;
                 return
             end
-            obj.selectMode(obj.getField(snapshot, 'mode', 'Convolution')) ;
+            storedMode = obj.getField(snapshot, 'mode', 'Convolution') ;
+            seriesCompositionMoved = strcmp(storedMode, 'Series composition') ;
+            if seriesCompositionMoved
+                storedMode = 'Convolution' ;
+                obj.reset() ;
+            end
+            obj.selectMode(storedMode) ;
             legacyTimeUnit = obj.getField(snapshot, 'timeUnit', 's') ;
             obj.setDropdown(obj.DtUnit, obj.getField(snapshot, 'dtUnit', legacyTimeUnit)) ;
             obj.setDropdown(obj.OutputTimeUnit, ...
@@ -155,11 +161,22 @@ classdef ConvolutionTabHelper < handle
             obj.LastSignals = obj.getField(snapshot, 'lastSignals', struct()) ;
             obj.LastResult = obj.getField(snapshot, 'lastResult', []) ;
             obj.LastInfo = obj.getField(snapshot, 'lastInfo', struct()) ;
+            if seriesCompositionMoved
+                obj.LastSignals = struct() ;
+                obj.LastResult = [] ;
+                obj.LastInfo = struct() ;
+            end
             obj.modeChanged() ;
             if isstruct(obj.LastResult) && isfield(obj.LastResult, 't')
                 obj.showResults() ;
             else
                 obj.clearResults() ;
+            end
+            if seriesCompositionMoved
+                message = ['Series composition is now available in the non-ideal ' ...
+                    'tracer flowsheet. See the equivalent tracer_sec01_series example.'] ;
+                warning('NonIdealReactorApp:SeriesCompositionMoved', '%s', message) ;
+                obj.SetStatus(message) ;
             end
         end
 
@@ -211,11 +228,11 @@ classdef ConvolutionTabHelper < handle
             modePanel = uipanel(controls, 'Title', 'Mode') ;
             obj.ModeGroup = uibuttongroup(modePanel, 'Position', [4 2 414 27], ...
                 'SelectionChangedFcn', @(~,~) obj.modeChanged(true), 'Tag', 'ConvModeGroup') ;
-            labels = {'Convolution', 'Deconvolution', 'Series composition'} ;
-            x = [8 137 276] ;
-            for k = 1:3
+            labels = {'Convolution', 'Deconvolution'} ;
+            x = [8 210] ;
+            for k = 1:numel(labels)
                 uiradiobutton(obj.ModeGroup, 'Text', labels{k}, ...
-                    'Position', [x(k) 3 135 22], ...
+                    'Position', [x(k) 3 180 22], ...
                     'Tooltip', 'Choose the tracer-signal calculation mode.') ;
             end
 
@@ -240,8 +257,6 @@ classdef ConvolutionTabHelper < handle
             obj.createSignalEditor('Cin', 'Inlet signal Cᵢₙ(t)', false) ;
             obj.createSignalEditor('Cout', 'Outlet signal Cₒᵤₜ(t)', false) ;
             obj.createSignalEditor('E', 'RTD E(t)', true) ;
-            obj.createSignalEditor('E1', 'RTD vessel 1 E₁(t)', false) ;
-            obj.createSignalEditor('E2', 'RTD vessel 2 E₂(t)', false) ;
 
             obj.SupportPanel = uipanel(controls, 'Title', 'Deconvolution settings', ...
                 'Visible', 'off', 'Tag', 'ConvSupportPanel', ...
@@ -653,10 +668,6 @@ classdef ConvolutionTabHelper < handle
                 obj.UseRTDButton.Text = 'Use Ê(t) as RTD in Tab 1' ;
                 obj.UseRTDButton.Tooltip = ...
                     'Normalize the estimated E(t) and load it into RTD Analysis.' ;
-            else
-                obj.UseRTDButton.Text = 'Use E₁₂(t) as RTD in Tab 1' ;
-                obj.UseRTDButton.Tooltip = ...
-                    'Normalize the series-composition RTD and load it into RTD Analysis.' ;
             end
         end
 
@@ -668,8 +679,6 @@ classdef ConvolutionTabHelper < handle
                     names = {'Cin', 'E'} ;
                 elseif strcmp(mode, 'Deconvolution')
                     names = {'Cin', 'Cout'} ;
-                else
-                    names = {'E1', 'E2'} ;
                 end
                 [signals, dt, wasResampled, usedDefaultStep] = obj.buildSignals(names) ;
                 if strcmp(mode, 'Convolution')
@@ -686,14 +695,6 @@ classdef ConvolutionTabHelper < handle
                     if obj.LastInfo.lambdaSelectedAutomatically
                         obj.LowerPlot.Value = 'L-curve' ;
                     end
-                else
-                    obj.LastResult = nirp.conv.series(signals.E1, signals.E2) ;
-                    firstMoments = nirp.conv.moments(signals.E1) ;
-                    secondMoments = nirp.conv.moments(signals.E2) ;
-                    resultMoments = nirp.conv.moments(obj.LastResult) ;
-                    obj.LastInfo = struct('massBalance', resultMoments.area / ...
-                        (firstMoments.area * secondMoments.area)) ;
-                    signals.E = obj.LastResult ;
                 end
                 obj.LastSignals = signals ;
                 obj.showResults() ;
@@ -850,13 +851,10 @@ classdef ConvolutionTabHelper < handle
             timeUnit = obj.OutputTimeUnit.Value ;
             concentrationUnit = obj.OutputConcentrationUnit.Value ;
             resultValues = result.C ;
-            resultIsRTD = ~strcmp(mode, 'Convolution') ;
+            resultIsRTD = strcmp(mode, 'Deconvolution') ;
             if resultIsRTD
                 resultValues = resultValues * timeScale ;
                 valueHeading = ['Ê(t) [' timeUnit '⁻¹]'] ;
-                if strcmp(mode, 'Series composition')
-                    valueHeading = ['E₁₂(t) [' timeUnit '⁻¹]'] ;
-                end
             else
                 resultValues = resultValues / concentrationScale ;
                 valueHeading = ['Cₒᵤₜ(t) [' concentrationUnit ']'] ;
@@ -966,37 +964,6 @@ classdef ConvolutionTabHelper < handle
                 obj.ResultValues{residualIndex}.Text = sprintf('= %.2f%% (%s)', ...
                     relativeResidual * 100, fitReading) ;
                 obj.ResultLabels{1}.Parent.RowHeight{4} = 20 ;
-            else
-                hold(obj.Axes, 'on') ;
-                firstLine = obj.plotSignal(obj.Axes, obj.LastSignals.E1, true, ...
-                    timeScale, concentrationScale, '$E_1(t)$') ;
-                secondLine = obj.plotSignal(obj.Axes, obj.LastSignals.E2, true, ...
-                    timeScale, concentrationScale, '$E_2(t)$') ;
-                combinedLine = obj.plotSignal(obj.Axes, result, true, timeScale, ...
-                    concentrationScale, '$E_{12}(t)$', 1.6) ;
-                obj.plotMeanTime(obj.Axes, obj.LastSignals.E1, timeScale, ...
-                    firstLine.Color, '$\tau_1$') ;
-                obj.plotMeanTime(obj.Axes, obj.LastSignals.E2, timeScale, ...
-                    secondLine.Color, '$\tau_2$') ;
-                obj.plotMeanTime(obj.Axes, result, timeScale, ...
-                    combinedLine.Color, '$\tau_{12}$') ;
-                hold(obj.Axes, 'off') ;
-                momentRows = obj.momentRows({'E₁', 'E₂', 'E₁₂'}, ...
-                    {obj.LastSignals.E1, obj.LastSignals.E2, result}, ...
-                    true(1, 3), timeScale, concentrationScale) ;
-                first = nirp.conv.moments(obj.LastSignals.E1) ;
-                second = nirp.conv.moments(obj.LastSignals.E2) ;
-                combined = nirp.conv.moments(result) ;
-                obj.setResultRows({'$\tau_{12}$', '$\tau_1+\tau_2$', ...
-                    '$\sigma_{12}^2$', '$\sigma_1^2+\sigma_2^2$'}, { ...
-                    ['$' sprintf('%.6g', combined.mean / timeScale) ...
-                    '\;\mathrm{' obj.latexUnit(timeUnit) '}$'], ...
-                    ['$' sprintf('%.6g', (first.mean + second.mean) / timeScale) ...
-                    '\;\mathrm{' obj.latexUnit(timeUnit) '}$'], ...
-                    ['$' sprintf('%.6g', combined.variance / timeScale^2) ...
-                    '\;\mathrm{' obj.latexUnit(timeUnit) '^2}$'], ...
-                    ['$' sprintf('%.6g', (first.variance + second.variance) / timeScale^2) ...
-                    '\;\mathrm{' obj.latexUnit(timeUnit) '^2}$']}) ;
             end
             obj.decorateAxes(mode, timeUnit) ;
             obj.MomentsTable.ColumnName = {'Signal', 'Area', ...
@@ -1037,11 +1004,7 @@ classdef ConvolutionTabHelper < handle
                     'It is an RTD only for an ideal-pulse C_in.']) ;
             else
                 obj.SetRTD(obj.LastResult, mode) ;
-                if strcmp(mode, 'Deconvolution')
-                    obj.SetStatus('Estimated E normalized and loaded as the Tab 1 RTD.') ;
-                else
-                    obj.SetStatus('Series E_12 normalized and loaded as the Tab 1 RTD.') ;
-                end
+                obj.SetStatus('Estimated E normalized and loaded as the Tab 1 RTD.') ;
             end
         end
 
@@ -1168,9 +1131,6 @@ classdef ConvolutionTabHelper < handle
                     '\sigma^2\ \mathrm{is\ variance,\ and}\ \sigma_\theta^2\ ' ...
                     '\mathrm{gives}\ N\simeq1/\sigma_\theta^2;\ ' ...
                     '\mathrm{the\ residual\ rates\ the\ fit\ in\ the\ measured\ window.}$'] ;
-            else
-                text = ['$E_{12}=E_1*E_2;\ \tau_{12}=\tau_1+\tau_2\ ' ...
-                    '\mathrm{and}\ \sigma_{12}^2=\sigma_1^2+\sigma_2^2.$'] ;
             end
         end
 
@@ -1297,11 +1257,6 @@ classdef ConvolutionTabHelper < handle
                 ylabel(obj.Axes, ['$\widehat{E}(t)\;[\mathrm{' ...
                     obj.latexUnit(timeUnit) '^{-1}}]$'], 'Interpreter', 'latex') ;
                 % The lower axes are decorated by plotDeconvolutionCheck.
-            else
-                title(obj.Axes, '$\mathrm{Series\ composition:}\ E_{12}=E_1*E_2$', ...
-                    'Interpreter', 'latex') ;
-                ylabel(obj.Axes, ['$E(t)\;[\mathrm{' obj.latexUnit(timeUnit) ...
-                    '^{-1}}]$'], 'Interpreter', 'latex') ;
             end
             xlabel(obj.Axes, ['$t\;[\mathrm{' obj.latexUnit(timeUnit) '}]$'], ...
                 'Interpreter', 'latex') ;
@@ -1352,15 +1307,13 @@ classdef ConvolutionTabHelper < handle
         end
 
         function value = isRTDName(~, name)
-            value = any(strcmp(name, {'E', 'E1', 'E2'})) ;
+            value = strcmp(name, 'E') ;
         end
 
         function names = activeSignalNames(~, mode)
             names = {'Cin', 'E'} ;
             if strcmp(mode, 'Deconvolution')
                 names = {'Cin', 'Cout'} ;
-            elseif strcmp(mode, 'Series composition')
-                names = {'E1', 'E2'} ;
             end
         end
 
@@ -1511,12 +1464,6 @@ classdef ConvolutionTabHelper < handle
                 case 'E'
                     description = ['$\mathrm{Residence\!\!\!-time\ distribution}\ ' ...
                         'E(t)\mathrm{,\ used\ in\ convolution.}$'] ;
-                case 'E1'
-                    description = ['$\mathrm{First\ vessel\ residence\!\!\!-time\ distribution}\ ' ...
-                        'E_1(t)\mathrm{.}$'] ;
-                otherwise
-                    description = ['$\mathrm{Second\ vessel\ residence\!\!\!-time\ distribution}\ ' ...
-                        'E_2(t)\mathrm{.}$'] ;
             end
         end
 
@@ -1544,7 +1491,7 @@ classdef ConvolutionTabHelper < handle
 
         function name = displayName(~, fieldName)
             names = struct('Cin', 'Input', 'Cout', 'Output', 'E', 'E', ...
-                'E1', 'E_1', 'E2', 'E_2', 'Reconvolved', 'Reconvolved') ;
+                'Reconvolved', 'Reconvolved') ;
             name = fieldName ; if isfield(names, fieldName), name = names.(fieldName) ; end
         end
     end

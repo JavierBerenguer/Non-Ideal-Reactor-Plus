@@ -31,7 +31,7 @@ classdef NirpTracerViewerExamplesTest < matlab.unittest.TestCase
             feval(viewer.UseButton.ButtonPushedFcn,viewer.UseButton,[]);
             appFigure=findall(groot,'Type','Figure','Name','Non-Ideal Reactor Analysis');app=getappdata(appFigure(1),'NirpNonIdealReactorApp');
             file=fullfile(testCase.Folder,'received.mat');app.saveSessionToFile(file,'received');loaded=load(file,'sessionData');rtd=loaded.sessionData.shared.rtd;
-            received=RTD(rtd.t,rtd.Et);testCase.verifyEqual(trapz(received.t,received.Et),1,'AbsTol',1e-12);testCase.verifyEqual(received.tau,4,'RelTol',1e-3);testCase.verifyEqual(received.sigma2,8,'RelTol',1e-2);
+            received=RTD(rtd.t,rtd.Et);testCase.verifyEqual(rtd.source,'tracer_flowsheet');testCase.verifyEqual(trapz(received.t,received.Et),1,'AbsTol',1e-12);testCase.verifyEqual(received.tau,4,'RelTol',1e-3);testCase.verifyEqual(received.sigma2,8,'RelTol',1e-2);
         end
         function multipleSourcesDisableTransfer(testCase)
             grid=nirp.tracer.grid(.1,5);a=nirp.tracer.source(grid,1,ones(size(grid.t)),1);b=nirp.tracer.source(grid,1,ones(size(grid.t)),2);

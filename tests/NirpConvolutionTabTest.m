@@ -104,19 +104,6 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             testCase.verifyEqual(char(testCase.control('ConvUseAsRTD').Visible), 'on') ;
             testCase.verifyEqual(char(testCase.control('ConvUseAsRTD').Enable), 'off') ;
             testCase.verifyEqual(char(testCase.control('ConvSupportPanel').Visible), 'on') ;
-
-            testCase.selectMode('Series composition') ;
-            testCase.verifyEqual(sort(string({tabs.Children.Title})), ...
-                sort(["RTD vessel 1 E₁(t)", "RTD vessel 2 E₂(t)"])) ;
-            testCase.verifyEqual(char(testCase.control('ConvVerificationAxes').Visible), 'off') ;
-            testCase.verifyEqual(char(testCase.control('ConvUseAsRTD').Visible), 'on') ;
-            testCase.verifySubstring(testCase.control('ConvUseAsRTD').Text, 'E₁₂') ;
-            testCase.verifyEqual(char(testCase.control('ConvSupportPanel').Visible), 'off') ;
-            saved = fullfile(testCase.Folder, 'series-active-signals.mat') ;
-            testCase.App.saveSessionToFile(saved, 'series-active-signals') ;
-            stored = load(saved, 'sessionData') ;
-            testCase.verifyEqual(sort(string(fieldnames( ...
-                stored.sessionData.convolution.signals))), sort(["E1"; "E2"])) ;
         end
 
         function supportedTextUsesLatex(testCase)
@@ -132,7 +119,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             testCase.verifyEqual(testCase.control('ConvResultsDescription').Interpreter, 'latex') ;
         end
 
-        function resultsAreHorizontalVisibleAndDescribedInEveryMode(testCase)
+        function resultsAreHorizontalVisibleAndDescribedInBothModes(testCase)
             testCase.showInteractiveApp() ;
             testCase.Figure.Position = [100 100 1200 750] ;
             testCase.control('ConvTableCin').Data = [0 0; 1 1; 2 0] ;
@@ -145,12 +132,6 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             testCase.control('ConvTableCout').Data = [0 0; 1 1; 2 0] ;
             testCase.press(testCase.control('ConvCompute')) ;
             testCase.verifyResultGeometry(6, 'residual') ;
-
-            testCase.selectMode('Series composition') ;
-            testCase.control('ConvTableE1').Data = [0 0; 1 1; 2 0] ;
-            testCase.control('ConvTableE2').Data = [0 0; 1 1; 2 0] ;
-            testCase.press(testCase.control('ConvCompute')) ;
-            testCase.verifyResultGeometry(4, 'E_{12}=E_1*E_2') ;
         end
 
         function functionIsTheOnlyExpressionSource(testCase)
@@ -478,7 +459,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
                 'Truncated')) ;
         end
 
-        function convolutionAndSeriesButtonsLoadTabOne(testCase)
+        function convolutionButtonLoadsTabOne(testCase)
             testCase.showInteractiveApp() ;
             testCase.control('ConvTableCin').Data = [0 0; 1 1; 2 0] ;
             testCase.control('ConvTableE').Data = [0 0; 1 1; 2 0] ;
@@ -491,39 +472,6 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             convolutionSession = load(convolutionFile, 'sessionData') ;
             testCase.verifyEqual(convolutionSession.sessionData.shared.rtd.source, ...
                 'experimental_pulse') ;
-
-            testCase.selectMode('Series composition') ;
-            testCase.control('ConvTableE1').Data = [0 0; 1 1; 2 0] ;
-            testCase.control('ConvTableE2').Data = [0 0; 1 1; 2 0] ;
-            testCase.press(testCase.control('ConvCompute')) ;
-            testCase.verifyEqual(char(testCase.control('ConvUseAsRTD').Enable), 'on') ;
-            testCase.press(testCase.control('ConvUseAsRTD')) ;
-            seriesFile = fullfile(testCase.Folder, 'series-to-tab-one.mat') ;
-            testCase.App.saveSessionToFile(seriesFile, 'series') ;
-            seriesSession = load(seriesFile, 'sessionData') ;
-            testCase.verifyEqual(seriesSession.sessionData.shared.rtd.source, ...
-                'series_composition') ;
-        end
-
-        function seriesCompositionHasDedicatedResults(testCase)
-            testCase.showInteractiveApp() ;
-            testCase.selectMode('Series composition') ;
-            testCase.control('ConvTableE1').Data = [0 0; 1 1; 2 0] ;
-            testCase.control('ConvTableE2').Data = [0 0; 1 1; 2 0] ;
-
-            testCase.press(testCase.control('ConvCompute')) ;
-
-            resultTable = testCase.control('ConvResultTable') ;
-            testCase.verifyEqual(resultTable.ColumnName{2}, 'E₁₂(t) [s⁻¹]') ;
-            testCase.verifyNotEmpty(testCase.resultValue('$\tau_{12}$')) ;
-            testCase.verifyNotEmpty(testCase.resultValue('$\sigma_{12}^2$')) ;
-            testCase.verifyEqual(char(testCase.control('ConvDiagnostics').Visible), 'off') ;
-            lines = findall(testCase.control('ConvAxes'), 'Type', 'Line') ;
-            testCase.verifyEqual(sort(string({lines.DisplayName})), ...
-                sort(["$E_1(t)$", "$E_2(t)$", "$E_{12}(t)$"])) ;
-            meanLines = findall(testCase.control('ConvAxes'), 'Type', 'ConstantLine') ;
-            testCase.verifyNumElements(meanLines, 3) ;
-            testCase.verifyEqual(sort([meanLines.Value]), [1 1 2], 'AbsTol', 1e-12) ;
         end
 
         function deconvolutionResultsUseSelectedTimeUnitWithoutMomentsTable(testCase)
@@ -695,6 +643,40 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
     end
 
     methods (Test)
+        function onlyConvolutionAndDeconvolutionModesRemain(testCase)
+            group = testCase.control('ConvModeGroup') ;
+            testCase.verifyEqual(sort(string({group.Children.Text})), ...
+                sort(["Convolution", "Deconvolution"])) ;
+            testCase.verifyEmpty(findall(testCase.Figure, 'Tag', 'ConvSignalE1')) ;
+            testCase.verifyEmpty(findall(testCase.Figure, 'Tag', 'ConvSignalE2')) ;
+        end
+
+        function legacySeriesCompositionLoadsWithMovedWarning(testCase)
+            saved = fullfile(testCase.Folder, 'legacy-series-composition.mat') ;
+            testCase.App.saveSessionToFile(saved, 'legacy-series-composition') ;
+            loaded = load(saved, 'sessionData') ;
+            loaded.sessionData.convolution.mode = 'Series composition' ;
+            loaded.sessionData.convolution.lastSignals = struct( ...
+                'E1', nirp.conv.signal(0:2, [0 1 0]), ...
+                'E2', nirp.conv.signal(0:2, [0 1 0])) ;
+            loaded.sessionData.convolution.lastResult = ...
+                nirp.conv.signal(0:4, [0 0 1 0 0]) ;
+            sessionData = loaded.sessionData ; %#ok<NASGU>
+            save(saved, 'sessionData') ;
+
+            testCase.verifyWarning(@() testCase.App.loadSessionFromFile(saved), ...
+                'NonIdealReactorApp:SeriesCompositionMoved') ;
+
+            group = testCase.control('ConvModeGroup') ;
+            testCase.verifyEqual(group.SelectedObject.Text, 'Convolution') ;
+            testCase.verifyEmpty(testCase.control('ConvResultTable').Data) ;
+            labels = findall(testCase.Figure, 'Type', 'uilabel') ;
+            status = labels(contains(string({labels.Text}), ...
+                'tracer_sec01_series')) ;
+            testCase.verifyNumElements(status, 1) ;
+            testCase.verifySubstring(status.Text, 'non-ideal tracer flowsheet') ;
+        end
+
         function tikhonovAutoIsHeadlessAndLegacySessionDefaultsToNone(testCase)
             file = fullfile(testCase.Root,'saves','SECT02.mat') ;
             stored = load(file,'sessionData') ;

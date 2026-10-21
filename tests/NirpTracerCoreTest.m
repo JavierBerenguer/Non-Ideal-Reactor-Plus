@@ -68,12 +68,9 @@ classdef NirpTracerCoreTest < matlab.unittest.TestCase
             testCase.verifyGreaterThan(info.fractionCLost,0) ;
         end
 
-        function vesselMatchesNirpConvAndSec01Reference(testCase)
+        function vesselMatchesSeriesConvolutionReference(testCase)
             dt = 0.05 ;
-            root = fileparts(fileparts(mfilename('fullpath'))) ;
-            loaded = load(fullfile(root,'saves','SEC01.mat'),'sessionData') ;
-            reference = loaded.sessionData.convolution.referenceResult ;
-            common = nirp.tracer.grid(dt,reference.t(end)) ;
+            common = nirp.tracer.grid(dt,41) ;
             e1 = zeros(size(common.t)) ;
             selected = common.t >= 2 & common.t <= 5 ;
             e1(selected) = (common.t(selected)-2)/18 ;
@@ -90,12 +87,8 @@ classdef NirpTracerCoreTest < matlab.unittest.TestCase
             out = nirp.tracer.vessel(common,stream,e2) ;
             direct = nirp.conv.convolve( ...
                 nirp.conv.signal(common.t,e2),nirp.conv.signal(common.t,e1)) ;
-            referenceOnGrid = zeros(size(common.t)) ;
-            first = round(reference.t(1)/dt)+1 ;
-            referenceOnGrid(first:end) = reference.C ;
 
             testCase.verifyEqual(out.E,direct.C(1:common.length),'AbsTol',2e-14) ;
-            testCase.verifyEqual(out.E,referenceOnGrid,'AbsTol',2e-12) ;
         end
 
         function differentSourcesMakeAccumulatedRtdUndefined(testCase)

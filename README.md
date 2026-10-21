@@ -17,9 +17,9 @@ The current release includes:
   3. **Tanks-in-Series**.
   4. **Dispersion Model**.
   5. **Design & Optimization**, including diagnosis and fitting, reactive-performance comparisons, and optimization.
-  6. **Convolution**, with convolution, series composition, and deconvolution workflows.
+  6. **Convolution**, with convolution and deconvolution workflows.
 - A Simulink library for steady-state flowsheets built from continuous ideal units. Its blocks are **Stream**, **CSTR**, **PFR**, **Mixer**, **Splitter**, **Separator**, **Heater**, **Jacket**, **Recycle**, **Adjust**, and the **Flowsheet** controller.
-- Generatable Simulink example flowsheets and solved application sessions in `saves/`, including the convolution examples `SECT01`-`SECT03` and `SEC01`-`SEC09`.
+- Generatable Simulink example flowsheets and solved application sessions in `saves/`, including the convolution examples `SECT01`-`SECT03` and `SEC02`-`SEC09`.
 
 ## Requirements
 

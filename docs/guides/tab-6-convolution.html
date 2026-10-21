@@ -21,7 +21,7 @@
     <section class="hero">
       <span class="kicker">Tracer signal workflows</span>
       <h1>Tab 6 - Convolution</h1>
-      <p>Tab 6 combines measured, analytical, piecewise, or model-based signals on one uniform time grid for convolution, deconvolution, and RTDs in series.</p>
+      <p>Tab 6 combines measured, analytical, piecewise, or model-based signals on one uniform time grid for convolution and deconvolution.</p>
     </section>
     <section class="section">
       <h2>Workspace overview</h2>
@@ -37,9 +37,9 @@
         <tr><th>Mode</th><th>Inputs</th><th>Result</th></tr>
         <tr><td>Convolution</td><td>C<sub>in</sub> and E</td><td>C<sub>out</sub> = C<sub>in</sub> &otimes; E</td></tr>
         <tr><td>Deconvolution</td><td>C<sub>in</sub> and measured C<sub>out</sub></td><td>A nonnegative E and its reconvolution</td></tr>
-        <tr><td>Series composition</td><td>E<sub>1</sub> and E<sub>2</sub></td><td>The combined residence-time distribution</td></tr>
       </table>
       <p>Each signal has its own time unit. Concentration signals also have their own concentration unit; E is entered in the reciprocal of its selected time unit. Set the common step to zero to use the finest input step, or choose its value and unit explicitly. A status message reports any resampling.</p>
+      <div class="callout info"><strong>Vessels in series:</strong> build the arrangement in the non-ideal tracer flowsheet. The <code>tracer_sec01_series</code> example reproduces the former SEC01 exercise.</div>
     </section>
     <section class="section">
       <h2>Enter a signal</h2>

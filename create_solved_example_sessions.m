@@ -8,7 +8,6 @@ function create_solved_example_sessions(scope)
 %   SECT01 -> Topic 4, example 1 (PDF pages 13-14)
 %   SECT02 -> Topic 4, example 2 (PDF pages 17-19)
 %   SECT03 -> Topic 4, example 3 (PDF page 21)
-%   SEC01  -> P4 problem 1 (PDF page 1)
 %   SEC02  -> P4 problem 2 (PDF page 1)
 %   SEC03  -> P4 problem 3 (PDF page 1)
 %   SEC04  -> P4 problem 4 (PDF page 1)
@@ -399,9 +398,9 @@ end
 
 function generateConvolutionSessions(saveDir)
 names = {'SECT01', 'SECT02', 'SECT03', ...
-    'SEC01', 'SEC02', 'SEC03', 'SEC04', 'SEC05', 'SEC06', 'SEC07', 'SEC08', 'SEC09'} ;
+    'SEC02', 'SEC03', 'SEC04', 'SEC05', 'SEC06', 'SEC07', 'SEC08', 'SEC09'} ;
 builders = {@buildSECT01, @buildSECT02, @buildSECT03, ...
-    @buildSEC01, @buildSEC02, @buildSEC03, @buildSEC04, @buildSEC05, ...
+    @buildSEC02, @buildSEC03, @buildSEC04, @buildSEC05, ...
     @buildSEC06, @buildSEC07, @buildSEC08, @buildSEC09} ;
 for k = 1:numel(names)
     sessionData = builders{k}() ;
@@ -457,29 +456,6 @@ signals = struct( ...
 sessionData = convolutionSession('SECT03', 'Convolution', 1, 's', ...
     'mol/L', signals, [], result, info, ...
     'Uses the 12 samples in the printed table; the printed MATLAB code omits the final zero.') ;
-end
-
-function sessionData = buildSEC01()
-dt = 0.05 ;
-tE1 = 2:dt:11 ;
-E1 = zeros(size(tE1)) ;
-E1(tE1 <= 5) = (tE1(tE1 <= 5) - 2) / 18 ;
-middle = tE1 > 5 & tE1 <= 8 ;
-E1(middle) = 1 / 6 ;
-last = tE1 > 8 ;
-E1(last) = (11 - tE1(last)) / 18 ;
-tE2 = 0:dt:30 ;
-E2 = nirp.conv.signal(tE2, exp(-tE2 / 2) / 2) ;
-signals = struct( ...
-    'E1', functionConvolutionState( ...
-        {2 5 '(t-2)./18'; 5 8 '1./6'; 8 11 '(11-t)./18'}, 's', 'mol/m^3'), ...
-    'E2', functionConvolutionState({0 30 'exp(-t/2)./2'}, 's', 'mol/m^3')) ;
-result = nirp.conv.series(nirp.conv.signal(tE1, E1), E2) ;
-info = seriesInfo(nirp.conv.signal(tE1, E1), E2, result) ;
-sessionData = convolutionSession('SEC01', 'Series composition', dt, 's', ...
-    'mol/m^3', signals, [], result, info, ...
-    ['The trapezoid is normalized by its area, 18. The CSTR with tau = 2 s ' ...
-     'is entered as its E(t) function because series inputs do not offer Model as a source.']) ;
 end
 
 function sessionData = buildSEC02()
@@ -676,13 +652,6 @@ else
     valueScale = UnitConverterHelper.factorToSI('Concentration', concentrationUnit) ;
 end
 signal = nirp.conv.signal(t * timeScale, values * valueScale) ;
-end
-
-function info = seriesInfo(E1, E2, result)
-first = nirp.conv.moments(E1) ;
-second = nirp.conv.moments(E2) ;
-combined = nirp.conv.moments(result) ;
-info = struct('massBalance', combined.area / (first.area * second.area)) ;
 end
 
 function data = displayedConvolutionResult(result, mode, timeUnit, concentrationUnit)

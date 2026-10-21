@@ -388,7 +388,7 @@ classdef NonIdealReactorApp < handle
 
         function useTracerFlowsheetRTD(app, signal)
             % Load a tracer-flowsheet accumulated E signal into Tab 1.
-            app.useConvolutionRTD(signal, 'Series composition') ;
+            app.useConvolutionRTD(signal, 'Tracer flowsheet') ;
         end
 
     end
@@ -3569,10 +3569,12 @@ classdef NonIdealReactorApp < handle
             app.rtd = RTD(signal.t, signal.C) ;
             if strcmp(mode, 'Deconvolution')
                 app.rtd.source = 'deconvolution' ;
+                modelSource = 'Convolution tab' ;
             else
-                app.rtd.source = 'series_composition' ;
+                app.rtd.source = 'tracer_flowsheet' ;
+                modelSource = 'Non-ideal tracer flowsheet' ;
             end
-            app.rtd.modelInfo = struct('source', 'Convolution tab') ;
+            app.rtd.modelInfo = struct('source', modelSource) ;
             app.RTD_SourceDropdown.Value = 'Tabular Input' ;
             app.RTD_sourceChanged() ;
             app.RTD_DataTypeDropdown.Value = 'Pulse C(t)' ;
