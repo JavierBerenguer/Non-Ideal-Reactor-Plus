@@ -266,8 +266,8 @@ classdef ConvolutionTabHelper < handle
                 'Tag', 'ConvSupportUnit', ...
                 'ValueChangedFcn', @(~,~) obj.supportEdited()) ;
             supportDescription = uilabel(supportGrid, ...
-                'Text', 'Default: max(0, t_{out,start}-t_{in,end}) to t_{out,end}-t_{in,start}.', ...
-                'Interpreter', 'tex', 'FontSize', 10, 'Tag', 'ConvSupportDescription') ;
+                'Text', 'Default: widest support compatible with the data.', ...
+                'FontSize', 10, 'Tag', 'ConvSupportDescription') ;
             supportDescription.Layout.Row = 2 ;
             supportDescription.Layout.Column = [1 6] ;
             regularizationLabel = uilabel(supportGrid, 'Text', 'Regularization:') ;
@@ -284,11 +284,11 @@ classdef ConvolutionTabHelper < handle
             regularizationLabel.Layout.Row = 3 ;
             regularizationLabel.Layout.Column = 1 ;
             obj.Regularization.Layout.Row = 3 ;
-            obj.Regularization.Layout.Column = 2 ;
+            obj.Regularization.Layout.Column = [2 3] ;
             smoothingLabel.Layout.Row = 3 ;
-            smoothingLabel.Layout.Column = 3 ;
+            smoothingLabel.Layout.Column = 4 ;
             obj.Smoothing.Layout.Row = 3 ;
-            obj.Smoothing.Layout.Column = [4 6] ;
+            obj.Smoothing.Layout.Column = [5 6] ;
             lowerPlotLabel = uilabel(supportGrid, 'Text', 'Lower plot:') ;
             obj.LowerPlot = uidropdown(supportGrid, ...
                 'Items', {'Reconvolution check', 'L-curve'}, ...
@@ -946,6 +946,8 @@ classdef ConvolutionTabHelper < handle
                     ['$' lambdaReading '$'], ...
                     ['$' sprintf('%.2f', relativeResidual * 100) '\%$']}, ...
                     strjoin(warnings, newline)) ;
+                obj.ResultValues{6}.Interpreter = 'none' ;
+                obj.ResultValues{6}.Text = ['= ' lambdaReading] ;
                 obj.ResultLabels{7}.Layout.Row = 4 ;
                 obj.ResultLabels{7}.Layout.Column = 1 ;
                 obj.ResultValues{7}.Layout.Row = 4 ;
@@ -1122,6 +1124,7 @@ classdef ConvolutionTabHelper < handle
                 obj.ResultValues{k}.Visible = obj.onOff(visible) ;
                 if visible
                     obj.ResultLabels{k}.Text = labels{k} ;
+                    obj.ResultValues{k}.Interpreter = 'latex' ;
                     obj.ResultValues{k}.Text = ['$=\;' values{k}(2:end)] ;
                     pairRow = 1 + ceil(k / 3) ;
                     pairColumn = 1 + 2 * mod(k - 1, 3) ;
@@ -1194,26 +1197,29 @@ classdef ConvolutionTabHelper < handle
         end
 
         function plotDeconvolutionCheck(obj,timeScale,concentrationScale)
+            legendInterpreter = 'latex' ;
             if strcmp(obj.LowerPlot.Value,'L-curve') && ...
                     isfield(obj.LastInfo,'lCurve') && ...
                     ~isempty(obj.LastInfo.lCurve.lambda)
                 curve = obj.LastInfo.lCurve ;
                 loglog(obj.VerificationAxes,curve.residualNorm,curve.seminorm, ...
                     '-o','LineWidth',1,'MarkerSize',3, ...
-                    'DisplayName','$\mathrm{L\!\!-curve}$') ;
+                    'DisplayName','L-curve') ;
                 hold(obj.VerificationAxes,'on') ;
                 selected = curve.selectedIndex ;
                 loglog(obj.VerificationAxes,curve.residualNorm(selected), ...
                     curve.seminorm(selected),'rp','MarkerSize',12, ...
                     'MarkerFaceColor','r','DisplayName', ...
-                    sprintf('$\\lambda=%.3g$',obj.LastInfo.lambda)) ;
+                    sprintf('λ = %.3g',obj.LastInfo.lambda)) ;
                 hold(obj.VerificationAxes,'off') ;
-                title(obj.VerificationAxes,'$\mathrm{L\!\!-curve}$', ...
-                    'Interpreter','latex') ;
+                obj.VerificationAxes.XScale = 'log' ;
+                obj.VerificationAxes.YScale = 'log' ;
+                title(obj.VerificationAxes,'L-curve','Interpreter','none') ;
                 xlabel(obj.VerificationAxes,'$\|A\widehat{e}-c_{\mathrm{out}}\|_2$', ...
                     'Interpreter','latex') ;
                 ylabel(obj.VerificationAxes,'$\|L\widehat{e}\|_2$', ...
                     'Interpreter','latex') ;
+                legendInterpreter = 'none' ;
             else
                 hold(obj.VerificationAxes, 'on') ;
                 measuredLine = obj.plotSignal(obj.VerificationAxes, ...
@@ -1242,7 +1248,7 @@ classdef ConvolutionTabHelper < handle
                     'Interpreter', 'latex') ;
             end
             legend(obj.VerificationAxes, 'show', 'Location', 'best', ...
-                'Interpreter', 'latex') ;
+                'Interpreter', legendInterpreter) ;
         end
 
         function plotMeanTime(~, axesControl, signal, timeScale, color, label)

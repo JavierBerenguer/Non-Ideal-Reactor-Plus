@@ -686,6 +686,11 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
 
             testCase.verifyEqual(testCase.control('ConvLowerPlot').Value,'L-curve') ;
             testCase.verifySubstring(testCase.control('ConvResultValue6').Text,'L-curve') ;
+            testCase.verifyEqual(testCase.control('ConvVerificationAxes').XScale,'log') ;
+            testCase.verifyEqual(testCase.control('ConvVerificationAxes').YScale,'log') ;
+            testCase.verifyEqual(testCase.control('ConvRegularization').Layout.Column,[2 3]) ;
+            testCase.verifyEqual(testCase.control('ConvSupportDescription').Text, ...
+                'Default: widest support compatible with the data.') ;
             testCase.verifyGreaterThanOrEqual(numel( ...
                 testCase.control('ConvVerificationAxes').Children),2) ;
             saved = fullfile(testCase.Folder,'tikhonov-auto.mat') ;
@@ -695,7 +700,10 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
                 'Tikhonov') ;
             testCase.verifyEqual(roundTrip.sessionData.convolution.lambdaMode, ...
                 'Auto (L-curve)') ;
-            testCase.verifyGreaterThan(roundTrip.sessionData.convolution.lastInfo.lambda,0) ;
+            info = roundTrip.sessionData.convolution.lastInfo ;
+            testCase.verifyEqual(info.lCurve.selectedIndex,31) ;
+            testCase.verifyGreaterThan(info.lambda,1e5) ;
+            testCase.verifyLessThan(info.lambda,3e5) ;
         end
     end
 

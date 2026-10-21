@@ -138,6 +138,28 @@ classdef NirpConvolutionTest < matlab.unittest.TestCase
                 info.lCurve.lambda(info.lCurve.selectedIndex),'RelTol',1e-12) ;
         end
 
+        function sect02LcurveRejectsSmallLambdaPlateau(testCase)
+            % SECT02 is stored in minutes and mol/L; reproduce it in SI.
+            inletMinutes = 0:4 ;
+            Cin = nirp.conv.signal(inletMinutes*60, ...
+                inletMinutes.*exp(-inletMinutes/2)*1000) ;
+            Cout = nirp.conv.signal((4:13)*60, ...
+                [.9 1.8 2.1 5.2 3.6 4.5 1.7 .8 .7 .5]*1000) ;
+
+            [~,info] = nirp.conv.deconvolve(Cin,Cout,[4 9]*60, ...
+                struct('lambda','auto')) ;
+
+            testCase.verifyEqual(info.lCurve.selectedIndex,31) ;
+            testCase.verifyGreaterThan(info.lambda,1e5) ;
+            testCase.verifyLessThan(info.lambda,3e5) ;
+            testCase.verifyGreaterThan(info.lCurve.residualNorm(31),2300) ;
+            testCase.verifyLessThan(info.lCurve.residualNorm(31),2450) ;
+            testCase.verifyGreaterThan(info.lCurve.selectedIndex, ...
+                numel(info.lCurve.lambda)/2) ;
+            testCase.verifyLessThan(info.lCurve.selectedIndex, ...
+                numel(info.lCurve.lambda)) ;
+        end
+
         function manualIdentityTikhonovUsesAugmentedNnls(testCase)
             Cin = nirp.conv.signal(0:2,[1 2 1]) ;
             Cout = nirp.conv.signal(0:4,[0.2 1.2 2.6 2.1 0.7]) ;

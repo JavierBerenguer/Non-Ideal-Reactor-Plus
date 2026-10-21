@@ -186,15 +186,29 @@ end
 function curvature = lCurveCurvature(residualNorms,seminorms)
     x = log(max(residualNorms,realmin('double'))) ;
     y = log(max(seminorms,realmin('double'))) ;
+    xRange = max(x)-min(x) ;
+    yRange = max(y)-min(y) ;
+    if xRange > 0, x = (x-min(x))/xRange ; end
+    if yRange > 0, y = (y-min(y))/yRange ; end
     curvature = zeros(size(x)) ;
+    segmentFloor = 0.01*hypot(double(xRange > 0),double(yRange > 0)) ;
     for k = 2:numel(x)-1
         first = [x(k)-x(k-1), y(k)-y(k-1)] ;
         second = [x(k+1)-x(k), y(k+1)-y(k)] ;
         chord = [x(k+1)-x(k-1), y(k+1)-y(k-1)] ;
         denominator = norm(first)*norm(second)*norm(chord) ;
-        if denominator > 0
+        % A wide logarithmic sweep can contain an initial plateau where
+        % adjacent NNLS solutions differ only by roundoff. Its formal
+        % three-point curvature is large but it is not an L-curve corner.
+        if denominator > 0 && norm(first) >= segmentFloor && ...
+                norm(second) >= segmentFloor
             curvature(k) = 2*abs(first(1)*second(2)-first(2)*second(1)) / denominator ;
         end
+    end
+    if ~any(curvature(2:end-1) > 0)
+        % Retain an interior choice for degenerate curves rather than
+        % silently selecting the first endpoint of the sweep.
+        curvature(ceil(numel(curvature)/2)) = eps ;
     end
 end
 
