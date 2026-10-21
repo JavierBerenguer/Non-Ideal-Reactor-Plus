@@ -2,7 +2,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
     % NirpConvolutionTabTest verifies the app integration of nirp.conv.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 9, 2026. Last update: October 21, 2026
+    % Created: October 9, 2026. Last update: October 22, 2026
     % =========================================================================
 
     properties
@@ -30,6 +30,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
 
     methods (Test, TestTags = {'Interactive'})
         function tabIsSixthAfterDesignWorkspace(testCase)
+            testCase.showInteractiveApp() ;
             group = findall(testCase.Figure, 'Type', 'uitabgroup') ;
             mainGroup = group(arrayfun(@(g) any(strcmp({g.Children.Title}, ...
                 'RTD Analysis')), group)) ;
@@ -43,6 +44,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
         end
 
         function activeConvolutionTabRoundTripsByTitle(testCase)
+            testCase.showInteractiveApp() ;
             group = findall(testCase.Figure, 'Type', 'uitabgroup') ;
             mainGroup = group(arrayfun(@(g) any(strcmp({g.Children.Title}, ...
                 'RTD Analysis')), group)) ;
@@ -59,12 +61,14 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
         end
 
         function manualTableUsesAvailableEditorHeight(testCase)
+            testCase.showInteractiveApp() ;
             tableControl = testCase.control('ConvTableCin') ;
             testCase.verifyEqual(tableControl.Parent.RowHeight{4}, '1x') ;
             testCase.verifyEqual(tableControl.Layout.Row, 4) ;
         end
 
         function functionButtonsMatchTablePositionBelowEditor(testCase)
+            testCase.showInteractiveApp() ;
             tableControl = testCase.control('ConvTableCin') ;
             addButton = testCase.control('ConvAddRowCin') ;
             buttonsGrid = addButton.Parent ;
@@ -85,6 +89,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
         end
 
         function modeShowsOnlyItsDescriptiveSignalTabs(testCase)
+            testCase.showInteractiveApp() ;
             tabs = testCase.control('ConvSignalTabs') ;
             testCase.verifyEqual(sort(string({tabs.Children.Title})), ...
                 sort(["Inlet signal Cᵢₙ(t)", "RTD E(t)"])) ;
@@ -115,6 +120,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
         end
 
         function supportedTextUsesLatex(testCase)
+            testCase.showInteractiveApp() ;
             testCase.verifyEqual(testCase.control('ConvDescriptionCin').Interpreter, 'latex') ;
             testCase.verifySubstring(testCase.control('ConvDescriptionCin').Text, ...
                 'C_{\mathrm{in}}(t)') ;
@@ -127,6 +133,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
         end
 
         function resultsAreHorizontalVisibleAndDescribedInEveryMode(testCase)
+            testCase.showInteractiveApp() ;
             testCase.Figure.Position = [100 100 1200 750] ;
             testCase.control('ConvTableCin').Data = [0 0; 1 1; 2 0] ;
             testCase.control('ConvTableE').Data = [0 0; 1 1; 2 0] ;
@@ -147,6 +154,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
         end
 
         function functionIsTheOnlyExpressionSource(testCase)
+            testCase.showInteractiveApp() ;
             source = testCase.control('ConvSourceCin') ;
             testCase.verifyEqual(string(source.Items), ["Table" "Function"]) ;
             testCase.verifyFalse(any(string(source.Items) == "Piecewise")) ;
@@ -161,6 +169,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
         end
 
         function oneIntervalFunctionUsesCommonStep(testCase)
+            testCase.showInteractiveApp() ;
             testCase.setDropdown('ConvSourceCin', 'Function') ;
             testCase.control('ConvFunctionTableCin').Data = {0 2 't'} ;
             testCase.control('ConvTableE').Data = [0 0; 1 1; 2 0] ;
@@ -174,6 +183,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
         end
 
         function twoIntervalFunctionUsesEveryExpression(testCase)
+            testCase.showInteractiveApp() ;
             testCase.setDropdown('ConvSourceCin', 'Function') ;
             testCase.control('ConvFunctionTableCin').Data = ...
                 {0 1 't'; 1 2 '2.*t'} ;
@@ -188,6 +198,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
         end
 
         function automaticStepUsesTableBeforeBuildingFunction(testCase)
+            testCase.showInteractiveApp() ;
             testCase.selectMode('Deconvolution') ;
             testCase.setDropdown('ConvSourceCin', 'Function') ;
             testCase.control('ConvFunctionTableCin').Data = ...
@@ -206,6 +217,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
         end
 
         function automaticStepDefaultsAcrossFunctionDomain(testCase)
+            testCase.showInteractiveApp() ;
             testCase.setDropdown('ConvSourceCin', 'Function') ;
             testCase.setDropdown('ConvSourceE', 'Function') ;
             testCase.control('ConvFunctionTableCin').Data = {0 2 '1'} ;
@@ -221,6 +233,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
         end
 
         function topicExampleOneUsesAddedTableRows(testCase)
+            testCase.showInteractiveApp() ;
             Cin = [0:4; 0 8 4 6 0].' ;
             E = [2:6; 0 .05 .5 .35 0].' ;
             testCase.press(testCase.control('ConvAddRowCin')) ;
@@ -278,6 +291,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
         end
 
         function excelImportMatchesRTDAnalysisAndStoresNumbers(testCase)
+            testCase.showInteractiveApp() ;
             imported = [0 0; 1 8; 2 4; 3 6; 4 0] ;
             file = fullfile(testCase.Folder, 'tracer.xlsx') ;
             writematrix(imported, file) ;
@@ -293,6 +307,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
         end
 
         function removeRowUsesSelectionAndKeepsOneRow(testCase)
+            testCase.showInteractiveApp() ;
             tableControl = testCase.control('ConvTableCin') ;
             testCase.press(testCase.control('ConvAddRowCin')) ;
             testCase.type(tableControl, [2 1], '17') ;
@@ -315,6 +330,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
         end
 
         function modelCstrAndCurrentRTDAreAvailable(testCase)
+            testCase.showInteractiveApp() ;
             testCase.control('ConvTableCin').Data = [0:10; ones(1, 11)].' ;
             testCase.setDropdown('ConvSourceE', 'Model') ;
             testCase.setDropdown('ConvModelE', 'CSTR') ;
@@ -342,6 +358,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
         end
 
         function deconvolutionFunctionMatchesCourseAndLoadsTabOne(testCase)
+            testCase.showInteractiveApp() ;
             testCase.configureCourseDeconvolution('min') ;
 
             testCase.press(testCase.control('ConvCompute')) ;
@@ -379,6 +396,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
         end
 
         function sec02SessionWithTruncatedOutletWindowComputes(testCase)
+            testCase.showInteractiveApp() ;
             testCase.configureSec02Deconvolution() ;
             saved = fullfile(testCase.Folder, 'SEC02-sanitized.mat') ;
             testCase.App.saveSessionToFile(saved, 'SEC02-sanitized') ;
@@ -404,6 +422,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
         end
 
         function sec02InputsEnteredDirectlyCompute(testCase)
+            testCase.showInteractiveApp() ;
             testCase.configureSec02Deconvolution() ;
 
             testCase.press(testCase.control('ConvCompute')) ;
@@ -436,6 +455,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
         end
 
         function userWindowUsesDefaultSupportAndRatesResidual(testCase)
+            testCase.showInteractiveApp() ;
             testCase.selectMode('Deconvolution') ;
             testCase.setDropdown('ConvSourceCin', 'Function') ;
             testCase.control('ConvFunctionTableCin').Data = ...
@@ -461,6 +481,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
         end
 
         function convolutionAndSeriesButtonsLoadTabOne(testCase)
+            testCase.showInteractiveApp() ;
             testCase.control('ConvTableCin').Data = [0 0; 1 1; 2 0] ;
             testCase.control('ConvTableE').Data = [0 0; 1 1; 2 0] ;
             testCase.press(testCase.control('ConvCompute')) ;
@@ -487,6 +508,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
         end
 
         function seriesCompositionHasDedicatedResults(testCase)
+            testCase.showInteractiveApp() ;
             testCase.selectMode('Series composition') ;
             testCase.control('ConvTableE1').Data = [0 0; 1 1; 2 0] ;
             testCase.control('ConvTableE2').Data = [0 0; 1 1; 2 0] ;
@@ -507,6 +529,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
         end
 
         function deconvolutionResultsUseSelectedTimeUnitWithoutMomentsTable(testCase)
+            testCase.showInteractiveApp() ;
             testCase.configureCourseDeconvolution('min') ;
             testCase.press(testCase.control('ConvCompute')) ;
 
@@ -529,6 +552,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
         end
 
         function oldSessionsLoadWithoutNewWarnings(testCase)
+            testCase.showInteractiveApp() ;
             files = dir(fullfile(testCase.Root, 'saves', 'SE*.mat')) ;
             testCase.verifyGreaterThanOrEqual(numel(files), 10) ;
             for k = 1:numel(files)
@@ -542,6 +566,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
         end
 
         function convolutionStateRoundTripsAllUnits(testCase)
+            testCase.showInteractiveApp() ;
             input = [0 0; 1 2; 2 0] ;
             testCase.control('ConvTableCin').Data = input ;
             testCase.choose(testCase.control('ConvTimeUnitCin'), 'min') ;
@@ -572,6 +597,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
         end
 
         function equivalentInputUnitsAndPresentationOnlyOutputUnits(testCase)
+            testCase.showInteractiveApp() ;
             testCase.choose(testCase.control('ConvTimeUnitCin'), 'min') ;
             testCase.choose(testCase.control('ConvConcentrationUnitCin'), 'mol/L') ;
             testCase.choose(testCase.control('ConvTimeUnitE'), 'min') ;
@@ -597,6 +623,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
         end
 
         function legacySnapshotAppliesOneTimeUnitEverywhere(testCase)
+            testCase.showInteractiveApp() ;
             saved = fullfile(testCase.Folder, 'legacy-convolution.mat') ;
             testCase.App.saveSessionToFile(saved, 'legacy-convolution') ;
             loaded = load(saved, 'sessionData') ;
@@ -621,6 +648,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
         end
 
         function legacyFunctionSessionLoadsAsOneRowAndCalculates(testCase)
+            testCase.showInteractiveApp() ;
             saved = fullfile(testCase.Folder, 'legacy-function.mat') ;
             testCase.control('ConvTableE').Data = [0 0; 1 1; 2 0] ;
             testCase.control('ConvDt').Value = 1 ;
@@ -645,6 +673,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
         end
 
         function legacyPiecewiseSessionLoadsAsFunctionAndCalculates(testCase)
+            testCase.showInteractiveApp() ;
             saved = fullfile(testCase.Folder, 'legacy-piecewise.mat') ;
             testCase.control('ConvTableE').Data = [0 0; 1 1; 2 0] ;
             testCase.control('ConvDt').Value = 1 ;
@@ -708,6 +737,11 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
     end
 
     methods (Access = private)
+        function showInteractiveApp(testCase)
+            testCase.Figure.Visible = 'on' ;
+            drawnow ;
+        end
+
         function verifyResultGeometry(testCase, count, descriptionText)
             drawnow ;
             panel = testCase.control('ConvResultsPanel') ;
