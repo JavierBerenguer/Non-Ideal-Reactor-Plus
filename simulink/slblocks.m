@@ -7,8 +7,11 @@ function blkStruct = slblocks
 
     blkStruct.Name = '' ;
     blkStruct.OpenFcn = '' ;
-    Browser.Library = 'NirpLibrary' ;
-    Browser.Name = 'Non-Ideal Reactor Plus' ;
-    Browser.IsFlat = 0 ;
+    Browser(1).Library = 'NirpLibrary' ;
+    Browser(1).Name = 'Non-Ideal Reactor Plus' ;
+    Browser(1).IsFlat = 0 ;
+    Browser(2).Library = 'NirpTracerLibrary' ;
+    Browser(2).Name = 'Non-Ideal Reactor Plus - Tracer Flowsheet' ;
+    Browser(2).IsFlat = 0 ;
     blkStruct.Browser = Browser ;
 end

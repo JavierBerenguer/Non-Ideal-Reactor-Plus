@@ -36,8 +36,11 @@ classdef (SharedTestFixtures={nirptest.ExamplesFixture}) ...
     methods (Test)
         function libraryIsRegisteredAndSetup(testCase)
             info = slblocks() ;
-            testCase.verifyEqual(info.Browser.Library,'NirpLibrary') ;
-            testCase.verifyEqual(info.Browser.Name,'Non-Ideal Reactor Plus') ;
+            testCase.verifyEqual(info.Browser(1).Library,'NirpLibrary') ;
+            testCase.verifyEqual(info.Browser(1).Name,'Non-Ideal Reactor Plus') ;
+            testCase.verifyEqual(info.Browser(2).Library,'NirpTracerLibrary') ;
+            testCase.verifyEqual(info.Browser(2).Name, ...
+                'Non-Ideal Reactor Plus - Tracer Flowsheet') ;
             libraryFile = nirp.setup() ;
             testCase.verifyTrue(contains([path pathsep], ...
                 [testCase.SimulinkFolder pathsep])) ;
