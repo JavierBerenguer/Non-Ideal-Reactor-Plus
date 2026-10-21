@@ -1355,7 +1355,7 @@ classdef NonIdealReactorApp < handle
 
                 defaultFile = fullfile(saveDir, sprintf('session_%s.mat', char(datetime('now', 'Format', 'yyyyMMdd_HHmmss')))) ;
                 [fileName, ~] = uiputfile({'*.mat', 'MAT-files (*.mat)'}, ...
-                    'Guardar sesión', defaultFile) ;
+                    'Save session', defaultFile) ;
                 if isequal(fileName, 0)
                     return
                 end
@@ -1370,11 +1370,11 @@ classdef NonIdealReactorApp < handle
                     choice = uiconfirm(app.UIFigure, ...
                         sprintf('El archivo "%s" ya existe. ¿Deseas sobrescribirlo?', fileName), ...
                         'Confirmar sobreescritura', ...
-                        'Options', {'Sobrescribir', 'Cancelar'}, ...
+                        'Options', {'Overwrite', 'Cancel'}, ...
                         'DefaultOption', 2, ...
                         'CancelOption', 2, ...
                         'Icon', 'warning') ;
-                    if ~strcmp(choice, 'Sobrescribir')
+                    if ~strcmp(choice, 'Overwrite')
                         return
                     end
                 end
@@ -1403,7 +1403,7 @@ classdef NonIdealReactorApp < handle
             end
 
             [fileName, filePath] = uigetfile({'*.mat', 'MAT-files (*.mat)'}, ...
-                'Cargar sesión', saveDir) ;
+                'Load session', saveDir) ;
             if isequal(fileName, 0)
                 return
             end
