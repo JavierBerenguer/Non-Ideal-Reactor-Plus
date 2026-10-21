@@ -17,7 +17,8 @@ function setupBlock(block)
     if className~="nirp.tracerblocks.Flowsheet"
         coordinators=find_system(bdroot(block),'SearchDepth',1,'BlockType','MATLABSystem', ...
             'System','nirp.tracerblocks.Flowsheet') ;
-        if numel(coordinators)==1
+        if numel(coordinators)==1 && hasParameter(coordinators{1},'Dt') && ...
+                hasParameter(block,'Dt')
             set_param(block,'Dt',get_param(coordinators{1},'Dt'), ...
                 'TFinal',get_param(coordinators{1},'TFinal')) ;
         end
@@ -25,3 +26,4 @@ function setupBlock(block)
     set_param(block,'OpenFcn',sprintf('nirp.tracerflowsheet.%s.open(gcb);',dialog), ...
         'LoadFcn','nirp.tracerflowsheet.setupBlock(gcb);') ;
 end
+function value=hasParameter(block,name),parameters=get_param(block,'DialogParameters');value=isstruct(parameters)&&isfield(parameters,name);end

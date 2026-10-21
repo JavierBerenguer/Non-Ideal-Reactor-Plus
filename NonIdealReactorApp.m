@@ -267,6 +267,7 @@ classdef NonIdealReactorApp < handle
                 'Visible', 'off', ...
                 'AutoResizeChildren', 'off') ;
             app.UIFigure.CloseRequestFcn = @(~,~) delete(app) ;
+            setappdata(app.UIFigure, 'NirpNonIdealReactorApp', app) ;
 
             % Menu bar
             mFile = uimenu(app.UIFigure, 'Text', 'File') ;
@@ -383,6 +384,11 @@ classdef NonIdealReactorApp < handle
             end
 
             app.applySessionSnapshot(loadedData.sessionData) ;
+        end
+
+        function useTracerFlowsheetRTD(app, signal)
+            % Load a tracer-flowsheet accumulated E signal into Tab 1.
+            app.useConvolutionRTD(signal, 'Series composition') ;
         end
 
     end
