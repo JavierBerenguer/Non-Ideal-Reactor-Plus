@@ -37,6 +37,34 @@ classdef NirpGuidesTest < matlab.unittest.TestCase
             end
         end
 
+        function idealAndFlowsheetTopicsContainCurrentImages(testCase)
+            root = fileparts(fileparts(mfilename('fullpath'))) ;
+            guides = fullfile(root, 'docs', 'guides') ;
+            pages = [matchingPages(guides, 'ideal-*.html'), ...
+                matchingPages(guides, 'flowsheet-*.html')] ;
+            for index = 1:numel(pages)
+                html = string(fileread(pages{index})) ;
+                testCase.verifyNotEmpty(regexp(html, ...
+                    '<img[^>]+src="[^"]+"', 'once'), sprintf( ...
+                    '%s has no guide image', pages{index})) ;
+            end
+
+            required = ["main-optimization.png", ...
+                "main-minimum-residence-time.png", ...
+                "main-association.png", "main-recycle.png", ...
+                "pfr-definition.png"] ;
+            combined = string(fileread(fullfile(guides, ...
+                'ideal-optimization.html'))) + string(fileread(fullfile( ...
+                guides, 'ideal-reactors.html'))) ;
+            for image = required
+                testCase.verifySubstring(combined, image) ;
+                testCase.verifyTrue(isfile(fullfile(root, 'docs', ...
+                    'assets', 'ideal', image))) ;
+            end
+            testCase.verifyFalse(contains(string(fileread(fullfile(guides, ...
+                'ideal-optimization.html'))), 'main-window.png')) ;
+        end
+
         function tracerHelpTargetsHaveAnchorsOnTheirOwnGuide(testCase)
             root = fileparts(fileparts(mfilename('fullpath'))) ;
             page = fullfile(root, 'docs', 'TracerFlowsheetGuide.html') ;
@@ -109,17 +137,6 @@ classdef NirpGuidesTest < matlab.unittest.TestCase
                     end
                 end
             end
-        end
-
-        function legacyEntriesPointToTheirOwnGuides(testCase)
-            root = fileparts(fileparts(mfilename('fullpath'))) ;
-
-            idealLegacy = fileread(fullfile(root, 'docs', 'guides', ...
-                'ideal-reactor-app.html')) ;
-            flowLegacy = fileread(fullfile(root, 'docs', 'guides', ...
-                'simulink-flowsheet.html')) ;
-            testCase.verifySubstring(string(idealLegacy), '../IdealGuide.html') ;
-            testCase.verifySubstring(string(flowLegacy), '../FlowsheetGuide.html') ;
         end
 
         function convolutionIsDocumentedAsTabSix(testCase)
@@ -397,8 +414,7 @@ function [sets, names] = guidePageSets(root)
     ideal = [{fullfile(docs, 'IdealGuide.html')}, ...
         matchingPages(guides, 'ideal-*.html')] ;
     flowsheet = [{fullfile(docs, 'FlowsheetGuide.html')}, ...
-        matchingPages(guides, 'flowsheet-*.html'), ...
-        {fullfile(guides, 'simulink-flowsheet.html')}] ;
+        matchingPages(guides, 'flowsheet-*.html')] ;
     tracer = [{fullfile(docs, 'TracerFlowsheetGuide.html')}, ...
         matchingPages(guides, 'tracer-*.html')] ;
     sets = {nonIdeal, ideal, flowsheet, tracer} ;
