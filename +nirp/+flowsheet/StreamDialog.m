@@ -2,7 +2,7 @@ classdef StreamDialog < handle
     % StreamDialog edits feeds and displays calculated stream results.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 2, 2026. Last update: October 16, 2026
+    % Created: October 2, 2026. Last update: October 22, 2026
     % =========================================================================
 
     properties (SetAccess = private)
@@ -595,7 +595,7 @@ classdef StreamDialog < handle
             obj.KeyComponentDropDown.Visible=onOff(isProduct) ;
             obj.SpecificationPanel.Visible=onOff(~isFeed) ;
             obj.OKButton.Visible='on';obj.ApplyButton.Visible='on';
-            obj.CancelButton.Text='Cancel' ;obj.CancelButton.Layout.Column=3 ;obj.SaveButton=obj.ApplyButton ;
+            obj.CancelButton.Text='Cancel' ;obj.CancelButton.Layout.Column=6 ;obj.SaveButton=obj.ApplyButton ;
             obj.updatePortSources() ;
         end
 

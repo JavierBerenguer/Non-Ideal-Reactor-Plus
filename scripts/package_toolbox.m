@@ -5,7 +5,7 @@ function toolboxFile = package_toolbox(outputFolder)
 %   application as NonIdealReactorPlus_0.1.0.mltbx.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 2, 2026. Last update: October 16, 2026
+% Created: October 2, 2026. Last update: October 22, 2026
 % =========================================================================
 
     arguments
@@ -81,6 +81,8 @@ function files = packageFiles(root)
     for folder = [".git",".local","C__","tests","scripts","release","slprj"]
         forbidden = forbidden | contains(wrapped,"/"+folder+"/") ;
     end
+    forbidden = forbidden | startsWith(relative,"simulink/examples/", ...
+        'IgnoreCase',true) ;
     excludedExtension = endsWith(relative,[".slxc",".asv"], ...
         'IgnoreCase',true) ;
     hiddenGit = startsWith(relative,'.git') ;

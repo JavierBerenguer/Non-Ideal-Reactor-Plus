@@ -2,7 +2,7 @@ classdef NirpReactiveSystemDialogTest < matlab.unittest.TestCase
 %NIRPPACKAGEEDITORTEST Tests for the graphical package editor.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 2, 2026. Last update: October 17, 2026
+% Created: October 2, 2026. Last update: October 22, 2026
 % =========================================================================
 
     properties
@@ -155,7 +155,8 @@ classdef NirpReactiveSystemDialogTest < matlab.unittest.TestCase
             testCase.verifyNotEmpty(mask.getDialogControl('EditPackage')) ;
             % New flowsheet... lives in the main launcher since T-161
             launcher=NonIdealReactorPlus() ; testCase.addTeardown(@() deleteValid(launcher)) ;
-            button=findall(launcher.UIFigure,'Type','uibutton','Text','New flowsheet...') ;
+            button=findall(launcher.UIFigure,'Type','uibutton','Tag','NirpNewFlowsheet') ;
+            testCase.assertNumElements(button,1) ;
             feval(button.ButtonPushedFcn,button,[]) ;
             editor=findall(groot,'Type','Figure','Tag','NirpReactiveSystemDialog') ;
             testCase.verifyNumElements(editor,1) ; delete(editor) ;
@@ -168,11 +169,16 @@ classdef NirpReactiveSystemDialogTest < matlab.unittest.TestCase
             testCase.verifyEqual(ed.ComponentTable.Data{1,1},'');
             testCase.verifySize(ed.ReactionTable.Data,[1 13]);
             testCase.verifyEqual(ed.ReactionTable.Data{1,1},[]);
+            overrideName='NirpGuideOpenOverride';
+            resultName='NirpGuideOpenResult';
+            setappdata(groot,overrideName,@(relativePath) ...
+                setappdata(groot,resultName,relativePath));
+            testCase.addTeardown(@() removeGuideOverride(overrideName,resultName));
             button=findall(ed.Figure,'Type','uibutton','Text','Help');
             feval(button.ButtonPushedFcn,button,[]);
-            helpFigure=findall(groot,'Type','Figure','Tag','NirpFlowsheetHelp');
-            testCase.verifyNumElements(helpFigure,1);
-            testCase.verifyNumElements(findall(helpFigure,'Type','uihtml'),1);
+            testCase.verifyTrue(isappdata(groot,resultName));
+            testCase.verifyEqual(string(getappdata(groot,resultName)), ...
+                "guides/flowsheet-reactive-system.html");
         end
     end
 end
@@ -182,6 +188,10 @@ function cleanup(testCase)
     figures=findall(groot,'Type','Figure') ; if ~isempty(figures),delete(figures);end
     evalin('base','clear nirpResults') ; rmpath(testCase.Folder) ;
     Simulink.fileGenControl('setConfig','config',testCase.FileGenerationConfig) ;
+end
+function removeGuideOverride(overrideName,resultName)
+    if isappdata(groot,overrideName),rmappdata(groot,overrideName);end
+    if isappdata(groot,resultName),rmappdata(groot,resultName);end
 end
 function deleteValid(value)
     try
