@@ -2,7 +2,7 @@ classdef NirpUnitDialogsTest < matlab.unittest.TestCase
 %NIRPUNITDIALOGSTEST Tests for structured flowsheet unit dialogs.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 2, 2026. Last update: October 7, 2026
+% Created: October 2, 2026. Last update: October 22, 2026
 % =========================================================================
     properties
         Folder
@@ -48,6 +48,9 @@ classdef NirpUnitDialogsTest < matlab.unittest.TestCase
             addUnit('dialog_model','CSTR','nirp.blocks.CSTR',[260 120 370 190]);addStream('dialog_model','Middle','Intermediate',[430 130 540 180]);add_line('dialog_model','F1/1','CSTR/1');add_line('dialog_model','CSTR/1','Middle/1');
             d=nirp.flowsheet.ReactorDialog('dialog_model/CSTR','Visible','off');testCase.addTeardown(@() deleteValid(d));data=d.getConnections();testCase.verifyTrue(any(strcmp(data(:,3),'F1')));testCase.verifyTrue(any(strcmp(data(:,3),'Middle')));
         end
+    end
+
+    methods (Test, TestTags = {'Interactive'})
         function reactorVisibleControlsStayInsideAndDoNotOverlap(testCase)
             addUnit('dialog_model','PFR','nirp.blocks.PFR',[240 120 350 190]);
             d=nirp.flowsheet.ReactorDialog('dialog_model/PFR','Visible','off');testCase.addTeardown(@() deleteValid(d));
@@ -69,6 +72,11 @@ classdef NirpUnitDialogsTest < matlab.unittest.TestCase
             testCase.verifyEqual(reshape(string({action(order).Text}),1,[]),["OK" "Cancel" "Apply"]);
             dialogs{1}.Figure.Visible='off';
         end
+
+    end
+
+    methods (Test)
+
         function callbacksOpenStructuredDialogs(testCase)
             classes={'CSTR','PFR','Heater','Jacket','Splitter','Mixer'};for i=1:numel(classes),addUnit('dialog_model',classes{i},['nirp.blocks.' classes{i}],[220 40+60*i 340 90+60*i]);testCase.verifySubstring(get_param(['dialog_model/' classes{i}],'OpenFcn'),'Dialog.open');end
             flow=find_system('dialog_model','SearchDepth',1,'BlockType','SubSystem');testCase.verifySubstring(get_param(flow{1},'OpenFcn'),'ReactiveSystemDialog');

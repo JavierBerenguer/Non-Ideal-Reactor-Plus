@@ -149,6 +149,9 @@ classdef NirpReactiveSystemDialogTest < matlab.unittest.TestCase
             testCase.verifyEqual(bus.Elements(1).Dimensions,[4 1]) ; close(dictionary) ;
         end
 
+    end
+
+    methods (Test, TestTags = {'Interactive'})
         function maskAndAppOpenEditor(testCase)
             new_system('mask_model') ; testCase.addTeardown(@() close_system('mask_model',0)) ;
             block=nirp.flowsheet.addBlock('mask_model') ; mask=Simulink.Mask.get(block) ;
@@ -161,6 +164,10 @@ classdef NirpReactiveSystemDialogTest < matlab.unittest.TestCase
             editor=findall(groot,'Type','Figure','Tag','NirpReactiveSystemDialog') ;
             testCase.verifyNumElements(editor,1) ; delete(editor) ;
         end
+
+    end
+
+    methods (Test)
 
         function newEditorIsEmptyAndHelpStaysInMatlab(testCase)
             ed=nirp.flowsheet.ReactiveSystemDialog('Visible','off');

@@ -2,7 +2,7 @@ classdef NirpDiagramModesTest < matlab.unittest.TestCase
 %NIRPDIAGRAMMODESTEST Flowsheet reactor modes, signal connections and dialogs (T-131).
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 7, 2026. Last update: October 7, 2026
+% Created: October 7, 2026. Last update: October 22, 2026
 % =========================================================================
     properties
         Folder
@@ -87,6 +87,9 @@ classdef NirpDiagramModesTest < matlab.unittest.TestCase
             testCase.verifyFalse(any(strcmp(data(:,3),'<missing>')));
             testCase.verifyWarningFree(@() nirp.flowsheet.checkTopology('modes_model'));
         end
+    end
+
+    methods (Test, TestTags = {'Interactive'})
         function streamDialogIsResizableWithoutTips(testCase)
             for role=["Feed","Product"]
                 name="S"+role;addStream('modes_model',char(name),char(role),[430 130 540 180]);
@@ -102,6 +105,11 @@ classdef NirpDiagramModesTest < matlab.unittest.TestCase
                 delete(d);delete_block("modes_model/"+name);
             end
         end
+
+    end
+
+    methods (Test)
+
         function unitDialogsStayOnTop(testCase)
             addUnit('modes_model','Heater','nirp.blocks.Heater',[240 120 350 190]);
             addUnit('modes_model','Jacket','nirp.blocks.Jacket',[240 190 350 250]);

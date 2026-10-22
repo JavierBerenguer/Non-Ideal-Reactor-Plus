@@ -3,7 +3,7 @@ classdef (SharedTestFixtures={nirptest.ExamplesFixture}) ...
     % NirpUiAccessTest verifies no-code access to the NIRP Simulink UI.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 2, 2026. Last update: October 16, 2026
+    % Created: October 2, 2026. Last update: October 22, 2026
     % =========================================================================
 
     properties
@@ -99,10 +99,9 @@ classdef (SharedTestFixtures={nirptest.ExamplesFixture}) ...
 
         function appLeavesFlowsheetToLauncher(testCase)
             % The flowsheet tools open from NonIdealReactorPlus only (T-161)
-            app = NonIdealReactorApp() ;
+            app = NonIdealReactorApp('Visible','off') ;
             figureHandle = findall(groot,'Type','Figure', ...
                 'Name','Non-Ideal Reactor Analysis') ;
-            set(figureHandle,'Visible','off') ;
             testCase.addTeardown(@() deleteIfValid(app)) ;
             menu = findall(figureHandle(1),'Type','uimenu', ...
                 'Text','Flowsheet (Simulink)') ;
@@ -112,10 +111,9 @@ classdef (SharedTestFixtures={nirptest.ExamplesFixture}) ...
         end
 
         function fileMenuUsesEnglishActionNames(testCase)
-            app = NonIdealReactorApp() ;
+            app = NonIdealReactorApp('Visible','off') ;
             figureHandle = findall(groot,'Type','Figure', ...
                 'Name','Non-Ideal Reactor Analysis') ;
-            set(figureHandle,'Visible','off') ;
             testCase.addTeardown(@() deleteIfValid(app)) ;
             fileMenu = findall(figureHandle(1),'Type','uimenu','Text','File') ;
             testCase.assertNumElements(fileMenu,1) ;
