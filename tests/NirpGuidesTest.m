@@ -136,9 +136,13 @@ classdef NirpGuidesTest < matlab.unittest.TestCase
                 'tab-convolution.html'))) ;
             testCase.verifySubstring(userGuide, ...
                 'href="guides/tab-6-convolution.html"') ;
+            technicalGuide = string(fileread(fullfile(root, 'docs', ...
+                'TechnicalChapter.html'))) ;
+            testCase.verifySubstring(technicalGuide, ...
+                'href="guides/tab-6-convolution.html"') ;
             testCase.verifySubstring(convolutionGuide, 'Tab 6 - Convolution') ;
             testCase.verifySubstring(convolutionGuide, ...
-                'Previous: Tab 5 - Design &amp; Optimization') ;
+                'Previous: Optimization') ;
             testCase.verifySubstring(tabOneGuide, 'RTD from Tab 6') ;
         end
 
@@ -218,6 +222,45 @@ classdef NirpGuidesTest < matlab.unittest.TestCase
 
             function recordGuidePath(relativePath)
                 openedPath = string(relativePath) ;
+            end
+        end
+
+        function technicalGuideMenuUsesCommonOpener(testCase)
+            openedPath = "" ;
+            setappdata(groot, 'NirpGuideOpenOverride', @recordGuidePath) ;
+            testCase.addTeardown(@() clearGuideOverride()) ;
+            app = NonIdealReactorApp('Visible', 'off') ;
+            testCase.addTeardown(@() delete(app)) ;
+            figureHandle = findall(groot, 'Type', 'Figure', ...
+                'Name', 'Non-Ideal Reactor Analysis') ;
+            menu = findall(figureHandle(1), 'Type', 'uimenu', ...
+                'Text', 'Technical Guide') ;
+            testCase.verifyNumElements(menu, 1) ;
+            feval(menu.MenuSelectedFcn, menu, []) ;
+            testCase.verifyEqual(openedPath, "TechnicalChapter.html") ;
+
+            function recordGuidePath(relativePath)
+                openedPath = string(relativePath) ;
+            end
+        end
+
+        function nonIdealTabPagesHavePreviousAndNextFooterLinks(testCase)
+            root = fileparts(fileparts(mfilename('fullpath'))) ;
+            pages = matchingPages(fullfile(root, 'docs', 'guides'), ...
+                'tab-*.html') ;
+            for index = 1:numel(pages)
+                html = string(fileread(pages{index})) ;
+                footer = regexp(html, ...
+                    '(?s)<div class="footer-nav">(.*?)</div>', ...
+                    'tokens', 'once') ;
+                testCase.assertNotEmpty(footer, ...
+                    sprintf('%s has no footer navigation', pages{index})) ;
+                testCase.verifyNotEmpty(regexp(footer{1}, ...
+                    '<a[^>]+>Previous:', 'once'), ...
+                    sprintf('%s has no Previous footer link', pages{index})) ;
+                testCase.verifyNotEmpty(regexp(footer{1}, ...
+                    '<a[^>]+>Next:', 'once'), ...
+                    sprintf('%s has no Next footer link', pages{index})) ;
             end
         end
 
@@ -326,9 +369,18 @@ function pages = guidePages(root)
         'flowsheet-*.html'))] ;
     guides = [guides; dir(fullfile(root, 'docs', 'guides', ...
         'tracer-*.html'))] ;
-    pages = {fullfile(root, 'docs', 'IdealGuide.html'), ...
+    nonIdealGuides = [dir(fullfile(root, 'docs', 'guides', ...
+        'tab-*.html')); dir(fullfile(root, 'docs', 'guides', ...
+        'appendix-*.html'))] ;
+    pages = {fullfile(root, 'docs', 'UserGuide.html'), ...
+        fullfile(root, 'docs', 'TechnicalChapter.html'), ...
+        fullfile(root, 'docs', 'IdealGuide.html'), ...
         fullfile(root, 'docs', 'FlowsheetGuide.html'), ...
         fullfile(root, 'docs', 'TracerFlowsheetGuide.html')} ;
+    for index = 1:numel(nonIdealGuides)
+        pages{end + 1} = fullfile(nonIdealGuides(index).folder, ...
+            nonIdealGuides(index).name) ; %#ok<AGROW>
+    end
     for index = 1:numel(guides)
         pages{end + 1} = fullfile(guides(index).folder, ...
             guides(index).name) ; %#ok<AGROW>

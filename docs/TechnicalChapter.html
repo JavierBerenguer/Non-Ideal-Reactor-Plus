@@ -58,11 +58,12 @@
             <li>Ideal CSTR and Ideal PFR references</li>
             <li>Equivalent-model routes through Tanks-in-Series and Dispersion Model</li>
             <li>Design workspace with fitting, reactive comparison, and process optimization</li>
+            <li>Tracer-signal convolution and RTD estimation by deconvolution, including Tikhonov regularization</li>
           </ul>
         </div>
       </div>
       <div class="callout info">
-        <strong>Useful mental model:</strong> Tab 1 defines the hydrodynamic description, Tabs 2-4 propagate that description through different reactive viewpoints, and Tab 5 organizes design decisions on top of those earlier layers.
+        <strong>Useful mental model:</strong> Tab 1 defines the hydrodynamic description, Tabs 2-4 propagate that description through different reactive viewpoints, and Tab 5 organizes design decisions on top of those earlier layers. Tab 6 works with tracer signals and can return an estimated RTD to Tab 1.
       </div>
     </section>
 
@@ -152,6 +153,11 @@
           <h3>Tab 5 subtabs</h3>
           <p>Separate pages are available for Diagnosis &amp; Fit, Reactive Performance, and Optimization.</p>
           <a class="button" href="guides/tab-5-diagnosis-fit.html">Start with Diagnosis &amp; Fit</a>
+        </article>
+        <article class="card">
+          <h3>Tab 6 - Convolution</h3>
+          <p>Convolution of inlet tracer signals with an RTD, deconvolution, regularization, diagnostics, and reuse in Tab 1.</p>
+          <a class="button" href="guides/tab-6-convolution.html">Open guide</a>
         </article>
       </div>
       <figure class="figure-card">
@@ -249,6 +255,21 @@
           <td>A restored session looks loaded but some plots or summaries are still blank</td>
           <td>Cross-tab workflow appendix</td>
           <td>The session restored state, but the current view may still need a fresh <code>Compute</code> to rebuild display-level results.</td>
+        </tr>
+        <tr>
+          <td>The estimated E has A<sub>E</sub> &ne; 1</td>
+          <td><a href="guides/tab-6-convolution.html#results">Tab 6 guide</a></td>
+          <td>The estimated RTD does not have unit area over the selected support; check baselines, tracer recovery, units, and the captured tail.</td>
+        </tr>
+        <tr>
+          <td>The deconvolution has a high relative residual</td>
+          <td><a href="guides/tab-6-convolution.html#results">Tab 6 guide</a></td>
+          <td>The estimated RTD does not reconvolve closely enough to the measured outlet; recheck the signals, common grid, support, and regularization.</td>
+        </tr>
+        <tr>
+          <td>The estimated E is noisy or oscillatory</td>
+          <td><a href="guides/tab-6-convolution.html#regularization">Tab 6 guide</a></td>
+          <td>Use Tikhonov regularization and compare the automatic L-curve choice with nearby manual &lambda; values.</td>
         </tr>
       </table>
       <div class="footer-nav">

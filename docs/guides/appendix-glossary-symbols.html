@@ -29,6 +29,7 @@
           <h2>On This Page</h2>
           <ol>
             <li><a href="#moments">RTD and moments</a></li>
+            <li><a href="#convolution">Convolution and deconvolution</a></li>
             <li><a href="#equivalent">Equivalent-model parameters</a></li>
             <li><a href="#reactive">Reactive labels</a></li>
             <li><a href="#species">Species and metrics</a></li>
@@ -46,10 +47,23 @@
         </tr>
         <tr><td><code>E(t)</code></td><td>Residence time distribution in dimensional time.</td></tr>
         <tr><td><code>F(t)</code></td><td>Cumulative residence time distribution.</td></tr>
-        <tr><td><code>E(theta)</code></td><td>Residence time distribution in normalized time.</td></tr>
-        <tr><td><code>tau</code></td><td>Mean residence time.</td></tr>
-        <tr><td><code>sigma^2</code></td><td>Variance in dimensional time.</td></tr>
-        <tr><td><code>sigma_theta^2</code></td><td>Normalized variance.</td></tr>
+        <tr><td><code>E(&theta;)</code></td><td>Residence time distribution in normalized time.</td></tr>
+        <tr><td><code>&tau;</code></td><td>Mean residence time.</td></tr>
+        <tr><td><code>&sigma;<sup>2</sup></code></td><td>Variance in dimensional time.</td></tr>
+        <tr><td><code>&sigma;<sub>&theta;</sub><sup>2</sup></code></td><td>Normalized variance.</td></tr>
+      </table>
+    </section>
+    <section class="section" id="convolution">
+      <h2>Convolution and Deconvolution Symbols</h2>
+      <table>
+        <tr><th>Symbol or label</th><th>Meaning in the app</th></tr>
+        <tr><td><code>C<sub>in</sub>(t)</code></td><td>Tracer concentration entering the vessel.</td></tr>
+        <tr><td><code>C<sub>out</sub>(t)</code></td><td>Measured or calculated tracer concentration leaving the vessel.</td></tr>
+        <tr><td><code>&Delta;t<sub>common</sub></code></td><td>Sampling interval of the common time grid used for the signals.</td></tr>
+        <tr><td><code>&tau;<sub>min</sub></code>, <code>&tau;<sub>max</sub></code></td><td>Lower and upper limits of the estimated RTD support.</td></tr>
+        <tr><td><code>&lambda;</code></td><td>Tikhonov regularization strength used during deconvolution.</td></tr>
+        <tr><td>Relative residual</td><td>Reconvolution error relative to the measured outlet magnitude.</td></tr>
+        <tr><td><code>A<sub>E</sub></code></td><td>Area of the estimated E(t) over the selected support; a physical RTD should have unit area.</td></tr>
       </table>
     </section>
     <section class="section" id="equivalent">
@@ -93,7 +107,7 @@
         <tr><td>Selectivity</td><td>Product-oriented metric defined relative to the chosen reactant basis in the current route.</td></tr>
         <tr><td>Yield</td><td>Combined measure of reactant consumption and desired-product formation.</td></tr>
       </table>
-      <p>When explicit component names are unavailable, the app now falls back to names such as <code>CA</code>, <code>CB</code>, <code>CC</code>, and so on.</p>
+      <p>When explicit component names are unavailable, the app falls back to names such as <code>CA</code>, <code>CB</code>, <code>CC</code>, and so on.</p>
     </section>
     <section class="section" id="objects">
       <h2>Object Names</h2>

@@ -63,6 +63,7 @@
         <tr><td><code>RTD</code></td><td>Tab 1</td><td>Tabs 2-5</td></tr>
         <tr><td><code>ReactionSys</code></td><td>Usually Tab 1 or Tab 2</td><td>Tabs 2-5</td></tr>
         <tr><td><code>Stream</code></td><td>Usually Tab 1 or Tab 2</td><td>Tabs 2-5</td></tr>
+        <tr><td>Tracer signals / <code>RTD</code></td><td>Tab 6 uses its own C<sub>in</sub>(t), C<sub>out</sub>(t), or E(t) signals</td><td>Tab 6 can use the current Tab 1 RTD or return an estimated RTD or tracer response to Tab 1</td></tr>
       </table>
       <p>The tabs do not all duplicate each other. Some inherit objects directly, some cache results, and some expect an earlier tab to have already built the required state.</p>
     </section>
@@ -84,7 +85,7 @@
       </div>
       <ul>
         <li>Species order matters because rate expressions and stoichiometric rows are index-based.</li>
-        <li>Selectors across the app now fall back to names such as <code>CA</code>, <code>CB</code>, <code>CC</code> if explicit component names are unavailable.</li>
+        <li>Selectors across the app fall back to names such as <code>CA</code>, <code>CB</code>, <code>CC</code> if explicit component names are unavailable.</li>
         <li>Some routes, such as Dispersion Model with <code>open-open</code>, impose additional kinetic restrictions.</li>
       </ul>
     </section>

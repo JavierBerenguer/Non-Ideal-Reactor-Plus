@@ -32,6 +32,7 @@
             <li><a href="#sessions">Session and repaint issues</a></li>
             <li><a href="#imports">Import issues</a></li>
             <li><a href="#models">Model-route issues</a></li>
+            <li><a href="#convolution">Convolution issues</a></li>
             <li><a href="#optimization">Optimization issues</a></li>
           </ol>
         </aside>
@@ -107,6 +108,16 @@
         <a class="button" href="appendix-cross-tab-workflow.html">See cross-tab workflow</a>
         <a class="button alt" href="appendix-model-selection.html">See model selection guide</a>
       </div>
+    </section>
+    <section class="section" id="convolution">
+      <h2>Convolution Issues</h2>
+      <table>
+        <tr><th>Symptom</th><th>Most likely cause</th><th>First thing to do</th></tr>
+        <tr><td>A<sub>E</sub> &ne; 1</td><td>The estimated E(t) does not have unit area over the selected support.</td><td>Check baselines, tracer recovery, units, and whether the full tail is included before reusing the estimate.</td></tr>
+        <tr><td>The relative residual is high</td><td>The estimated E(t) does not reproduce the measured outlet closely when reconvolved.</td><td>Recheck both signals, the common grid, and the selected support, then compare regularization settings.</td></tr>
+        <tr><td>E(t) is noisy or oscillatory</td><td>The inverse problem is amplifying noise.</td><td>Use Tikhonov regularization and compare the automatic L-curve choice with nearby manual &lambda; values.</td></tr>
+        <tr><td>The RTD tail is cut off</td><td>&tau;<sub>max</sub> or the measured time window is too short.</td><td>Extend the support or capture window and repeat the deconvolution.</td></tr>
+      </table>
     </section>
   </div>
 </body>
