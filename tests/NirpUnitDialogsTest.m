@@ -67,8 +67,10 @@ classdef NirpUnitDialogsTest < matlab.unittest.TestCase
             action=buttons(ismember(string({buttons.Text}),["OK" "Apply" "Cancel"]));
             columns=arrayfun(@(button) button.Layout.Column(1),action);
             [columns,order]=sort(columns);parent=action(1).Parent;
-            testCase.verifyEqual(reshape(columns,1,[]),[2 3 4]);
-            testCase.verifyEqual(cell2mat(parent.ColumnWidth(2:4)),[90 90 90]);
+            % Help (T-165) shares the row: OK/Cancel/Apply stay contiguous, equal and right-aligned
+            testCase.verifyEqual(diff(reshape(columns,1,[])),[1 1]);
+            testCase.verifyEqual(columns(end),numel(parent.ColumnWidth));
+            testCase.verifyEqual(cell2mat(parent.ColumnWidth(columns)),[90 90 90]);
             testCase.verifyEqual(reshape(string({action(order).Text}),1,[]),["OK" "Cancel" "Apply"]);
             dialogs{1}.Figure.Visible='off';
         end
