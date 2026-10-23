@@ -2,7 +2,7 @@ classdef SourceDialog < handle
     % SourceDialog edits flow and a piecewise-function or tabular signal.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 22, 2026. Last update: October 22, 2026
+    % Created: October 22, 2026. Last update: October 23, 2026
     % =========================================================================
     properties (SetAccess=private),BlockPath;Figure;QField;QUnitDropDown;ModeDropDown;SignalTable;StatusLabel;end
     methods
@@ -13,7 +13,7 @@ classdef SourceDialog < handle
         function setFunction(obj,edges,expressions),obj.ModeDropDown.Value='Function';expressions=cellstr(string(expressions));obj.SignalTable.ColumnName={'Start t (s)','End t (s)','C(t) expression'};obj.SignalTable.Data=[num2cell([edges(1:end-1)' edges(2:end)']) expressions(:)];end
         function addRow(obj),d=obj.SignalTable.Data;if strcmp(obj.ModeDropDown.Value,'Data'),d(end+1,:)={0,0};else,d(end+1,:)={0,1,'0'};end;obj.SignalTable.Data=d;end
         function removeRow(obj),d=obj.SignalTable.Data;if size(d,1)>1,d(end,:)=[];obj.SignalTable.Data=d;end,end
-        function importFile(obj,path),data=readmatrix(path);if size(data,2)<2,error('nirp:tracerflowsheet:InvalidImport','Imported signal needs time and concentration columns.'),end;obj.setData(data(:,1),data(:,2));end
+        function importFile(obj,path),data=nirp.tracerflowsheet.readTwoColumnFile(path,'Signal');obj.setData(data(:,1),data(:,2));end
         function importInteractive(obj),[file,folder]=uigetfile({'*.csv;*.txt;*.xlsx','Signal data'},'Import tracer signal');if isequal(file,0),return,end;obj.importFile(fullfile(folder,file));end
         function value=getValues(obj),value=struct('Q',obj.QField.Value,'QUnit',string(obj.QUnitDropDown.Value),'Mode',string(obj.ModeDropDown.Value),'Data',{obj.SignalTable.Data});end
         function ok=apply(obj)

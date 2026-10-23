@@ -2,7 +2,7 @@ classdef MonitorDialog < handle
     % MonitorDialog configures truncation warning and describes outputs.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 22, 2026. Last update: October 22, 2026
+    % Created: October 22, 2026. Last update: October 23, 2026
     % =========================================================================
     properties (SetAccess=private),BlockPath;Figure;WarningField;StatusLabel;end
     methods
@@ -19,6 +19,6 @@ classdef MonitorDialog < handle
             dialog=nirp.tracerflowsheet.MonitorDialog(block);
         end
     end
-    methods (Access=private),function build(obj,visible),obj.Figure=uifigure('Name','Tracer Monitor','Tag','NirpTracerMonitorDialog','Visible',visible,'Position',[230 140 600 340]);g=uigridlayout(obj.Figure,[6 2],'RowHeight',{35,55,35,55,25,38},'ColumnWidth',{220,'1x'});t=uilabel(g,'Text','C(t), τ, σ², σ²θ, N ≈ 1/σ²θ','FontWeight','bold');t.Layout.Column=[1 2];note=uilabel(g,'Text','The source signal is retained by sourceId; the accumulated E is the network RTD.','WordWrap','on');note.Layout.Column=[1 2];uilabel(g,'Text','Lost-area warning (%)');obj.WarningField=uieditfield(g,'numeric');use=uilabel(g,'Text','Use as RTD in Tab 1 is disabled when status indicates multiple sources.','WordWrap','on');use.Layout.Column=[1 2];obj.StatusLabel=uilabel(g,'Text','Ready.');obj.StatusLabel.Layout.Column=[1 2];buttons(obj,g,'monitor');end,end
+    methods (Access=private),function build(obj,visible),obj.Figure=uifigure('Name','Tracer Monitor','Tag','NirpTracerMonitorDialog','Visible',visible,'Position',[230 140 600 340]);g=uigridlayout(obj.Figure,[6 2],'RowHeight',{35,55,35,55,25,38},'ColumnWidth',{220,'1x'});t=uilabel(g,'Text','C(t), τ, σ², σ²θ, N ≈ 1/σ²θ','FontWeight','bold');t.Layout.Column=[1 2];note=uilabel(g,'Text','The inlet signal of the source is shown for comparison; the accumulated E(t) is the network RTD.','WordWrap','on');note.Layout.Column=[1 2];uilabel(g,'Text','Lost-area warning (%)');obj.WarningField=uieditfield(g,'numeric');use=uilabel(g,'Text','Use as RTD in Tab 1 is disabled when status indicates multiple sources.','WordWrap','on');use.Layout.Column=[1 2];obj.StatusLabel=uilabel(g,'Text','Ready.');obj.StatusLabel.Layout.Column=[1 2];buttons(obj,g,'monitor');end,end
 end
 function buttons(obj,g,anchor),b=uigridlayout(g,[1 5],'ColumnWidth',{'1x',65,65,65,65});b.Layout.Column=[1 2];uilabel(b,'Text','');uibutton(b,'Text','Help','ButtonPushedFcn',@(~,~)openNirpGuide(nirp.tracerflowsheet.helpTarget(anchor)));uibutton(b,'Text','OK','ButtonPushedFcn',@(~,~)obj.accept());uibutton(b,'Text','Cancel','ButtonPushedFcn',@(~,~)obj.cancel());uibutton(b,'Text','Apply','ButtonPushedFcn',@(~,~)obj.apply());end
