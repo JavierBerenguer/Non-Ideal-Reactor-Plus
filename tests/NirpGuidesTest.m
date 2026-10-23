@@ -67,15 +67,22 @@ classdef NirpGuidesTest < matlab.unittest.TestCase
 
         function tracerHelpTargetsHaveAnchorsOnTheirOwnGuide(testCase)
             root = fileparts(fileparts(mfilename('fullpath'))) ;
-            page = fullfile(root, 'docs', 'TracerFlowsheetGuide.html') ;
-            html = string(fileread(page)) ;
-            anchors = ["flowsheet", "source", "vessel", "splitter", ...
-                "mixer", "monitor"] ;
-            for anchor = anchors
-                target = string(nirp.tracerflowsheet.helpTarget(anchor)) ;
-                testCase.verifyEqual(target, ...
-                    "TracerFlowsheetGuide.html#" + anchor) ;
-                testCase.verifySubstring(html, "id=""" + anchor + """") ;
+            expected = { ...
+                'flowsheet', 'tracer-flowsheet.html' ; ...
+                'source', 'tracer-source.html' ; ...
+                'vessel', 'tracer-vessel.html' ; ...
+                'splitter', 'tracer-splitter.html' ; ...
+                'mixer', 'tracer-mixer.html' ; ...
+                'monitor', 'tracer-monitor-results.html'} ;
+            for index = 1:size(expected, 1)
+                target = string(nirp.tracerflowsheet.helpTarget( ...
+                    expected{index, 1})) ;
+                relativePage = "guides/" + expected{index, 2} ;
+                testCase.verifyEqual(target, relativePage + "#dialog") ;
+                page = fullfile(root, 'docs', 'guides', ...
+                    expected{index, 2}) ;
+                html = string(fileread(page)) ;
+                testCase.verifySubstring(html, 'id="dialog"') ;
             end
         end
 
@@ -328,7 +335,7 @@ classdef NirpGuidesTest < matlab.unittest.TestCase
                 "tracer-splitter.html", "tracer-mixer.html", ...
                 "tracer-monitor-results.html", "tracer-examples.html"] ;
             required = ["hero-grid", "aside class=""toc""", ...
-                "Before You Start", "Previous", "Next"] ;
+                "Before You Start", "Previous"] ;
             for name = names
                 page = fullfile(root, 'docs', 'guides', name) ;
                 html = string(fileread(page)) ;
@@ -336,6 +343,14 @@ classdef NirpGuidesTest < matlab.unittest.TestCase
                     testCase.verifySubstring(html, token, sprintf( ...
                         '%s is missing required topic structure: %s', page, token)) ;
                 end
+                if name == "tracer-examples.html"
+                    finalLink = "Back to guide home" ;
+                else
+                    finalLink = "Next" ;
+                end
+                testCase.verifySubstring(html, finalLink, sprintf( ...
+                    '%s is missing required topic navigation: %s', ...
+                    page, finalLink)) ;
             end
         end
     end

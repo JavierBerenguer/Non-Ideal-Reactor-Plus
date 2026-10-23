@@ -18,13 +18,18 @@ classdef FlowsheetDialog < handle
         function accept(obj),if obj.apply(),delete(obj),end,end
         function cancel(obj),delete(obj),end
     end
-    methods (Static),function dialog=open(block),dialog=nirp.tracerflowsheet.FlowsheetDialog(block);end,end
+    methods (Static)
+        function dialog=open(block)
+            if nirp.tracerflowsheet.openLibraryBlockGuide(block),dialog=[];return,end
+            dialog=nirp.tracerflowsheet.FlowsheetDialog(block);
+        end
+    end
     methods (Access=private)
         function load(obj),unit=get_param(obj.BlockPath,'TimeUnit');factor=nirp.tracerflowsheet.timeFactor(unit);obj.UnitDropDown.Value=unit;obj.DtField.Value=str2double(get_param(obj.BlockPath,'Dt'))/factor;obj.TFinalField.Value=str2double(get_param(obj.BlockPath,'TFinal'))/factor;end
         function build(obj,visible)
             obj.Figure=uifigure('Name','Tracer Flowsheet','Tag','NirpTracerFlowsheetDialog','Visible',visible,'Position',[200 150 560 330]);g=uigridlayout(obj.Figure,[6 3],'RowHeight',{35,35,35,45,25,38},'ColumnWidth',{150,'1x',90});
-            title=uilabel(g,'Text','Common tracer time grid','FontWeight','bold','FontSize',15);title.Layout.Column=[1 3];uilabel(g,'Text','Time step, \Deltat','Interpreter','latex');obj.DtField=uieditfield(g,'numeric');obj.UnitDropDown=uidropdown(g,'Items',{'s','min','h'});uilabel(g,'Text','Final time, t_{final}','Interpreter','latex');obj.TFinalField=uieditfield(g,'numeric');uilabel(g,'Text','');
-            note=uilabel(g,'Text','All NirpTracer vectors use t = 0:\Deltat:t_{final}; values beyond t_{final} are truncated.','Interpreter','latex','WordWrap','on');note.Layout.Column=[1 3];obj.StatusLabel=uilabel(g,'Text','Ready.','WordWrap','on');obj.StatusLabel.Layout.Column=[1 3];buttons(obj,g,'flowsheet');
+            title=uilabel(g,'Text','Common tracer time grid','FontWeight','bold','FontSize',15);title.Layout.Column=[1 3];uilabel(g,'Text','Time step, Δt');obj.DtField=uieditfield(g,'numeric');obj.UnitDropDown=uidropdown(g,'Items',{'s','min','h'});uilabel(g,'Text','Final time, t_final');obj.TFinalField=uieditfield(g,'numeric');uilabel(g,'Text','');
+            note=uilabel(g,'Text','All tracer signals share one time vector from 0 to t_final in steps of Δt; values beyond t_final are truncated.','WordWrap','on');note.Layout.Column=[1 3];obj.StatusLabel=uilabel(g,'Text','Ready.','WordWrap','on');obj.StatusLabel.Layout.Column=[1 3];buttons(obj,g,'flowsheet');
         end
     end
 end

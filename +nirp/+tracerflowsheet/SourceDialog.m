@@ -26,10 +26,15 @@ classdef SourceDialog < handle
         function accept(obj),if obj.apply(),delete(obj),end,end
         function cancel(obj),delete(obj),end
     end
-    methods (Static),function dialog=open(block),dialog=nirp.tracerflowsheet.SourceDialog(block);end,end
+    methods (Static)
+        function dialog=open(block)
+            if nirp.tracerflowsheet.openLibraryBlockGuide(block),dialog=[];return,end
+            dialog=nirp.tracerflowsheet.SourceDialog(block);
+        end
+    end
     methods (Access=private)
         function load(obj),obj.QUnitDropDown.Value=get_param(obj.BlockPath,'QUnit');obj.QField.Value=UnitConverterHelper.convertFromSI('VolumetricFlow',str2double(get_param(obj.BlockPath,'Q')),obj.QUnitDropDown.Value);mode=get_param(obj.BlockPath,'SignalMode');if strcmpi(mode,'Data'),obj.setData(str2num(get_param(obj.BlockPath,'DataTime')),str2num(get_param(obj.BlockPath,'DataConcentration')));else,obj.setFunction(str2num(get_param(obj.BlockPath,'FunctionEdges')),eval(get_param(obj.BlockPath,'FunctionExpressions')));end,end %#ok<ST2NM,EVLDIR>
-        function build(obj,visible),obj.Figure=uifigure('Name','Tracer Source','Tag','NirpTracerSourceDialog','Visible',visible,'Position',[180 100 720 520]);g=uigridlayout(obj.Figure,[6 3],'RowHeight',{35,35,35,'1x',25,38},'ColumnWidth',{150,'1x',230});t=uilabel(g,'Text','Tracer inlet, C_{in}(t)','Interpreter','latex','FontWeight','bold');t.Layout.Column=[1 3];uilabel(g,'Text','Volumetric flow, Q');obj.QField=uieditfield(g,'numeric');obj.QUnitDropDown=uidropdown(g,'Items',UnitConverterHelper.getUnits('VolumetricFlow'));uilabel(g,'Text','Signal definition');obj.ModeDropDown=uidropdown(g,'Items',{'Data','Function'});panel=uigridlayout(g,[1 3],'ColumnWidth',{65,75,75});uibutton(panel,'Text','Add row','ButtonPushedFcn',@(~,~)obj.addRow());uibutton(panel,'Text','Remove','ButtonPushedFcn',@(~,~)obj.removeRow());uibutton(panel,'Text','Import...','ButtonPushedFcn',@(~,~)obj.importInteractive());obj.SignalTable=uitable(g,'ColumnEditable',true);obj.SignalTable.Layout.Column=[1 3];obj.StatusLabel=uilabel(g,'Text','Ready.','WordWrap','on');obj.StatusLabel.Layout.Column=[1 3];buttons(obj,g,'source');end
+        function build(obj,visible),obj.Figure=uifigure('Name','Tracer Source','Tag','NirpTracerSourceDialog','Visible',visible,'Position',[180 100 720 520]);g=uigridlayout(obj.Figure,[6 3],'RowHeight',{35,35,35,'1x',25,38},'ColumnWidth',{150,'1x',230});t=uilabel(g,'Text','$\mathrm{Tracer\ inlet},\ C_{in}(t)$','Interpreter','latex','FontWeight','bold');t.Layout.Column=[1 3];uilabel(g,'Text','Volumetric flow, Q');obj.QField=uieditfield(g,'numeric');obj.QUnitDropDown=uidropdown(g,'Items',UnitConverterHelper.getUnits('VolumetricFlow'));uilabel(g,'Text','Signal definition');obj.ModeDropDown=uidropdown(g,'Items',{'Data','Function'});panel=uigridlayout(g,[1 3],'ColumnWidth',{65,75,75});uibutton(panel,'Text','Add row','ButtonPushedFcn',@(~,~)obj.addRow());uibutton(panel,'Text','Remove','ButtonPushedFcn',@(~,~)obj.removeRow());uibutton(panel,'Text','Import...','ButtonPushedFcn',@(~,~)obj.importInteractive());obj.SignalTable=uitable(g,'ColumnEditable',true);obj.SignalTable.Layout.Column=[1 3];obj.StatusLabel=uilabel(g,'Text','Ready.','WordWrap','on');obj.StatusLabel.Layout.Column=[1 3];buttons(obj,g,'source');end
     end
 end
 function text=cellLiteral(values),quoted="'"+replace(values,"'","''")+"'";text=['{' char(strjoin(quoted,',')) '}'];end

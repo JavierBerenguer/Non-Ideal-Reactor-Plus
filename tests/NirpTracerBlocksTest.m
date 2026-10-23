@@ -36,8 +36,24 @@ classdef NirpTracerBlocksTest < matlab.unittest.TestCase
             m=nirp.tracerflowsheet.MixerDialog([name '/Mixer'],'Visible','off');m.setNumInputs(3);testCase.verifyTrue(m.apply());delete(m);m=nirp.tracerflowsheet.MixerDialog([name '/Mixer'],'Visible','off');testCase.verifyEqual(m.getValues(),3);delete(m);
             monitor=nirp.tracerflowsheet.MonitorDialog([name '/Monitor'],'Visible','off');monitor.WarningField.Value=2;testCase.verifyTrue(monitor.apply());delete(monitor);monitor=nirp.tracerflowsheet.MonitorDialog([name '/Monitor'],'Visible','off');testCase.verifyEqual(monitor.getValues(),0.02,'AbsTol',1e-14);delete(monitor);
         end
+        function splitterButtonsChangeOutletCountAndPorts(testCase)
+            name='tracer_splitter_dialog';nirp.tracerflowsheet.new(name,testCase.Folder,'OpenModel',false);load_system(fullfile(testCase.Folder,[name '.slx']));
+            addTracer(name,'Splitter','nirp.tracerblocks.Splitter',[240 150 390 230],{});block=[name '/Splitter'];dialog=nirp.tracerflowsheet.SplitterDialog(block,'Visible','off');testCase.addTeardown(@()deleteValid(dialog));
+            add=findall(dialog.Figure,'Type','uibutton','Text','Add outlet');remove=findall(dialog.Figure,'Type','uibutton','Text','Remove');testCase.verifyNumElements(add,1);testCase.verifyNumElements(remove,1);
+            feval(add.ButtonPushedFcn,add,[]);testCase.verifyEqual(size(dialog.FractionTable.Data,1),3);testCase.verifyEqual(dialog.FractionTable.Data(:,1),{'1';'2';'3'});testCase.verifyTrue(dialog.apply());testCase.verifyEqual(str2num(get_param(block,'Fractions')),[0.5 0],'AbsTol',1e-14);ports=get_param(block,'PortHandles');testCase.verifyNumElements(ports.Outport,3); %#ok<ST2NM>
+            feval(remove.ButtonPushedFcn,remove,[]);feval(remove.ButtonPushedFcn,remove,[]);testCase.verifyEqual(size(dialog.FractionTable.Data,1),2);
+            dialog.setFractions([0.8 0.4]);testCase.verifyFalse(dialog.apply());testCase.verifyEqual(str2num(get_param(block,'Fractions')),[0.5 0],'AbsTol',1e-14); %#ok<ST2NM>
+        end
+        function tracerDialogLatexCommandsAreDelimited(testCase)
+            name='tracer_dialog_labels';nirp.tracerflowsheet.new(name,testCase.Folder,'OpenModel',false);load_system(fullfile(testCase.Folder,[name '.slx']));
+            addTracer(name,'Source','nirp.tracerblocks.Source',[40 150 170 210],{});addTracer(name,'Vessel','nirp.tracerblocks.Vessel',[230 150 370 210],{});addTracer(name,'Splitter','nirp.tracerblocks.Splitter',[430 150 570 210],{});addTracer(name,'Mixer','nirp.tracerblocks.Mixer',[430 260 570 320],{});addTracer(name,'Monitor','nirp.tracerblocks.Monitor',[630 150 760 210],{});
+            dialogs={nirp.tracerflowsheet.FlowsheetDialog([name '/Tracer Flowsheet'],'Visible','off'),nirp.tracerflowsheet.SourceDialog([name '/Source'],'Visible','off'),nirp.tracerflowsheet.VesselDialog([name '/Vessel'],'Visible','off'),nirp.tracerflowsheet.SplitterDialog([name '/Splitter'],'Visible','off'),nirp.tracerflowsheet.MixerDialog([name '/Mixer'],'Visible','off'),nirp.tracerflowsheet.MonitorDialog([name '/Monitor'],'Visible','off')};testCase.addTeardown(@()deleteDialogs(dialogs));
+            for dialogIndex=1:numel(dialogs),labels=findall(dialogs{dialogIndex}.Figure,'Type','uilabel');for labelIndex=1:numel(labels),text=string(labels(labelIndex).Text);if strcmpi(labels(labelIndex).Interpreter,'latex')&&contains(text,'\'),testCase.verifyTrue(startsWith(text,'$')&&endsWith(text,'$'),sprintf('Undelimited LaTeX in %s: %s',class(dialogs{dialogIndex}),text));elseif ~strcmpi(labels(labelIndex).Interpreter,'latex'),testCase.verifyFalse(contains(text,'\'),sprintf('Backslash in plain label from %s: %s',class(dialogs{dialogIndex}),text));end,end,end
+        end
     end
 end
 function addTracer(model,name,system,position,parameters),block=[model '/' name];add_block('simulink/User-Defined Functions/MATLAB System',block,'System',system,'Position',position);for k=1:2:numel(parameters),set_param(block,parameters{k},parameters{k+1});end;nirp.tracerflowsheet.setupBlock(block);end
 function configure(name),set_param(name,'SolverType','Fixed-step','Solver','FixedStepDiscrete','FixedStep','0.05','StartTime','0','StopTime','0');save_system(name);end
 function closeAllModels(),models=find_system('Type','block_diagram');for k=1:numel(models),try,close_system(models{k},0);catch,end,end;end
+function deleteValid(value),if ~isempty(value)&&isvalid(value),delete(value);end,end
+function deleteDialogs(values),for k=1:numel(values),deleteValid(values{k});end,end

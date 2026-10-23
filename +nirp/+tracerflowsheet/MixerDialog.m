@@ -14,7 +14,12 @@ classdef MixerDialog < handle
         function accept(obj),if obj.apply(),delete(obj),end,end
         function cancel(obj),delete(obj),end
     end
-    methods (Static),function dialog=open(block),dialog=nirp.tracerflowsheet.MixerDialog(block);end,end
-    methods (Access=private),function build(obj,visible),obj.Figure=uifigure('Name','Tracer Mixer','Tag','NirpTracerMixerDialog','Visible',visible,'Position',[240 180 520 290]);g=uigridlayout(obj.Figure,[5 2],'RowHeight',{35,35,65,25,38},'ColumnWidth',{170,'1x'});t=uilabel(g,'Text','Q=\sum Q_i,  C=\sum Q_i C_i/Q','Interpreter','latex','FontWeight','bold');t.Layout.Column=[1 2];uilabel(g,'Text','Number of inlets');obj.NumInputsField=uieditfield(g,'numeric');note=uilabel(g,'Text','Path RTD is defined only when all inlets share one source.','WordWrap','on');note.Layout.Column=[1 2];obj.StatusLabel=uilabel(g,'Text','Ready.');obj.StatusLabel.Layout.Column=[1 2];buttons(obj,g,'mixer');end,end
+    methods (Static)
+        function dialog=open(block)
+            if nirp.tracerflowsheet.openLibraryBlockGuide(block),dialog=[];return,end
+            dialog=nirp.tracerflowsheet.MixerDialog(block);
+        end
+    end
+    methods (Access=private),function build(obj,visible),obj.Figure=uifigure('Name','Tracer Mixer','Tag','NirpTracerMixerDialog','Visible',visible,'Position',[240 180 520 290]);g=uigridlayout(obj.Figure,[5 2],'RowHeight',{35,35,65,25,38},'ColumnWidth',{170,'1x'});t=uilabel(g,'Text','$Q=\sum Q_i,\quad C=\sum Q_i C_i/Q$','Interpreter','latex','FontWeight','bold');t.Layout.Column=[1 2];uilabel(g,'Text','Number of inlets');obj.NumInputsField=uieditfield(g,'numeric');note=uilabel(g,'Text','Path RTD is defined only when all inlets share one source.','WordWrap','on');note.Layout.Column=[1 2];obj.StatusLabel=uilabel(g,'Text','Ready.');obj.StatusLabel.Layout.Column=[1 2];buttons(obj,g,'mixer');end,end
 end
 function buttons(obj,g,anchor),b=uigridlayout(g,[1 5],'ColumnWidth',{'1x',65,65,65,65});b.Layout.Column=[1 2];uilabel(b,'Text','');uibutton(b,'Text','Help','ButtonPushedFcn',@(~,~)openNirpGuide(nirp.tracerflowsheet.helpTarget(anchor)));uibutton(b,'Text','OK','ButtonPushedFcn',@(~,~)obj.accept());uibutton(b,'Text','Cancel','ButtonPushedFcn',@(~,~)obj.cancel());uibutton(b,'Text','Apply','ButtonPushedFcn',@(~,~)obj.apply());end

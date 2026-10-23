@@ -13,7 +13,12 @@ classdef MonitorDialog < handle
         function accept(obj),if obj.apply(),delete(obj),end,end
         function cancel(obj),delete(obj),end
     end
-    methods (Static),function dialog=open(block),dialog=nirp.tracerflowsheet.MonitorDialog(block);end,end
-    methods (Access=private),function build(obj,visible),obj.Figure=uifigure('Name','Tracer Monitor','Tag','NirpTracerMonitorDialog','Visible',visible,'Position',[230 140 600 340]);g=uigridlayout(obj.Figure,[6 2],'RowHeight',{35,55,35,55,25,38},'ColumnWidth',{220,'1x'});t=uilabel(g,'Text','C(t), \tau, \sigma^2, \sigma_\theta^2, N\approx1/\sigma_\theta^2','Interpreter','latex','FontWeight','bold');t.Layout.Column=[1 2];note=uilabel(g,'Text','The source signal is retained by sourceId; the accumulated E is the network RTD.','WordWrap','on');note.Layout.Column=[1 2];uilabel(g,'Text','Lost-area warning (%)');obj.WarningField=uieditfield(g,'numeric');use=uilabel(g,'Text','Use as RTD in Tab 1 is disabled when status indicates multiple sources.','WordWrap','on');use.Layout.Column=[1 2];obj.StatusLabel=uilabel(g,'Text','Ready.');obj.StatusLabel.Layout.Column=[1 2];buttons(obj,g,'monitor');end,end
+    methods (Static)
+        function dialog=open(block)
+            if nirp.tracerflowsheet.openLibraryBlockGuide(block),dialog=[];return,end
+            dialog=nirp.tracerflowsheet.MonitorDialog(block);
+        end
+    end
+    methods (Access=private),function build(obj,visible),obj.Figure=uifigure('Name','Tracer Monitor','Tag','NirpTracerMonitorDialog','Visible',visible,'Position',[230 140 600 340]);g=uigridlayout(obj.Figure,[6 2],'RowHeight',{35,55,35,55,25,38},'ColumnWidth',{220,'1x'});t=uilabel(g,'Text','C(t), τ, σ², σ²θ, N ≈ 1/σ²θ','FontWeight','bold');t.Layout.Column=[1 2];note=uilabel(g,'Text','The source signal is retained by sourceId; the accumulated E is the network RTD.','WordWrap','on');note.Layout.Column=[1 2];uilabel(g,'Text','Lost-area warning (%)');obj.WarningField=uieditfield(g,'numeric');use=uilabel(g,'Text','Use as RTD in Tab 1 is disabled when status indicates multiple sources.','WordWrap','on');use.Layout.Column=[1 2];obj.StatusLabel=uilabel(g,'Text','Ready.');obj.StatusLabel.Layout.Column=[1 2];buttons(obj,g,'monitor');end,end
 end
 function buttons(obj,g,anchor),b=uigridlayout(g,[1 5],'ColumnWidth',{'1x',65,65,65,65});b.Layout.Column=[1 2];uilabel(b,'Text','');uibutton(b,'Text','Help','ButtonPushedFcn',@(~,~)openNirpGuide(nirp.tracerflowsheet.helpTarget(anchor)));uibutton(b,'Text','OK','ButtonPushedFcn',@(~,~)obj.accept());uibutton(b,'Text','Cancel','ButtonPushedFcn',@(~,~)obj.cancel());uibutton(b,'Text','Apply','ButtonPushedFcn',@(~,~)obj.apply());end
