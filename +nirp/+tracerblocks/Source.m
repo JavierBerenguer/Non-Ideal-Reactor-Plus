@@ -2,7 +2,7 @@ classdef Source < matlab.System
     % Source creates a NirpTracer stream through the tracer core.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 22, 2026. Last update: October 22, 2026
+    % Created: October 22, 2026. Last update: October 24, 2026
     % =========================================================================
     properties (Nontunable)
         Dt=0.1; TFinal=10; Q=1; QUnit='m^3/s'; SourceId=uint32(1)
@@ -30,7 +30,7 @@ classdef Source < matlab.System
         function flag=isOutputFixedSizeImpl(~),flag=true;end
         function flag=isOutputComplexImpl(~),flag=false;end
         function name=getOutputNamesImpl(~),name='Tracer';end
-        function icon=getIconImpl(~),icon=sprintf('Tracer Source\nC_{in}(t)');end
+        function icon=getIconImpl(~),icon=sprintf('Tracer Source\nCin(t)');end
         function sts=getSampleTimeImpl(obj),sts=createSampleTime(obj,'Type','Discrete','SampleTime',obj.Dt);end
     end
     methods (Static,Access=protected)

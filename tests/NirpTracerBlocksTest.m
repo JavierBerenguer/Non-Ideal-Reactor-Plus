@@ -9,6 +9,13 @@ classdef NirpTracerBlocksTest < matlab.unittest.TestCase
         function createFolder(testCase),fixture=testCase.applyFixture(matlab.unittest.fixtures.TemporaryFolderFixture);testCase.Folder=fixture.Folder;addpath(fullfile(fileparts(fileparts(mfilename('fullpath'))),'simulink'));testCase.addTeardown(@()closeAllModels());evalin('base','clear nirpTracerResults');end
     end
     methods (Test)
+        function tracerBlockIconsDoNotContainLiteralTexScripts(testCase)
+            root=fileparts(fileparts(mfilename('fullpath')));classes={'Flowsheet','Source','Vessel','Splitter','Mixer','Monitor'};
+            for k=1:numel(classes)
+                source=fileread(fullfile(root,'+nirp','+tracerblocks',[classes{k} '.m']));icon=regexp(source,'function icon=getIconImpl.*','match','once');
+                testCase.assertNotEmpty(icon,sprintf('Missing getIconImpl in %s.',classes{k}));testCase.verifyFalse(contains(icon,'_{')||contains(icon,'^{'),sprintf('Literal TeX script notation in %s: %s',classes{k},icon));
+            end
+        end
         function generatedTwoCstrDiagramMatchesCore(testCase)
             name='tracer_two_cstr';[~,dictionary]=nirp.tracerflowsheet.new(name,testCase.Folder,'Dt',0.05,'TFinal',20,'OpenModel',false);load_system(fullfile(testCase.Folder,[name '.slx']));
             addTracer(name,'Source','nirp.tracerblocks.Source',[40 150 170 210],{'Q','1','DataTime','0:0.05:20','DataConcentration','ones(1,401)'});

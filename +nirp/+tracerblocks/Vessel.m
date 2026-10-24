@@ -2,7 +2,7 @@ classdef Vessel < matlab.System
     % Vessel convolves concentration and path RTD through nirp.tracer.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 22, 2026. Last update: October 22, 2026
+    % Created: October 22, 2026. Last update: October 24, 2026
     % =========================================================================
     properties (Nontunable)
         Dt=0.1; TFinal=10; Origin='Model'; Model='CSTR'; ResidenceBasis='Tau'
@@ -31,7 +31,7 @@ classdef Vessel < matlab.System
         function flag=isOutputComplexImpl(~),flag=false;end
         function name=getInputNamesImpl(~),name='In';end
         function name=getOutputNamesImpl(~),name='Out';end
-        function icon=getIconImpl(~),icon=sprintf('Non-ideal Vessel\nC_{out}=C_{in}*E');end
+        function icon=getIconImpl(~),icon=sprintf('Non-ideal Vessel\nCout = Cin ∗ E');end
     end
     methods (Static,Access=protected)
         function mode=getSimulateUsingImpl(),mode='Interpreted execution';end

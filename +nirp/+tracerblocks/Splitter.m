@@ -2,7 +2,7 @@ classdef Splitter < matlab.System
     % Splitter calls nirp.tracer.splitter; the final fraction is calculated.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 22, 2026. Last update: October 22, 2026
+    % Created: October 22, 2026. Last update: October 24, 2026
     % =========================================================================
     properties (Nontunable),Dt=0.1;TFinal=10;Fractions=0.5;end
     methods (Access=protected)
@@ -18,7 +18,7 @@ classdef Splitter < matlab.System
         function varargout=isOutputComplexImpl(obj),varargout=repmat({false},1,numel(obj.Fractions)+1);end
         function name=getInputNamesImpl(~),name='In';end
         function varargout=getOutputNamesImpl(obj),for k=1:numel(obj.Fractions)+1,varargout{k}=sprintf('Out %d',k);end,end
-        function icon=getIconImpl(~),icon=sprintf('Tracer Splitter\nQ_i=f_i Q');end
+        function icon=getIconImpl(~),icon=sprintf('Tracer Splitter\nQi = fi·Q');end
     end
     methods (Static,Access=protected)
         function mode=getSimulateUsingImpl(),mode='Interpreted execution';end
