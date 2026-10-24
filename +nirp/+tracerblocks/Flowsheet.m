@@ -2,7 +2,7 @@ classdef Flowsheet < matlab.System
     % Flowsheet owns the fixed time grid for a tracer-only diagram.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 22, 2026. Last update: October 22, 2026
+    % Created: October 22, 2026. Last update: October 24, 2026
     % =========================================================================
     properties (Nontunable)
         Dt = 0.1
@@ -14,13 +14,10 @@ classdef Flowsheet < matlab.System
             nirp.tracer.grid(obj.Dt,obj.TFinal) ;
             nirp.tracerflowsheet.validateSeparation(bdroot(gcb)) ;
         end
-        function ready=stepImpl(~),ready=true;end
+        function stepImpl(~)
+        end
         function n=getNumInputsImpl(~),n=0;end
-        function type=getOutputDataTypeImpl(~),type='boolean';end
-        function size=getOutputSizeImpl(~),size=[1 1];end
-        function flag=isOutputFixedSizeImpl(~),flag=true;end
-        function flag=isOutputComplexImpl(~),flag=false;end
-        function name=getOutputNamesImpl(~),name='Ready';end
+        function n=getNumOutputsImpl(~),n=0;end
         function icon=getIconImpl(~),icon=sprintf('Tracer Flowsheet\ncommon time grid');end
         function sts=getSampleTimeImpl(obj),sts=createSampleTime(obj,'Type','Discrete','SampleTime',obj.Dt);end
     end

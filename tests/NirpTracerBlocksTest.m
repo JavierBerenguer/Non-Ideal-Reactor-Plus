@@ -2,7 +2,7 @@ classdef NirpTracerBlocksTest < matlab.unittest.TestCase
     % NirpTracerBlocksTest verifies tracer blocks, separation, and dialogs.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 22, 2026. Last update: October 23, 2026
+    % Created: October 22, 2026. Last update: October 24, 2026
     % =========================================================================
     properties,Folder;end
     methods (TestMethodSetup)
@@ -19,12 +19,16 @@ classdef NirpTracerBlocksTest < matlab.unittest.TestCase
             d=Simulink.data.dictionary.open(dictionary);cleanup=onCleanup(@()close(d));bus=getValue(getEntry(getSection(d,'Design Data'),'NirpTracer'));testCase.verifyEqual({bus.Elements.Name},{'Q','C','E','sourceId','valid','status'});
         end
         function mixedIdealAndTracerBlocksAreRejectedWithBothNames(testCase)
-            name='mixed_network';nirp.tracerflowsheet.new(name,testCase.Folder,'OpenModel',false);load_system(fullfile(testCase.Folder,[name '.slx']));addTracer(name,'Tracer Source','nirp.tracerblocks.Source',[40 150 170 210],{});addTracer(name,'Ideal Mixer','nirp.blocks.Mixer',[250 150 380 210],{'NumInputs','2'});add_line(name,'Tracer Source/1','Ideal Mixer/1');
-            testCase.verifyError(@()nirp.tracerflowsheet.validateSeparation(name),'nirp:tracerflowsheet:MixedFlowsheets');
-            try,nirp.tracerflowsheet.validateSeparation(name);catch e,testCase.verifySubstring(e.message,'Tracer Source');testCase.verifySubstring(e.message,'Ideal Mixer');end
+            name='mixed_network';[~,dictionary]=nirp.tracerflowsheet.new(name,testCase.Folder,'OpenModel',false);nirp.pkg.writeDictionary(nirp.pkg.examples.firstOrderLiquid(),dictionary);load_system(fullfile(testCase.Folder,[name '.slx']));addTracer(name,'Tracer Source','nirp.tracerblocks.Source',[40 150 170 210],{});addTracer(name,'Ideal Mixer','nirp.blocks.Mixer',[250 150 380 210],{'NumInputs','2'});add_line(name,'Tracer Source/1','Ideal Mixer/1');
+            try,sim(name);testCase.assertFail('The mixed tracer/ideal model simulated without a separation error.');catch e,testCase.verifyTrue(hasCause(e,'nirp:tracerflowsheet:MixedFlowsheets'),getReport(e));testCase.verifySubstring(getReport(e),'Tracer Source');testCase.verifySubstring(getReport(e),'Ideal Mixer');end
         end
         function libraryIsSeparateAndVisuallyDistinct(testCase)
             file=build_tracer_library(testCase.Folder);testCase.verifyTrue(isfile(file));load_system(file);blocks=find_system('NirpTracerLibrary','SearchDepth',1,'BlockType','MATLABSystem');testCase.verifyNumElements(blocks,6);systems=string(get_param(blocks,'System'));testCase.verifyTrue(all(startsWith(systems,'nirp.tracerblocks.')));testCase.verifyTrue(all(strcmp(get_param(blocks,'BackgroundColor'),'cyan')));
+            flowsheet=blocks(systems=="nirp.tracerblocks.Flowsheet");verifyNoPorts(testCase,flowsheet{1});
+        end
+        function newModelFlowsheetHasNoPortsAndStillValidatesGrid(testCase)
+            name='portless_flowsheet';nirp.tracerflowsheet.new(name,testCase.Folder,'OpenModel',false);load_system(fullfile(testCase.Folder,[name '.slx']));block=[name '/Tracer Flowsheet'];verifyNoPorts(testCase,block);
+            set_param(block,'TFinal','10.05');try,sim(name);testCase.assertFail('The portless Tracer Flowsheet did not validate its grid during simulation.');catch e,testCase.verifyTrue(hasCause(e,'nirp:tracer:IncommensurateGrid'),getReport(e));end
         end
         function dialogsApplyAndReopenHeadlessly(testCase)
             name='tracer_dialogs';nirp.tracerflowsheet.new(name,testCase.Folder,'OpenModel',false);load_system(fullfile(testCase.Folder,[name '.slx']));
@@ -78,3 +82,5 @@ function configure(name),set_param(name,'SolverType','Fixed-step','Solver','Fixe
 function closeAllModels(),models=find_system('Type','block_diagram');for k=1:numel(models),try,close_system(models{k},0);catch,end,end;end
 function deleteValid(value),if ~isempty(value)&&isvalid(value),delete(value);end,end
 function deleteDialogs(values),for k=1:numel(values),deleteValid(values{k});end,end
+function verifyNoPorts(testCase,block),ports=get_param(block,'PortHandles');testCase.verifyEmpty(ports.Inport);testCase.verifyEmpty(ports.Outport);end
+function value=hasCause(exception,identifier),value=strcmp(exception.identifier,identifier)||any(cellfun(@(cause)hasCause(cause,identifier),exception.cause));end
