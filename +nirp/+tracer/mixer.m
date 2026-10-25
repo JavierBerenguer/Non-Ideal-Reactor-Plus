@@ -25,7 +25,10 @@ function out = mixer(grid,inputs)
     if ~(isfinite(total) && total > 0)
         error('nirp:tracer:ZeroMixerFlow','Mixer total flow must be positive.') ;
     end
-    out = nirp.tracer.emptyStream(grid) ;
+    reactiveFlags = cellfun(@(s) isfield(s,'Cseg') || isfield(s,'Cmm'),values) ;
+    nComp = 1 ;
+    if any(reactiveFlags), nComp = numel(values{find(reactiveFlags,1)}.Cseg) ; end
+    out = nirp.tracer.emptyStream(grid,nComp) ;
     out.Q = total ;
     for k = 1:numel(values)
         out.C = out.C+flows(k)*values{k}.C/total ;
@@ -42,21 +45,30 @@ function out = mixer(grid,inputs)
         out.E(:) = 0 ;
         out.status = uint8(2) ;
     end
-    reactiveFlags = cellfun(@(s) isfield(s,'Cseg') || isfield(s,'Cmm'),values) ;
     if any(reactiveFlags)
-        if ~all(cellfun(@(s) isfield(s,'Cseg') && isfield(s,'Cmm'),values))
+        required = {'C0','Cseg','Cmm','reactiveMode','rtdTruncated'} ;
+        if ~all(cellfun(@(s) all(isfield(s,required)),values))
             error('nirp:tracer:IncompleteReactiveComposition', ...
-                'Every reactive mixer inlet must contain both Cseg and Cmm.') ;
+                'Every reactive mixer inlet must contain the complete reactive state.') ;
         end
-        nComp = numel(values{1}.Cseg) ;
+        modes = cellfun(@(s) double(s.reactiveMode),values) ;
+        if any(modes ~= modes(1))
+            error('nirp:tracer:InconsistentReactiveMode', ...
+                'Every mixer inlet must use the same micromixing mode.') ;
+        end
+        out.C0 = zeros(1,nComp) ;
         out.Cseg = zeros(1,nComp) ;
         out.Cmm = zeros(1,nComp) ;
         for k = 1:numel(values)
+            C0 = composition(values{k}.C0,nComp,'C0') ;
             Cseg = composition(values{k}.Cseg,nComp,'Cseg') ;
             Cmm = composition(values{k}.Cmm,nComp,'Cmm') ;
+            out.C0 = out.C0+flows(k)*C0/total ;
             out.Cseg = out.Cseg+flows(k)*Cseg/total ;
             out.Cmm = out.Cmm+flows(k)*Cmm/total ;
         end
+        out.reactiveMode = uint8(modes(1)) ;
+        out.rtdTruncated = any(cellfun(@(s) logical(s.rtdTruncated),values)) ;
     end
     out.valid = true ;
     out = nirp.tracer.validateStream(out,grid) ;

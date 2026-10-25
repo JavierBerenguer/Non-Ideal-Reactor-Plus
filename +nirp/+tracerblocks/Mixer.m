@@ -2,7 +2,7 @@ classdef Mixer < matlab.System
     % Mixer flow-weights NirpTracer inputs through nirp.tracer.mixer.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 22, 2026. Last update: October 22, 2026
+    % Created: October 22, 2026. Last update: October 25, 2026
     % =========================================================================
     properties (Nontunable),Dt=0.1;TFinal=10;NumInputs=2;end
     methods (Access=protected)
@@ -25,5 +25,5 @@ classdef Mixer < matlab.System
         function flag=showSimulateUsingImpl(),flag=false;end
     end
 end
-function value=fromBus(value),value.C=reshape(value.C,1,[]);value.E=reshape(value.E,1,[]);end
-function value=toBus(value),value.C=value.C(:);value.E=value.E(:);end
+function value=fromBus(value),value.C=reshape(value.C,1,[]);value.E=reshape(value.E,1,[]);value.C0=reshape(value.C0,1,[]);value.Cseg=reshape(value.Cseg,1,[]);value.Cmm=reshape(value.Cmm,1,[]);end
+function value=toBus(value),value.C=value.C(:);value.E=value.E(:);value.C0=value.C0(:);value.Cseg=value.Cseg(:);value.Cmm=value.Cmm(:);end

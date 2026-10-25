@@ -2,19 +2,20 @@ classdef Monitor < matlab.System
     % Monitor publishes the latest tracer result for the headless/UI viewer.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 22, 2026. Last update: October 22, 2026
+    % Created: October 22, 2026. Last update: October 25, 2026
     % =========================================================================
     properties (Nontunable),Dt=0.1;TFinal=10;LostAreaWarning=0.01;ShowViewer=true;end
     properties (Access=private),LastResult;end
     methods (Access=protected)
         function setupImpl(obj),nirp.tracer.grid(obj.Dt,obj.TFinal);nirp.tracerflowsheet.validateSeparation(bdroot(gcb));end
         function stepImpl(obj,in)
-            grid=nirp.tracer.grid(obj.Dt,obj.TFinal);value=in;value.C=reshape(value.C,1,[]);value.E=reshape(value.E,1,[]);
+            grid=nirp.tracer.grid(obj.Dt,obj.TFinal);value=in;value.C=reshape(value.C,1,[]);value.E=reshape(value.E,1,[]);value.C0=reshape(value.C0,1,[]);value.Cseg=reshape(value.Cseg,1,[]);value.Cmm=reshape(value.Cmm,1,[]);
             rawRtdMoments=nirp.tracer.moments(grid,value.E);expectedTau=networkTau(gcb,grid);tauCorrection=expectedTau-rawRtdMoments.tau;
             result=struct('grid',grid,'stream',value,'sourceSignal',sourceSignal(grid,value.sourceId), ...
-                'concentrationMoments',nirp.tracerflowsheet.presentationMoments(grid,value.C,tauCorrection),'rtdMoments',[],'warning','');
+                'concentrationMoments',nirp.tracerflowsheet.presentationMoments(grid,value.C,tauCorrection),'rtdMoments',[],'warning','','reaction',[]);
             if value.status==1,result.rtdMoments=nirp.tracerflowsheet.presentationMoments(grid,value.E,tauCorrection);if result.rtdMoments.area<1-obj.LostAreaWarning,result.warning='More than the configured RTD area is truncated; increase t_final.';end
             else,result.warning='Global RTD is undefined because the network contains multiple sources.';end
+            if value.reactiveMode>0,result.reaction=reactionResult(value,nirp.tracerflowsheet.reactionConfiguration(gcb));end
             allResults=struct();if evalin('base','exist(''nirpTracerResults'',''var'')'),allResults=evalin('base','nirpTracerResults');end
             key=matlab.lang.makeValidName([bdroot(gcb) '_' get_param(gcb,'Name')]);allResults.(key)=result;assignin('base','nirpTracerResults',allResults);
             obj.LastResult=result;
@@ -33,6 +34,22 @@ classdef Monitor < matlab.System
         function mode=getSimulateUsingImpl(),mode='Interpreted execution';end
         function flag=showSimulateUsingImpl(),flag=false;end
     end
+end
+
+function result=reactionResult(stream,config)
+validity=nirp.tracer.boundValidity(config.RS,config.keyIndex);c0=stream.C0(config.keyIndex);
+if c0>0,xseg=min(1,max(0,1-stream.Cseg(config.keyIndex)/c0));xmm=min(1,max(0,1-stream.Cmm(config.keyIndex)/c0));else,xseg=NaN;xmm=NaN;end
+values=[xseg xmm];names={'Segregation','Max mixedness'};selected=[bitand(stream.reactiveMode,uint8(1))>0 bitand(stream.reactiveMode,uint8(2))>0];
+selectedValues=values(selected);selectedNames=names(selected);
+if isempty(selectedValues),interval=[NaN NaN];lower='';upper='';else,[low,lo]=min(selectedValues);[high,hi]=max(selectedValues);interval=[low high];lower=selectedNames{lo};upper=selectedNames{hi};end
+if validity.guaranteed,prefix='Guaranteed bounds';else,prefix='Bounds not guaranteed';end
+warning=sprintf('%s: %s',prefix,validity.reason);
+if stream.rtdTruncated,warning=[warning ' One or more vessel RTDs are truncated by t_final.'];end
+result=struct('componentNames',{config.componentNames},'mode',config.modeName, ...
+    'keyIndex',config.keyIndex,'C0',stream.C0,'Cseg',stream.Cseg,'Cmm',stream.Cmm, ...
+    'Xseg',xseg,'Xmm',xmm,'interval',interval,'lowerModel',lower, ...
+    'upperModel',upper,'validity',validity,'rtdTruncated',logical(stream.rtdTruncated), ...
+    'warning',warning);
 end
 
 function C=sourceSignal(grid,sourceId)

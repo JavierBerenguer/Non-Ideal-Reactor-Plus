@@ -1,4 +1,10 @@
 classdef defineReactionSysApp < matlab.apps.AppBase
+    % Reactive-system editor used by the app and tracer flowsheet.
+    % =========================================================================
+    % Isabela Fons Moreno-Palancas
+    % Modified by Javier Berenguer Sabater, October 25, 2026: optional
+    % CreatedFcn callback for the tracer flowsheet.
+    % =========================================================================
 
     % Properties that correspond to app components
     properties (Access = public)
@@ -73,6 +79,7 @@ classdef defineReactionSysApp < matlab.apps.AppBase
     
     properties (Access = public)
         RS = ReactionSys ; % ReactionSys Object % Description
+        CreatedFcn = [] ; % Optional callback: CreatedFcn(RS, workspaceName)
     end
     
     methods (Access = private)
@@ -213,6 +220,9 @@ classdef defineReactionSysApp < matlab.apps.AppBase
                 msgbox('Name edit field is empty. Please, write an identifier before pushing "Create Reactive System" button', 'Warning','warn');
             else
                 app.RS.stochiometricMatrix = cell2mat(app.UITable.Data) ;
+                if numel(app.RS.componentNames) ~= app.RS.nComponents
+                    app.RS.componentNames = cellstr(string(app.UITable.ColumnName)) ;
+                end
                 
                 switch app.KineticsButtonGroup.SelectedObject.Text
                     case 'Langmuir-Hinshelwood Rate Law'
@@ -266,6 +276,9 @@ classdef defineReactionSysApp < matlab.apps.AppBase
                 end
                 
                 assignin("base",app.NameEditField.Value,app.RS)
+                if ~isempty(app.CreatedFcn)
+                    app.CreatedFcn(app.RS,app.NameEditField.Value) ;
+                end
             end
         end
 

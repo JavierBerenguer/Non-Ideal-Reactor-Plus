@@ -2,7 +2,7 @@ classdef NirpTracerBlocksTest < matlab.unittest.TestCase
     % NirpTracerBlocksTest verifies tracer blocks, separation, and dialogs.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 22, 2026. Last update: October 24, 2026
+    % Created: October 22, 2026. Last update: October 25, 2026
     % =========================================================================
     properties,Folder;end
     methods (TestMethodSetup)
@@ -23,7 +23,7 @@ classdef NirpTracerBlocksTest < matlab.unittest.TestCase
             add_line(name,'Source/1','Vessel 1/1');add_line(name,'Vessel 1/1','Vessel 2/1');add_line(name,'Vessel 2/1','Monitor/1');configure(name);sim(name);
             results=evalin('base','nirpTracerResults');actual=results.tracer_two_cstr_Monitor.stream;grid=nirp.tracer.grid(0.05,20);source=nirp.tracer.source(grid,1,ones(size(grid.t)),1);rtd=nirp.tracer.rtdModel(grid,'cstr',struct('tau',2),1);expected=nirp.tracer.vessel(grid,nirp.tracer.vessel(grid,source,rtd),rtd);
             testCase.verifyEqual(actual.C(:)',expected.C,'AbsTol',2e-13);testCase.verifyEqual(actual.E(:)',expected.E,'AbsTol',2e-13);testCase.verifyEqual(actual.Q,1,'AbsTol',1e-14);
-            d=Simulink.data.dictionary.open(dictionary);cleanup=onCleanup(@()close(d));bus=getValue(getEntry(getSection(d,'Design Data'),'NirpTracer'));testCase.verifyEqual({bus.Elements.Name},{'Q','C','E','sourceId','valid','status'});
+            d=Simulink.data.dictionary.open(dictionary);cleanup=onCleanup(@()close(d));bus=getValue(getEntry(getSection(d,'Design Data'),'NirpTracer'));testCase.verifyEqual({bus.Elements.Name},{'Q','C','E','sourceId','valid','status','C0','Cseg','Cmm','reactiveMode','rtdTruncated'});
         end
         function mixedIdealAndTracerBlocksAreRejectedWithBothNames(testCase)
             name='mixed_network';[~,dictionary]=nirp.tracerflowsheet.new(name,testCase.Folder,'OpenModel',false);nirp.pkg.writeDictionary(nirp.pkg.examples.firstOrderLiquid(),dictionary);load_system(fullfile(testCase.Folder,[name '.slx']));addTracer(name,'Tracer Source','nirp.tracerblocks.Source',[40 150 170 210],{});addTracer(name,'Ideal Mixer','nirp.blocks.Mixer',[250 150 380 210],{'NumInputs','2'});add_line(name,'Tracer Source/1','Ideal Mixer/1');

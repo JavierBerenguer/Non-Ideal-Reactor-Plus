@@ -2,7 +2,7 @@ function [modelFile,dictionaryFile] = new(modelName,folder,varargin)
 %NEW Create a tracer-only model and its NirpTracer dictionary.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 22, 2026. Last update: October 22, 2026
+% Created: October 22, 2026. Last update: October 25, 2026
 % =========================================================================
     p=inputParser ; addParameter(p,'Dt',0.1) ; addParameter(p,'TFinal',10) ; addParameter(p,'OpenModel',true) ; parse(p,varargin{:}) ;
     if nargin<2||isempty(folder), folder=pwd ; end
@@ -12,7 +12,10 @@ function [modelFile,dictionaryFile] = new(modelName,folder,varargin)
     modelFile=fullfile(folder,[name '.slx']) ; dictionaryFile=fullfile(folder,[name '.sldd']) ;
     if isfile(modelFile)||isfile(dictionaryFile), error('nirp:tracerflowsheet:FileExists','Model or dictionary already exists.'); end
     grid=nirp.tracer.grid(p.Results.Dt,p.Results.TFinal) ; nirp.tracerflowsheet.writeDictionary(dictionaryFile,grid) ;
-    new_system(name) ; cleanup=onCleanup(@()closeIfLoaded(name)) ; save_system(name,modelFile) ; set_param(name,'DataDictionary',[name '.sldd']) ;
+    new_system(name) ; cleanup=onCleanup(@()closeIfLoaded(name)) ; save_system(name,modelFile) ;
+    set_param(name,'DataDictionary',[name '.sldd'],'SolverType','Fixed-step', ...
+        'Solver','FixedStepDiscrete','FixedStep',num2str(grid.dt,17), ...
+        'StartTime','0','StopTime','0') ;
     add_block('simulink/User-Defined Functions/MATLAB System',[name '/Tracer Flowsheet'], ...
         'System','nirp.tracerblocks.Flowsheet','Dt',num2str(grid.dt,17),'TFinal',num2str(grid.tFinal,17),'Position',[40 30 190 85]) ;
     nirp.tracerflowsheet.setupBlock([name '/Tracer Flowsheet']) ; save_system(name) ;

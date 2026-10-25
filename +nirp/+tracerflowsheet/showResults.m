@@ -2,7 +2,7 @@ function viewer = showResults(result,varargin)
 %SHOWRESULTS Display tracer concentration, source signal, and moments.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 22, 2026. Last update: October 22, 2026
+% Created: October 22, 2026. Last update: October 25, 2026
 % =========================================================================
     p = inputParser ;
     addParameter(p,'Visible','on') ;
@@ -20,8 +20,10 @@ function viewer = showResults(result,varargin)
     hasWarning = ~isempty(result.warning) ;
     resultsHeight = 92+24*hasWarning ;
     sourceHeight = 90*hasSource ;
-    root = uigridlayout(fig,[4 1], ...
-        'RowHeight',{'1x',sourceHeight,resultsHeight,42},'RowSpacing',6, ...
+    hasReaction = isfield(result,'reaction') && ~isempty(result.reaction) ;
+    reactionHeight = 145*hasReaction ;
+    root = uigridlayout(fig,[5 1], ...
+        'RowHeight',{'1x',sourceHeight,resultsHeight,reactionHeight,42},'RowSpacing',6, ...
         'Padding',[14 10 14 10]) ;
 
     ax = uiaxes(root,'Tag','NirpTracerResponseAxes') ;
@@ -117,6 +119,25 @@ function viewer = showResults(result,varargin)
     warningLabel.Layout.Column = [1 10] ;
     warningLabel.Visible = onOff(hasWarning) ;
 
+    reactionPanel = uipanel(root,'Title','Stationary micromixing', ...
+        'Tag','NirpTracerReactionPanel','Visible',onOff(hasReaction)) ;
+    reactionGrid = uigridlayout(reactionPanel,[2 1], ...
+        'RowHeight',{'1x',42},'Padding',[7 3 7 3]) ;
+    reactionTable = uitable(reactionGrid,'ColumnEditable',false, ...
+        'Tag','NirpTracerReactionTable') ;
+    reactionWarning = uilabel(reactionGrid,'Text','','WordWrap','on', ...
+        'Tag','NirpTracerReactionWarning') ;
+    if hasReaction
+        [reactionTable.Data,reactionTable.ColumnName] = reactionData(result.reaction) ;
+        interval = '' ;
+        if all(isfinite(result.reaction.interval))
+            interval = sprintf(' Conversion interval: %.6g (%s) to %.6g (%s).', ...
+                result.reaction.interval(1),result.reaction.lowerModel, ...
+                result.reaction.interval(2),result.reaction.upperModel) ;
+        end
+        reactionWarning.Text = [result.reaction.warning interval] ;
+    end
+
     [peakDominated,clipLimit,clippedArea] = peakDisplay( ...
         result.stream.C,result.grid.dt) ;
     controls = uigridlayout(root,[1 4], ...
@@ -151,7 +172,8 @@ function viewer = showResults(result,varargin)
         'TauLine',tauLine,'UseButton',useButton, ...
         'PeakCheckBox',peakCheckBox,'ResultsPanel',resultsPanel, ...
         'Description',description,'Warning',warningLabel, ...
-        'Explanation',explanation) ;
+        'Explanation',explanation,'ReactionPanel',reactionPanel, ...
+        'ReactionTable',reactionTable,'ReactionWarning',reactionWarning) ;
 
     function setPeakDisplay(control,~)
         ax.YScale = 'linear' ;
@@ -190,6 +212,25 @@ function viewer = showResults(result,varargin)
             end
         end
         app.useTracerFlowsheetRTD(signal) ;
+    end
+end
+
+function [data,columns] = reactionData(reaction)
+    names = reaction.componentNames(:) ;
+    n = numel(names) ;
+    segX = repmat({''},n,1) ; mmX = segX ;
+    if isfinite(reaction.Xseg), segX{reaction.keyIndex}=sprintf('%.6g',reaction.Xseg); end
+    if isfinite(reaction.Xmm), mmX{reaction.keyIndex}=sprintf('%.6g',reaction.Xmm); end
+    switch lower(char(reaction.mode))
+        case 'segregation'
+            columns={'Component','Segregation C (mol/m^3)','Key conversion'} ;
+            data=[names num2cell(reaction.Cseg(:)) segX] ;
+        case 'max mixedness'
+            columns={'Component','Max mixedness C (mol/m^3)','Key conversion'} ;
+            data=[names num2cell(reaction.Cmm(:)) mmX] ;
+        otherwise
+            columns={'Component','Segregation C','Seg. key X','Max mixedness C','MM key X'} ;
+            data=[names num2cell(reaction.Cseg(:)) segX num2cell(reaction.Cmm(:)) mmX] ;
     end
 end
 

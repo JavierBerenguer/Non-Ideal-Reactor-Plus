@@ -1,18 +1,27 @@
 classdef Flowsheet < matlab.System
-    % Flowsheet owns the fixed time grid for a tracer-only diagram.
+    % Flowsheet owns the fixed grid and optional reaction configuration.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 22, 2026. Last update: October 24, 2026
+    % Created: October 22, 2026. Last update: October 25, 2026
     % =========================================================================
     properties (Nontunable)
         Dt = 0.1
         TFinal = 10
         TimeUnit = 's'
+        ReactionOrigin = 'Session'
+        ReactionReference = ''
+        KeyComponent = 1
+        Temperature = 298.15
+        TemperatureUnit = 'K'
+        Micromixing = 'None'
     end
     methods (Access=protected)
         function setupImpl(obj)
             nirp.tracer.grid(obj.Dt,obj.TFinal) ;
             nirp.tracerflowsheet.validateSeparation(bdroot(gcb)) ;
+            if ~strcmpi(obj.Micromixing,'None')
+                nirp.tracerflowsheet.reactionConfiguration(gcb) ;
+            end
         end
         function stepImpl(~)
         end
