@@ -140,7 +140,8 @@ classdef NirpTracerCoreTest < matlab.unittest.TestCase
                 ones(1,4),'AbsTol',1e-12) ;
             testCase.verifyEqual(values.area,4,'AbsTol',1e-14) ;
             testCase.verifyEqual({bus.Elements.Name}, ...
-                {'Q','C','E','sourceId','valid','status'}) ;
+                {'Q','C','E','sourceId','valid','status', ...
+                'C0','Cseg','Cmm','reactiveMode','rtdTruncated'}) ;
             testCase.verifyEqual(bus.Elements(2).Dimensions,[common.length 1]) ;
             testCase.verifyEqual(bus.Elements(3).Dimensions,[common.length 1]) ;
         end
