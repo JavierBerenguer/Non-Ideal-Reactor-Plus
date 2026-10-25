@@ -10,7 +10,7 @@ classdef MaxMixednessModel
 % isothermal route implemented in compute_isothermal().
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: March 21, 2026. Last update: July 7, 2026
+% Created: March 21, 2026. Last update: October 25, 2026
 % =========================================================================
 
 % Internal units (SI):
@@ -47,7 +47,7 @@ classdef MaxMixednessModel
             obj.rtd = varargin{1} ;
         end
 
-        function obj = compute_isothermal(obj, RS, C0)
+        function obj = compute_isothermal(obj, RS, C0, T)
             % Compute exit conversion using a general ReactionSys object
             % under isothermal conditions.
             %
@@ -56,17 +56,25 @@ classdef MaxMixednessModel
             %
             % Inputs:
             %   RS  - ReactionSys object (any kinetics)
-            %   C0  - Initial concentration vector [1 x nComponents]
+            %   C0  - Initial concentration vector [1 x nComponents] (mol/m^3)
+            %   T   - Optional operating temperature (K). Default: 298.15 K.
 
             if isempty(obj.rtd)
                 error('RTD must be set before computing') ;
+            end
+
+            if nargin < 4 || isempty(T)
+                T = 298.15 ;
+            end
+            if ~(isnumeric(T) && isreal(T) && isscalar(T) && isfinite(T) && T > 0)
+                error('MaxMixednessModel:InvalidTemperature', ...
+                    'Operating temperature must be a positive finite scalar in K.') ;
             end
 
             t_rtd = obj.rtd.t ;
             Et = obj.rtd.Et ;
             Ft = obj.rtd.Ft ;
             stoich = RS.stochiometricMatrix ;
-            T = 298.15 ;
             idx_key = obj.keyComponentIndex ;
             CA0 = C0(idx_key) ;
 

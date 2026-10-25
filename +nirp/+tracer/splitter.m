@@ -2,9 +2,11 @@ function [outputs,fractions] = splitter(grid,in,specifiedFractions)
 %SPLITTER Split a tracer stream into N outlets.
 %   SPECIFIEDFRACTIONS contains N-1 fractions; the final fraction is the
 %   remainder. Concentration, accumulated RTD, source, and state are copied.
+%   Additional fields, including Cseg and Cmm reactive compositions, are
+%   copied unchanged to every outlet.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 22, 2026. Last update: October 22, 2026
+% Created: October 22, 2026. Last update: October 25, 2026
 % =========================================================================
 
     grid = nirp.tracer.validateGrid(grid) ;

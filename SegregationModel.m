@@ -18,7 +18,7 @@ classdef SegregationModel
 %   - Works from the same ReactionSys pathway used by NonIdealReactorApp
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: March 21, 2026. Last update: July 7, 2026
+% Created: March 21, 2026. Last update: October 25, 2026
 % =========================================================================
 
 % Internal units (SI):
@@ -62,7 +62,7 @@ classdef SegregationModel
 
         %% ============== GENERAL ISOTHERMAL (from ReactionSys) ==============
 
-        function obj = compute_isothermal(obj, RS, C0)
+        function obj = compute_isothermal(obj, RS, C0, T)
             % Compute mean conversion using a general ReactionSys object
             % under isothermal conditions.
             %
@@ -73,7 +73,8 @@ classdef SegregationModel
             %
             % Inputs (set via properties or arguments):
             %   RS  - ReactionSys object (any kinetics)
-            %   C0  - Initial concentration vector [1 x nComponents]
+            %   C0  - Initial concentration vector [1 x nComponents] (mol/m^3)
+            %   T   - Optional operating temperature (K). Default: 298.15 K.
             %
             % The key component for conversion is obj.keyComponentIndex (default: 1).
 
@@ -81,11 +82,18 @@ classdef SegregationModel
                 error('RTD must be set before computing') ;
             end
 
+            if nargin < 4 || isempty(T)
+                T = 298.15 ;
+            end
+            if ~(isnumeric(T) && isreal(T) && isscalar(T) && isfinite(T) && T > 0)
+                error('SegregationModel:InvalidTemperature', ...
+                    'Operating temperature must be a positive finite scalar in K.') ;
+            end
+
             t_rtd = obj.rtd.t ;
             Et = obj.rtd.Et ;
             stoich = RS.stochiometricMatrix ;
             nComp = length(C0) ;
-            T = 298.15 ;  % isothermal — Ea=0 so T value is irrelevant
             idx_key = obj.keyComponentIndex ;
 
             % Solve batch ODE
@@ -97,12 +105,24 @@ classdef SegregationModel
             C_key_vs_t = C_ode(:, idx_key) ;
             X_vs_t = (C0(idx_key) - C_key_vs_t) / C0(idx_key) ;
 
-            % Interpolate at RTD time points (ensure row vector like Et)
-            obj.X_batch = interp1(t_ode, X_vs_t, t_rtd, 'pchip', 0) ;
-            obj.X_batch = obj.X_batch(:)' ;  % force row [1 x N]
+            % Interpolate at RTD time points. A stationary zero-rate system
+            % may make the nonnegative solver return a single sample.
+            degenerateTime = numel(unique(t_ode)) < 2 ;
+            if C0(idx_key) == 0
+                obj.X_batch = nan(1,numel(t_rtd)) ;
+            elseif degenerateTime
+                obj.X_batch = repmat(X_vs_t(end),1,numel(t_rtd)) ;
+            else
+                obj.X_batch = interp1(t_ode, X_vs_t, t_rtd, 'pchip', 0) ;
+                obj.X_batch = obj.X_batch(:)' ;  % force row [1 x N]
+            end
+            if degenerateTime
+                obj.C_batch = repmat(C_ode(end,:),numel(t_rtd),1) ;
+            else
+                obj.C_batch = interp1(t_ode, C_ode, t_rtd, 'pchip') ;
+            end
 
             % Store concentration profiles
-            obj.C_batch = interp1(t_ode, C_ode, t_rtd, 'pchip') ;
             if nComp == 1
                 obj.C_batch = obj.C_batch(:) ;
             end
