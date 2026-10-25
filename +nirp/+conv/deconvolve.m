@@ -12,10 +12,11 @@ function [E,info] = deconvolve(Cin,Cout,support,regularization)
 %     lambdaRange  positive two-element multiplier range (default: [1e-6 1e2])
 %     lambdaCount  number of L-curve samples, at least 3 (default: 40)
 %   Automatic lambda values are lambdaRange*norm(A,2). The L-curve corner
-%   is the interior sample with maximum discrete log-log curvature.
+%   is the interior sample with maximum positive discrete log-log
+%   curvature. Concave active-set bends are not L-curve corners.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 9, 2026. Last update: October 21, 2026
+% Created: October 9, 2026. Last update: October 25, 2026
 % =========================================================================
 
     Cin = nirp.conv.signal(Cin.t,Cin.C) ;
@@ -202,13 +203,17 @@ function curvature = lCurveCurvature(residualNorms,seminorms)
         % three-point curvature is large but it is not an L-curve corner.
         if denominator > 0 && norm(first) >= segmentFloor && ...
                 norm(second) >= segmentFloor
-            curvature(k) = 2*abs(first(1)*second(2)-first(2)*second(1)) / denominator ;
+            % As lambda increases, a convex L-curve corner turns from a
+            % falling segment towards a rightward segment and therefore
+            % has positive orientation. Negative values are concave NNLS
+            % active-set bends and must not compete with the corner.
+            curvature(k) = 2*(first(1)*second(2)-first(2)*second(1)) / denominator ;
         end
     end
     if ~any(curvature(2:end-1) > 0)
-        % Retain an interior choice for degenerate curves rather than
-        % silently selecting the first endpoint of the sweep.
-        curvature(ceil(numel(curvature)/2)) = eps ;
+        % Exact data can have no convex corner. Prefer the least regularized
+        % interior sample instead of imposing an arbitrary mid-sweep bias.
+        curvature(2) = eps ;
     end
 end
 

@@ -802,9 +802,9 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             testCase.verifyEqual(roundTrip.sessionData.convolution.lambdaMode, ...
                 'Auto (L-curve)') ;
             info = roundTrip.sessionData.convolution.lastInfo ;
-            testCase.verifyEqual(info.lCurve.selectedIndex,31) ;
-            testCase.verifyGreaterThan(info.lambda,1e5) ;
-            testCase.verifyLessThan(info.lambda,3e5) ;
+            testCase.verifyEqual(info.lCurve.selectedIndex,24) ;
+            testCase.verifyGreaterThan(info.lambda,5e3) ;
+            testCase.verifyLessThan(info.lambda,1e4) ;
         end
     end
 
