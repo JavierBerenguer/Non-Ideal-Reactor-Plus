@@ -2,7 +2,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
     % NirpConvolutionTabTest verifies the app integration of nirp.conv.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 9, 2026. Last update: October 25, 2026
+    % Created: October 9, 2026. Last update: October 26, 2026
     % =========================================================================
 
     properties
@@ -101,8 +101,9 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             testCase.verifyEqual(sort(string({tabs.Children.Title})), ...
                 sort(["Inlet signal Cᵢₙ(t)", "Outlet signal Cₒᵤₜ(t)"])) ;
             testCase.verifyEqual(char(testCase.control('ConvVerificationAxes').Visible), 'on') ;
-            testCase.verifyEqual(char(testCase.control('ConvUseAsRTD').Visible), 'off') ;
+            testCase.verifyEqual(char(testCase.control('ConvUseAsRTD').Visible), 'on') ;
             testCase.verifyEqual(char(testCase.control('ConvUseAsRTD').Enable), 'off') ;
+            testCase.verifySubstring(testCase.control('ConvUseAsRTD').Text, 'Ê(t)') ;
             testCase.verifyEqual(char(testCase.control('ConvSupportPanel').Visible), 'on') ;
         end
 
@@ -357,8 +358,9 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
                 'Truncated')) ;
             testCase.verifyEqual(char(testCase.control('ConvDiagnostics').Visible), 'on') ;
             testCase.verifyEqual(char(testCase.control('ConvVerificationAxes').Visible), 'on') ;
-            testCase.verifyEqual(char(testCase.control('ConvUseAsRTD').Visible), 'off') ;
+            testCase.verifyEqual(char(testCase.control('ConvUseAsRTD').Visible), 'on') ;
             testCase.verifyEqual(char(testCase.control('ConvUseAsRTD').Enable), 'off') ;
+            testCase.verifySubstring(testCase.control('ConvUseAsRTD').Tooltip, 'A_E') ;
             testCase.verifyNumElements(findall(testCase.control('ConvAxes'), ...
                 'Type', 'ConstantLine'), 1) ;
             testCase.verifyEmpty(findall(testCase.control('ConvVerificationAxes'), ...
@@ -703,14 +705,17 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
                 'Cannot suggest E support:'))) ;
         end
 
-        function deconvolutionCannotTransferEstimatedRTDToTabOne(testCase)
+        function sec02FailsAreaQualityAndCannotTransferToTabOne(testCase)
             testCase.App.loadSessionFromFile(fullfile(testCase.Root, ...
                 'saves', 'SECT02.mat')) ;
             compute = testCase.control('ConvCompute') ;
             feval(compute.ButtonPushedFcn, compute, []) ;
             transfer = testCase.control('ConvUseAsRTD') ;
-            testCase.verifyEqual(char(transfer.Visible), 'off') ;
+            testCase.verifyEqual(char(transfer.Visible), 'on') ;
             testCase.verifyEqual(char(transfer.Enable), 'off') ;
+            testCase.verifySubstring(transfer.Tooltip, 'A_E = 7.05') ;
+            testCase.verifySubstring(transfer.Tooltip, ...
+                'requires |A_E - 1| <= 5%') ;
 
             beforeFile = fullfile(testCase.Folder, 'before-transfer.mat') ;
             testCase.App.saveSessionToFile(beforeFile, 'before-transfer') ;
@@ -729,6 +734,82 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             feval(group.SelectionChangedFcn, group, []) ;
             testCase.verifyEqual(char(transfer.Visible), 'on') ;
             testCase.verifySubstring(transfer.Text, 'C_out') ;
+        end
+
+        function syntheticTikhonovRequiresConfirmationAndLoadsNormalizedRTD(testCase)
+            testCase.configureSyntheticTikhonovDeconvolution() ;
+            compute = testCase.control('ConvCompute') ;
+            feval(compute.ButtonPushedFcn, compute, []) ;
+            transfer = testCase.control('ConvUseAsRTD') ;
+            testCase.verifyEqual(char(transfer.Visible), 'on') ;
+            testCase.verifyEqual(char(transfer.Enable), 'on') ;
+            testCase.verifySubstring(transfer.Tooltip, 'Quality checks passed') ;
+
+            beforeFile = fullfile(testCase.Folder, 'synthetic-before.mat') ;
+            testCase.App.saveSessionToFile(beforeFile, 'synthetic-before') ;
+            before = load(beforeFile, 'sessionData') ;
+            estimated = before.sessionData.convolution.lastResult ;
+            testCase.verifyEqual(trapz(estimated.t, estimated.C), 1.0025, ...
+                'AbsTol', 0.005) ;
+            testCase.verifyEqual( ...
+                before.sessionData.convolution.lastInfo.relativeResidual, ...
+                0.12, 'AbsTol', 0.02) ;
+            overrideName = 'NirpDeconvolutionRTDConfirmOverride' ;
+            setappdata(groot, overrideName, ...
+                @(message) recordRTDConfirmation(message, 'Cancel')) ;
+            testCase.addTeardown(@() clearRTDConfirmationOverride()) ;
+            feval(transfer.ButtonPushedFcn, transfer, []) ;
+            cancelledFile = fullfile(testCase.Folder, 'synthetic-cancelled.mat') ;
+            testCase.App.saveSessionToFile(cancelledFile, 'synthetic-cancelled') ;
+            cancelled = load(cancelledFile, 'sessionData') ;
+            testCase.verifyEqual(cancelled.sessionData.shared.rtd, ...
+                before.sessionData.shared.rtd) ;
+
+            setappdata(groot, overrideName, ...
+                @(message) recordRTDConfirmation(message, 'Use RTD')) ;
+            feval(transfer.ButtonPushedFcn, transfer, []) ;
+            message = getappdata(groot, 'NirpDeconvolutionRTDConfirmMessage') ;
+            testCase.verifySubstring(message, 'A_E = ') ;
+            testCase.verifySubstring(message, ...
+                'Relative reconvolution residual = ') ;
+            testCase.verifySubstring(message, ...
+                'Support [tau_min, tau_max] = [0, 20] s') ;
+            testCase.verifySubstring(message, 'Tikhonov used: Yes (lambda = ') ;
+            testCase.verifySubstring(message, ['Ê is an estimate; it will be ' ...
+                'normalized and treated as the Tab 1 RTD.']) ;
+
+            acceptedFile = fullfile(testCase.Folder, 'synthetic-accepted.mat') ;
+            testCase.App.saveSessionToFile(acceptedFile, 'synthetic-accepted') ;
+            accepted = load(acceptedFile, 'sessionData') ;
+            transferred = accepted.sessionData.shared.rtd ;
+            testCase.verifyEqual(transferred.source, 'deconvolution') ;
+            testCase.verifyEqual(trapz(transferred.t, transferred.Et), 1, ...
+                'AbsTol', 1e-12) ;
+            labels = findall(testCase.Figure, 'Type', 'uilabel') ;
+            testCase.verifyTrue(any(contains(string({labels.Text}), ...
+                'estimated by deconvolution (Tab 6)'))) ;
+        end
+
+        function representativePoorAreaKeepsTransferDisabled(testCase)
+            testCase.configureSyntheticTikhonovDeconvolution() ;
+            output = testCase.control('ConvTableCout') ;
+            output.Data(:, 2) = 0.7 * output.Data(:, 2) ;
+            compute = testCase.control('ConvCompute') ;
+            feval(compute.ButtonPushedFcn, compute, []) ;
+            transfer = testCase.control('ConvUseAsRTD') ;
+
+            testCase.verifyEqual(char(transfer.Visible), 'on') ;
+            testCase.verifyEqual(char(transfer.Enable), 'off') ;
+            testCase.verifySubstring(transfer.Tooltip, 'A_E = ') ;
+            testCase.verifySubstring(transfer.Tooltip, ...
+                'requires |A_E - 1| <= 5%') ;
+            snapshotFile = fullfile(testCase.Folder, 'user-problem.mat') ;
+            testCase.App.saveSessionToFile(snapshotFile, 'user-problem') ;
+            snapshot = load(snapshotFile, 'sessionData') ;
+            estimate = snapshot.sessionData.convolution.lastResult ;
+            area = trapz(estimate.t, estimate.C) ;
+            testCase.verifyGreaterThanOrEqual(area, 0.62) ;
+            testCase.verifyLessThanOrEqual(area, 0.80) ;
         end
 
         function onlyConvolutionAndDeconvolutionModesRemain(testCase)
@@ -933,6 +1014,34 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             testCase.control('ConvDt').Value = 0 ;
         end
 
+        function configureSyntheticTikhonovDeconvolution(testCase)
+            rng(187, 'twister') ;
+            dt = 0.2 ; % s
+            time = 0:dt:20 ; % s
+            inlet = nirp.conv.fromFunction( ...
+                @(value) exp(-((value - 2) / 0.7).^2), time) ;
+            trueRTD = nirp.conv.fromRTD(RTD.tanks_in_series(3, 5, time), dt) ;
+            clean = nirp.conv.convolve(trueRTD, inlet) ;
+            noise = 0.05 * max(clean.C) * randn(size(clean.C)) ;
+            measured = nirp.conv.signal(clean.t, max(0, clean.C + noise)) ;
+
+            group = testCase.control('ConvModeGroup') ;
+            buttons = group.Children ;
+            group.SelectedObject = buttons(strcmp({buttons.Text}, 'Deconvolution')) ;
+            feval(group.SelectionChangedFcn, group, []) ;
+            testCase.control('ConvTableCin').Data = [inlet.t(:) inlet.C(:)] ;
+            testCase.control('ConvTableCout').Data = ...
+                [measured.t(:) measured.C(:)] ;
+            testCase.control('ConvDt').Value = dt ;
+            testCase.control('ConvSupportMin').Value = 0 ;
+            supportMax = testCase.control('ConvSupportMax') ;
+            supportMax.Value = 20 ;
+            feval(supportMax.ValueChangedFcn, supportMax, []) ;
+            regularization = testCase.control('ConvRegularization') ;
+            regularization.Value = 'Tikhonov' ;
+            feval(regularization.ValueChangedFcn, regularization, []) ;
+        end
+
     end
 end
 
@@ -940,4 +1049,16 @@ function closeFigures()
     figures = findall(groot, 'Type', 'Figure') ;
     if ~isempty(figures), delete(figures) ; end
     evalin('base', 'clear convolutionResult') ;
+end
+
+function choice = recordRTDConfirmation(message, choice)
+    setappdata(groot, 'NirpDeconvolutionRTDConfirmMessage', message) ;
+end
+
+function clearRTDConfirmationOverride()
+    names = {'NirpDeconvolutionRTDConfirmOverride', ...
+        'NirpDeconvolutionRTDConfirmMessage'} ;
+    for k = 1:numel(names)
+        if isappdata(groot, names{k}), rmappdata(groot, names{k}) ; end
+    end
 end

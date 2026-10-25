@@ -3,7 +3,7 @@ classdef ConvolutionTabHelper < handle
 % All times passed to nirp.conv are expressed in seconds.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 9, 2026. Last update: October 25, 2026
+% Created: October 9, 2026. Last update: October 26, 2026
 % =========================================================================
 
     properties (SetAccess = private)
@@ -704,8 +704,11 @@ classdef ConvolutionTabHelper < handle
                 obj.UseRTDButton.Tooltip = ['C_out is the response to the given C_in; ' ...
                     'it equals the RTD only if C_in is an ideal pulse.'] ;
             elseif strcmp(mode, 'Deconvolution')
-                obj.UseRTDButton.Visible = 'off' ;
-                obj.UseRTDButton.Enable = 'off' ;
+                obj.UseRTDButton.Visible = 'on' ;
+                obj.UseRTDButton.Text = 'Use Ê(t) as RTD in Tab 1' ;
+                [qualityPassed, tooltip] = obj.deconvolutionRTDQuality() ;
+                obj.UseRTDButton.Enable = obj.onOff(hasResult && qualityPassed) ;
+                obj.UseRTDButton.Tooltip = tooltip ;
             end
         end
 
@@ -1040,7 +1043,95 @@ classdef ConvolutionTabHelper < handle
                 obj.SetTracer(obj.LastResult) ;
                 obj.SetStatus(['C_out loaded as the Tab 1 pulse-response data. ' ...
                     'It is an RTD only for an ideal-pulse C_in.']) ;
+            elseif strcmp(mode, 'Deconvolution')
+                [qualityPassed, tooltip, quality] = obj.deconvolutionRTDQuality() ;
+                if ~qualityPassed
+                    obj.UseRTDButton.Enable = 'off' ;
+                    obj.UseRTDButton.Tooltip = tooltip ;
+                    return
+                end
+                if ~obj.confirmEstimatedRTD(quality)
+                    return
+                end
+                obj.SetRTD(obj.LastResult, mode) ;
+                obj.SetStatus(['Estimated RTD loaded: estimated by deconvolution ' ...
+                    '(Tab 6), normalized and treated as the Tab 1 RTD.']) ;
             end
+        end
+
+        function [passed, tooltip, quality] = deconvolutionRTDQuality(obj)
+            quality = struct('area', NaN, 'relativeResidual', NaN, ...
+                'support', [NaN NaN], 'usedTikhonov', false, 'lambda', NaN) ;
+            if ~isstruct(obj.LastResult) || ~isfield(obj.LastResult, 't') || ...
+                    ~isstruct(obj.LastSignals) || ~isfield(obj.LastSignals, 'Cout') || ...
+                    ~strcmp(obj.ModeGroup.SelectedObject.Text, 'Deconvolution')
+                passed = false ;
+                tooltip = ['Compute a deconvolution before loading the estimated ' ...
+                    'E(t) into RTD Analysis.'] ;
+                return
+            end
+
+            moments = nirp.conv.moments(obj.LastResult) ;
+            quality.area = moments.area ;
+            quality.relativeResidual = obj.relativeResidual() ;
+            quality.support = obj.getField(obj.LastInfo, 'support', ...
+                obj.LastResult.t([1 end])) ;
+            quality.lambda = obj.getField(obj.LastInfo, 'lambda', 0) ;
+            quality.usedTikhonov = isfinite(quality.lambda) && quality.lambda > 0 ;
+            areaPassed = isfinite(quality.area) && abs(quality.area - 1) <= 0.05 ;
+            residualPassed = isfinite(quality.relativeResidual) && ...
+                quality.relativeResidual <= 0.15 ;
+            passed = areaPassed && residualPassed ;
+            if passed
+                tooltip = sprintf(['Quality checks passed: A_E = %.6g and relative ' ...
+                    'reconvolution residual = %.2f%%. Confirm to normalize the ' ...
+                    'estimate and load it into RTD Analysis.'], quality.area, ...
+                    100 * quality.relativeResidual) ;
+                return
+            end
+
+            failures = {} ;
+            if ~areaPassed
+                failures{end + 1} = sprintf( ...
+                    'A_E = %.6g (requires |A_E - 1| <= 5%%)', quality.area) ; %#ok<AGROW>
+            end
+            if ~residualPassed
+                failures{end + 1} = sprintf( ...
+                    ['relative reconvolution residual = %.2f%% ' ...
+                    '(requires <= 15%%)'], 100 * quality.relativeResidual) ; %#ok<AGROW>
+            end
+            tooltip = ['Cannot use estimated E(t): ' strjoin(failures, '; ') '.'] ;
+        end
+
+        function confirmed = confirmEstimatedRTD(obj, quality)
+            if quality.usedTikhonov
+                tikhonov = sprintf('Yes (lambda = %.6g)', quality.lambda) ;
+            else
+                tikhonov = 'No' ;
+            end
+            message = sprintf([ ...
+                'A_E = %.6g\n' ...
+                'Relative reconvolution residual = %.2f%%\n' ...
+                'Support [tau_min, tau_max] = [%.6g, %.6g] s\n' ...
+                'Tikhonov used: %s\n\n' ...
+                'Ê is an estimate; it will be normalized and treated as the Tab 1 RTD.'], ...
+                quality.area, 100 * quality.relativeResidual, quality.support(1), ...
+                quality.support(2), tikhonov) ;
+            overrideName = 'NirpDeconvolutionRTDConfirmOverride' ;
+            if isappdata(groot, overrideName)
+                override = getappdata(groot, overrideName) ;
+                if ~isa(override, 'function_handle')
+                    error('ConvolutionTabHelper:InvalidConfirmationOverride', ...
+                        'The deconvolution RTD confirmation override must be a function handle.') ;
+                end
+                choice = override(message) ;
+            else
+                choice = uiconfirm(ancestor(obj.Tab, 'figure'), message, ...
+                    'Use estimated RTD in Tab 1?', ...
+                    'Options', {'Use RTD', 'Cancel'}, ...
+                    'DefaultOption', 2, 'CancelOption', 2, 'Icon', 'warning') ;
+            end
+            confirmed = strcmp(char(string(choice)), 'Use RTD') ;
         end
 
         function values = numericTable(obj, data, columns, name)
