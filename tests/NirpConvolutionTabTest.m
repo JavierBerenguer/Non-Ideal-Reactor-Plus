@@ -636,6 +636,73 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
     end
 
     methods (Test)
+        function suggestedSupportUsesCurrentGridAndComputes(testCase)
+            testCase.App.loadSessionFromFile(fullfile(testCase.Root, ...
+                'saves', 'SECT02.mat')) ;
+            testCase.control('ConvDt').Value = 3 ;
+            supportUnit = testCase.control('ConvSupportUnit') ;
+            supportUnit.Value = 's' ;
+            feval(supportUnit.ValueChangedFcn, supportUnit, []) ;
+            suggest = testCase.control('ConvSuggestSupport') ;
+            feval(suggest.ButtonPushedFcn, suggest, []) ;
+
+            supportMin = testCase.control('ConvSupportMin') ;
+            supportMax = testCase.control('ConvSupportMax') ;
+            dt = testCase.control('ConvDt').Value * ...
+                UnitConverterHelper.factorToSI('Time', ...
+                testCase.control('ConvDtUnit').Value) ;
+            testCase.verifyEqual(supportMin.Value, 0, 'AbsTol', 1e-12) ;
+            testCase.verifyEqual(supportMax.Value, 720, 'AbsTol', 1e-12) ;
+            testCase.verifyEqual(char(supportMin.Editable), 'on') ;
+            testCase.verifyEqual(char(supportMax.Editable), 'on') ;
+            intervals = (supportMax.Value - supportMin.Value) / dt ;
+            testCase.verifyEqual(intervals, round(intervals), 'AbsTol', 1e-12) ;
+
+            compute = testCase.control('ConvCompute') ;
+            feval(compute.ButtonPushedFcn, compute, []) ;
+            testCase.verifyNotEmpty(testCase.control('ConvResultTable').Data) ;
+            saved = fullfile(testCase.Folder, 'suggested-support.mat') ;
+            testCase.App.saveSessionToFile(saved, 'suggested-support') ;
+            snapshot = load(saved, 'sessionData') ;
+            testCase.verifyFalse( ...
+                snapshot.sessionData.convolution.supportIsDefault) ;
+        end
+
+        function suggestedSupportUsesSelectedMinutes(testCase)
+            testCase.App.loadSessionFromFile(fullfile(testCase.Root, ...
+                'saves', 'SECT02.mat')) ;
+            supportUnit = testCase.control('ConvSupportUnit') ;
+            supportUnit.Value = 's' ;
+            feval(supportUnit.ValueChangedFcn, supportUnit, []) ;
+            supportUnit.Value = 'min' ;
+            feval(supportUnit.ValueChangedFcn, supportUnit, []) ;
+            suggest = testCase.control('ConvSuggestSupport') ;
+            feval(suggest.ButtonPushedFcn, suggest, []) ;
+
+            testCase.verifyEqual(testCase.control('ConvSupportMin').Value, ...
+                0, 'AbsTol', 1e-12) ;
+            testCase.verifyEqual(testCase.control('ConvSupportMax').Value, ...
+                13, 'AbsTol', 1e-12) ;
+        end
+
+        function incompleteDataDoesNotChangeSuggestedSupport(testCase)
+            testCase.App.loadSessionFromFile(fullfile(testCase.Root, ...
+                'saves', 'SECT02.mat')) ;
+            supportMin = testCase.control('ConvSupportMin') ;
+            supportMax = testCase.control('ConvSupportMax') ;
+            previousValues = [supportMin.Value supportMax.Value] ;
+            testCase.control('ConvTableCout').Data = [] ;
+            suggest = testCase.control('ConvSuggestSupport') ;
+            feval(suggest.ButtonPushedFcn, suggest, []) ;
+
+            testCase.verifyEqual([supportMin.Value supportMax.Value], ...
+                previousValues, 'AbsTol', 0) ;
+            labels = findall(testCase.Figure, 'Type', 'uilabel') ;
+            messages = string({labels.Text}) ;
+            testCase.verifyTrue(any(contains(messages, ...
+                'Cannot suggest E support:'))) ;
+        end
+
         function deconvolutionCannotTransferEstimatedRTDToTabOne(testCase)
             testCase.App.loadSessionFromFile(fullfile(testCase.Root, ...
                 'saves', 'SECT02.mat')) ;

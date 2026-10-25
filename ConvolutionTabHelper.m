@@ -263,8 +263,8 @@ classdef ConvolutionTabHelper < handle
                 'Tooltip', ['Delays used as deconvolution unknowns. Defaults to the ' ...
                 'largest support compatible with the stated signal windows.']) ;
             obj.SupportPanel.Layout.Row = 4 ;
-            supportGrid = uigridlayout(obj.SupportPanel, [6 6], ...
-                'ColumnWidth', {'fit', '1x', 'fit', '1x', 'fit', 58}, ...
+            supportGrid = uigridlayout(obj.SupportPanel, [6 7], ...
+                'ColumnWidth', {'fit', '1x', 'fit', '1x', 'fit', 58, 64}, ...
                 'RowHeight', {22, 18, 22, 22, 22, 18}, 'Padding', [6 1 6 1], ...
                 'RowSpacing', 0) ;
             uilabel(supportGrid, 'Text', '$\tau_{\min}$:', 'Interpreter', 'latex') ;
@@ -280,11 +280,16 @@ classdef ConvolutionTabHelper < handle
                 'Items', UnitConverterHelper.getUnits('Time'), 'Value', 's', ...
                 'Tag', 'ConvSupportUnit', ...
                 'ValueChangedFcn', @(~,~) obj.supportEdited()) ;
+            uibutton(supportGrid, 'Text', 'Suggest', ...
+                'Tag', 'ConvSuggestSupport', ...
+                'Tooltip', ['Suggest the widest E support compatible with the ' ...
+                'current C_in and C_out windows. The suggested values remain editable.'], ...
+                'ButtonPushedFcn', @(~,~) obj.suggestSupport()) ;
             supportDescription = uilabel(supportGrid, ...
                 'Text', 'Default: widest support compatible with the data.', ...
                 'FontSize', 10, 'Tag', 'ConvSupportDescription') ;
             supportDescription.Layout.Row = 2 ;
-            supportDescription.Layout.Column = [1 6] ;
+            supportDescription.Layout.Column = [1 7] ;
             regularizationLabel = uilabel(supportGrid, 'Text', 'Regularization:') ;
             obj.Regularization = uidropdown(supportGrid, ...
                 'Items', {'None', 'Tikhonov'}, 'Value', 'None', ...
@@ -303,7 +308,7 @@ classdef ConvolutionTabHelper < handle
             smoothingLabel.Layout.Row = 3 ;
             smoothingLabel.Layout.Column = 4 ;
             obj.Smoothing.Layout.Row = 3 ;
-            obj.Smoothing.Layout.Column = [5 6] ;
+            obj.Smoothing.Layout.Column = [5 7] ;
             lowerPlotLabel = uilabel(supportGrid, 'Text', 'Lower plot:') ;
             obj.LowerPlot = uidropdown(supportGrid, ...
                 'Items', {'Reconvolution check', 'L-curve'}, ...
@@ -327,17 +332,17 @@ classdef ConvolutionTabHelper < handle
             valueLabel.Layout.Row = 4 ;
             valueLabel.Layout.Column = 4 ;
             obj.LambdaValue.Layout.Row = 4 ;
-            obj.LambdaValue.Layout.Column = [5 6] ;
+            obj.LambdaValue.Layout.Column = [5 7] ;
             lowerPlotLabel.Layout.Row = 5 ;
             lowerPlotLabel.Layout.Column = 1 ;
             obj.LowerPlot.Layout.Row = 5 ;
-            obj.LowerPlot.Layout.Column = [2 6] ;
+            obj.LowerPlot.Layout.Column = [2 7] ;
             regularizationDescription = uilabel(supportGrid, ...
                 'Text', 'Auto scans 40 logarithmic values from 10^{-6} to 10^{2} times ||A||_2.', ...
                 'Interpreter', 'tex', 'FontSize', 10, ...
                 'Tag', 'ConvRegularizationDescription') ;
             regularizationDescription.Layout.Row = 6 ;
-            regularizationDescription.Layout.Column = [1 6] ;
+            regularizationDescription.Layout.Column = [1 7] ;
 
             computeButton = uibutton(controls, 'Text', 'Compute', ...
                 'FontWeight', 'bold', 'BackgroundColor', [0.3 0.6 0.9], ...
@@ -606,6 +611,27 @@ classdef ConvolutionTabHelper < handle
             obj.SupportIsDefault = false ;
         end
 
+        function suggestSupport(obj)
+            previousValues = [obj.SupportMin.Value obj.SupportMax.Value] ;
+            try
+                [signals, dt] = obj.buildSignals({'Cin', 'Cout'}) ;
+                support = obj.widestCompatibleSupport(signals, dt) ;
+                scale = UnitConverterHelper.factorToSI( ...
+                    'Time', obj.SupportUnit.Value) ;
+                obj.SupportMin.Value = support(1) / scale ;
+                obj.SupportMax.Value = support(2) / scale ;
+                obj.SupportIsDefault = false ;
+                obj.SetStatus(sprintf( ...
+                    'Suggested E support: tau_min = %.6g %s, tau_max = %.6g %s. Values remain editable.', ...
+                    obj.SupportMin.Value, obj.SupportUnit.Value, ...
+                    obj.SupportMax.Value, obj.SupportUnit.Value)) ;
+            catch exception
+                obj.SupportMin.Value = previousValues(1) ;
+                obj.SupportMax.Value = previousValues(2) ;
+                obj.SetStatus(['Cannot suggest E support: ' exception.message]) ;
+            end
+        end
+
         function regularizationChanged(obj,refresh)
             if nargin < 2, refresh = true ; end
             enabled = strcmp(obj.Regularization.Value,'Tikhonov') ;
@@ -634,12 +660,7 @@ classdef ConvolutionTabHelper < handle
         function support = deconvolutionSupport(obj, signals, dt)
             scale = UnitConverterHelper.factorToSI('Time', obj.SupportUnit.Value) ;
             if obj.SupportIsDefault
-                support = [max(0, signals.Cout.t(1)-signals.Cin.t(end)), ...
-                    signals.Cout.t(end)-signals.Cin.t(1)] ;
-                if support(2) < support(1)
-                    error('NonIdealReactorApp:ConvolutionSupport', ...
-                        'The signal windows do not define a nonnegative E support.') ;
-                end
+                support = obj.widestCompatibleSupport(signals, dt) ;
                 obj.SupportMin.Value = support(1) / scale ;
                 obj.SupportMax.Value = support(2) / scale ;
             else
@@ -654,6 +675,24 @@ classdef ConvolutionTabHelper < handle
                 error('NonIdealReactorApp:ConvolutionSupport', ...
                     'E support endpoints must lie on the common time-step grid.') ;
             end
+        end
+
+        function support = widestCompatibleSupport(~, signals, dt)
+            supportMin = max(0, signals.Cout.t(1) - signals.Cin.t(end)) ;
+            supportMax = signals.Cout.t(end) - signals.Cin.t(1) ;
+            if supportMax < supportMin
+                error('NonIdealReactorApp:ConvolutionSupport', ...
+                    'The signal windows do not define a nonnegative E support.') ;
+            end
+            intervals = (supportMax - supportMin) / dt ;
+            tolerance = 1e-9 * max(1, abs(intervals)) ;
+            if abs(intervals - round(intervals)) <= tolerance
+                intervalCount = round(intervals) ;
+            else
+                intervalCount = floor(intervals) ;
+            end
+            adjustedMax = supportMin + intervalCount * dt ;
+            support = [supportMin min(adjustedMax, supportMax)] ;
         end
 
         function configureUseButton(obj, mode)
