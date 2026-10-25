@@ -2,7 +2,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
     % NirpConvolutionTabTest verifies the app integration of nirp.conv.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 9, 2026. Last update: October 22, 2026
+    % Created: October 9, 2026. Last update: October 25, 2026
     % =========================================================================
 
     properties
@@ -101,7 +101,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             testCase.verifyEqual(sort(string({tabs.Children.Title})), ...
                 sort(["Inlet signal Cᵢₙ(t)", "Outlet signal Cₒᵤₜ(t)"])) ;
             testCase.verifyEqual(char(testCase.control('ConvVerificationAxes').Visible), 'on') ;
-            testCase.verifyEqual(char(testCase.control('ConvUseAsRTD').Visible), 'on') ;
+            testCase.verifyEqual(char(testCase.control('ConvUseAsRTD').Visible), 'off') ;
             testCase.verifyEqual(char(testCase.control('ConvUseAsRTD').Enable), 'off') ;
             testCase.verifyEqual(char(testCase.control('ConvSupportPanel').Visible), 'on') ;
         end
@@ -336,7 +336,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             testCase.verifyEqual(eLine.YData, expected.C, 'AbsTol', 1e-12) ;
         end
 
-        function deconvolutionFunctionMatchesCourseAndLoadsTabOne(testCase)
+        function deconvolutionFunctionMatchesCourseWithoutTabOneTransfer(testCase)
             testCase.showInteractiveApp() ;
             testCase.configureCourseDeconvolution('min') ;
 
@@ -357,20 +357,13 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
                 'Truncated')) ;
             testCase.verifyEqual(char(testCase.control('ConvDiagnostics').Visible), 'on') ;
             testCase.verifyEqual(char(testCase.control('ConvVerificationAxes').Visible), 'on') ;
-            testCase.verifyEqual(char(testCase.control('ConvUseAsRTD').Enable), 'on') ;
+            testCase.verifyEqual(char(testCase.control('ConvUseAsRTD').Visible), 'off') ;
+            testCase.verifyEqual(char(testCase.control('ConvUseAsRTD').Enable), 'off') ;
             testCase.verifyNumElements(findall(testCase.control('ConvAxes'), ...
                 'Type', 'ConstantLine'), 1) ;
             testCase.verifyEmpty(findall(testCase.control('ConvVerificationAxes'), ...
                 'Type', 'ConstantLine')) ;
             testCase.verifyEqual(char(testCase.control('ConvMomentsTable').Visible), 'off') ;
-            testCase.press(testCase.control('ConvUseAsRTD')) ;
-            saved = fullfile(testCase.Folder, 'deconvolved.mat') ;
-            testCase.App.saveSessionToFile(saved, 'deconvolved') ;
-            session = load(saved, 'sessionData') ;
-            testCase.verifyEqual(session.sessionData.rtd.source, 'Tabular Input') ;
-            testCase.verifyEqual(session.sessionData.shared.rtd.source, 'deconvolution') ;
-            testCase.verifyEqual(session.sessionData.shared.rtd.t, (4:9) * 60, ...
-                'AbsTol', 1e-12) ;
         end
 
         function sec02SessionWithTruncatedOutletWindowComputes(testCase)
@@ -643,6 +636,34 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
     end
 
     methods (Test)
+        function deconvolutionCannotTransferEstimatedRTDToTabOne(testCase)
+            testCase.App.loadSessionFromFile(fullfile(testCase.Root, ...
+                'saves', 'SECT02.mat')) ;
+            compute = testCase.control('ConvCompute') ;
+            feval(compute.ButtonPushedFcn, compute, []) ;
+            transfer = testCase.control('ConvUseAsRTD') ;
+            testCase.verifyEqual(char(transfer.Visible), 'off') ;
+            testCase.verifyEqual(char(transfer.Enable), 'off') ;
+
+            beforeFile = fullfile(testCase.Folder, 'before-transfer.mat') ;
+            testCase.App.saveSessionToFile(beforeFile, 'before-transfer') ;
+            before = load(beforeFile, 'sessionData') ;
+            feval(transfer.ButtonPushedFcn, transfer, []) ;
+            afterFile = fullfile(testCase.Folder, 'after-transfer.mat') ;
+            testCase.App.saveSessionToFile(afterFile, 'after-transfer') ;
+            after = load(afterFile, 'sessionData') ;
+            testCase.verifyEqual(after.sessionData.shared.rtd, ...
+                before.sessionData.shared.rtd) ;
+
+            group = testCase.control('ConvModeGroup') ;
+            convolution = group.Children(strcmp( ...
+                {group.Children.Text}, 'Convolution')) ;
+            group.SelectedObject = convolution ;
+            feval(group.SelectionChangedFcn, group, []) ;
+            testCase.verifyEqual(char(transfer.Visible), 'on') ;
+            testCase.verifySubstring(transfer.Text, 'C_out') ;
+        end
+
         function onlyConvolutionAndDeconvolutionModesRemain(testCase)
             group = testCase.control('ConvModeGroup') ;
             testCase.verifyEqual(sort(string({group.Children.Text})), ...

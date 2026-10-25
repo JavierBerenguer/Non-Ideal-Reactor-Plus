@@ -3,7 +3,7 @@ classdef ConvolutionTabHelper < handle
 % All times passed to nirp.conv are expressed in seconds.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 9, 2026. Last update: October 22, 2026
+% Created: October 9, 2026. Last update: October 25, 2026
 % =========================================================================
 
     properties (SetAccess = private)
@@ -658,16 +658,15 @@ classdef ConvolutionTabHelper < handle
 
         function configureUseButton(obj, mode)
             hasResult = isstruct(obj.LastResult) && isfield(obj.LastResult, 't') ;
-            obj.UseRTDButton.Visible = 'on' ;
-            obj.UseRTDButton.Enable = obj.onOff(hasResult) ;
             if strcmp(mode, 'Convolution')
+                obj.UseRTDButton.Visible = 'on' ;
+                obj.UseRTDButton.Enable = obj.onOff(hasResult) ;
                 obj.UseRTDButton.Text = 'Use C_out as tracer response in Tab 1' ;
                 obj.UseRTDButton.Tooltip = ['C_out is the response to the given C_in; ' ...
                     'it equals the RTD only if C_in is an ideal pulse.'] ;
             elseif strcmp(mode, 'Deconvolution')
-                obj.UseRTDButton.Text = 'Use Ê(t) as RTD in Tab 1' ;
-                obj.UseRTDButton.Tooltip = ...
-                    'Normalize the estimated E(t) and load it into RTD Analysis.' ;
+                obj.UseRTDButton.Visible = 'off' ;
+                obj.UseRTDButton.Enable = 'off' ;
             end
         end
 
@@ -1002,9 +1001,6 @@ classdef ConvolutionTabHelper < handle
                 obj.SetTracer(obj.LastResult) ;
                 obj.SetStatus(['C_out loaded as the Tab 1 pulse-response data. ' ...
                     'It is an RTD only for an ideal-pulse C_in.']) ;
-            else
-                obj.SetRTD(obj.LastResult, mode) ;
-                obj.SetStatus('Estimated E normalized and loaded as the Tab 1 RTD.') ;
             end
         end
 
