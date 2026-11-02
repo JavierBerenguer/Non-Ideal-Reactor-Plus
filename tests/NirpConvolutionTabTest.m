@@ -2,7 +2,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
     % NirpConvolutionTabTest verifies the app integration of nirp.conv.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 9, 2026. Last update: October 26, 2026
+    % Created: October 9, 2026. Last update: November 2, 2026
     % =========================================================================
 
     properties
@@ -736,8 +736,22 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             testCase.verifySubstring(transfer.Text, 'C_out') ;
         end
 
-        function syntheticTikhonovRequiresConfirmationAndLoadsNormalizedRTD(testCase)
-            testCase.configureSyntheticTikhonovDeconvolution() ;
+        function sec09RemainsDisabledForPoorFit(testCase)
+            testCase.App.loadSessionFromFile(fullfile(testCase.Root, ...
+                'saves', 'SEC09.mat')) ;
+            compute = testCase.control('ConvCompute') ;
+            feval(compute.ButtonPushedFcn, compute, []) ;
+            transfer = testCase.control('ConvUseAsRTD') ;
+
+            testCase.verifyEqual(char(transfer.Visible), 'on') ;
+            testCase.verifyEqual(char(transfer.Enable), 'off') ;
+            testCase.verifySubstring(transfer.Tooltip, ...
+                'relative reconvolution residual') ;
+            testCase.verifySubstring(transfer.Tooltip, 'requires <= 15%') ;
+        end
+
+        function cleanSyntheticRequiresConfirmationAndLoadsNormalizedRTD(testCase)
+            testCase.configureCleanSyntheticDeconvolution() ;
             compute = testCase.control('ConvCompute') ;
             feval(compute.ButtonPushedFcn, compute, []) ;
             transfer = testCase.control('ConvUseAsRTD') ;
@@ -749,11 +763,10 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             testCase.App.saveSessionToFile(beforeFile, 'synthetic-before') ;
             before = load(beforeFile, 'sessionData') ;
             estimated = before.sessionData.convolution.lastResult ;
-            testCase.verifyEqual(trapz(estimated.t, estimated.C), 1.0025, ...
-                'AbsTol', 0.005) ;
-            testCase.verifyEqual( ...
-                before.sessionData.convolution.lastInfo.relativeResidual, ...
-                0.12, 'AbsTol', 0.02) ;
+            testCase.verifyLessThanOrEqual( ...
+                abs(trapz(estimated.t, estimated.C) - 1), 0.05) ;
+            testCase.verifyLessThanOrEqual( ...
+                before.sessionData.convolution.lastInfo.relativeResidual, 0.15) ;
             overrideName = 'NirpDeconvolutionRTDConfirmOverride' ;
             setappdata(groot, overrideName, ...
                 @(message) recordRTDConfirmation(message, 'Cancel')) ;
@@ -774,7 +787,6 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
                 'Relative reconvolution residual = ') ;
             testCase.verifySubstring(message, ...
                 'Support [tau_min, tau_max] = [0, 20] s') ;
-            testCase.verifySubstring(message, 'Tikhonov used: Yes (lambda = ') ;
             testCase.verifySubstring(message, ['Ê is an estimate; it will be ' ...
                 'normalized and treated as the Tab 1 RTD.']) ;
 
@@ -791,7 +803,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
         end
 
         function representativePoorAreaKeepsTransferDisabled(testCase)
-            testCase.configureSyntheticTikhonovDeconvolution() ;
+            testCase.configureCleanSyntheticDeconvolution() ;
             output = testCase.control('ConvTableCout') ;
             output.Data(:, 2) = 0.7 * output.Data(:, 2) ;
             compute = testCase.control('ConvCompute') ;
@@ -846,46 +858,68 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             testCase.verifySubstring(status.Text, 'non-ideal tracer flowsheet') ;
         end
 
-        function tikhonovAutoIsHeadlessAndLegacySessionDefaultsToNone(testCase)
-            file = fullfile(testCase.Root,'saves','SECT02.mat') ;
-            stored = load(file,'sessionData') ;
-            reference = stored.sessionData.convolution.referenceTable ;
-            testCase.App.loadSessionFromFile(file) ;
-            testCase.verifyEqual(testCase.control('ConvRegularization').Value,'None') ;
-            compute = testCase.control('ConvCompute') ;
-            feval(compute.ButtonPushedFcn,compute,[]) ;
-            testCase.verifyEqual(testCase.control('ConvResultTable').Data, ...
-                reference,'AbsTol',1e-9*max(1,max(abs(reference),[],'all'))) ;
-            testCase.verifyNotEmpty(testCase.resultValue( ...
-                '$\mathrm{Relative\ residual}$')) ;
-            testCase.verifyEqual(char(testCase.control( ...
-                'ConvResultLabel7').Visible),'off') ;
-
-            regularization = testCase.control('ConvRegularization') ;
-            regularization.Value = 'Tikhonov' ;
-            feval(regularization.ValueChangedFcn,regularization,[]) ;
-            feval(compute.ButtonPushedFcn,compute,[]) ;
-
-            testCase.verifyEqual(testCase.control('ConvLowerPlot').Value,'L-curve') ;
-            testCase.verifySubstring(testCase.resultValue('$\lambda$'),'L-curve') ;
-            testCase.verifyEqual(testCase.control('ConvVerificationAxes').XScale,'log') ;
-            testCase.verifyEqual(testCase.control('ConvVerificationAxes').YScale,'log') ;
-            testCase.verifyEqual(testCase.control('ConvRegularization').Layout.Column,[2 3]) ;
+        function removedControlsAreAbsent(testCase)
+            tags = {'ConvRegularization', 'ConvLambdaMode', ...
+                'ConvLambdaValue', 'ConvSmoothing', ...
+                'ConvLowerPlot'} ;
+            for k = 1:numel(tags)
+                testCase.verifyEmpty(findall(testCase.Figure, 'Tag', tags{k})) ;
+            end
             testCase.verifyEqual(testCase.control('ConvSupportDescription').Text, ...
                 'Default: widest support compatible with the data.') ;
-            testCase.verifyGreaterThanOrEqual(numel( ...
-                testCase.control('ConvVerificationAxes').Children),2) ;
-            saved = fullfile(testCase.Folder,'tikhonov-auto.mat') ;
-            testCase.App.saveSessionToFile(saved,'tikhonov-auto') ;
-            roundTrip = load(saved,'sessionData') ;
-            testCase.verifyEqual(roundTrip.sessionData.convolution.regularization, ...
-                'Tikhonov') ;
-            testCase.verifyEqual(roundTrip.sessionData.convolution.lambdaMode, ...
-                'Auto (L-curve)') ;
-            info = roundTrip.sessionData.convolution.lastInfo ;
-            testCase.verifyEqual(info.lCurve.selectedIndex,24) ;
-            testCase.verifyGreaterThan(info.lambda,5e3) ;
-            testCase.verifyLessThan(info.lambda,1e4) ;
+        end
+
+        function legacyRemovedMethodRecomputesAndWarns(testCase)
+            testCase.configureCleanSyntheticDeconvolution() ;
+            compute = testCase.control('ConvCompute') ;
+            feval(compute.ButtonPushedFcn, compute, []) ;
+            expected = testCase.control('ConvResultTable').Data ;
+            saved = fullfile(testCase.Folder, 'legacy-removed-method.mat') ;
+            testCase.App.saveSessionToFile(saved, 'legacy-removed-method') ;
+            loaded = load(saved, 'sessionData') ;
+            loaded.sessionData.convolution = testCase.addLegacyOptions( ...
+                loaded.sessionData.convolution, 'Tikhonov') ;
+            sessionData = loaded.sessionData ; %#ok<NASGU>
+            save(saved, 'sessionData') ;
+
+            testCase.control('ConvTableCin').Data = cell(3, 2) ;
+            testCase.control('ConvTableCout').Data = cell(3, 2) ;
+            testCase.App.loadSessionFromFile(saved) ;
+
+            actual = testCase.control('ConvResultTable').Data ;
+            testCase.verifyEqual(actual, expected, 'AbsTol', 0) ;
+            labels = findall(testCase.Figure, 'Type', 'uilabel') ;
+            messages = string({labels.Text}) ;
+            testCase.verifyTrue(any(contains(messages, ...
+                'the session was recomputed without it.'))) ;
+            roundTrip = fullfile(testCase.Folder, 'round-trip.mat') ;
+            testCase.App.saveSessionToFile(roundTrip, 'round-trip') ;
+            stored = load(roundTrip, 'sessionData') ;
+            testCase.verifyNoLegacyOptions(stored.sessionData.convolution) ;
+        end
+
+        function legacyNoneLoadsWithoutRemovedMethodWarning(testCase)
+            testCase.configureCleanSyntheticDeconvolution() ;
+            compute = testCase.control('ConvCompute') ;
+            feval(compute.ButtonPushedFcn, compute, []) ;
+            saved = fullfile(testCase.Folder, 'legacy-none.mat') ;
+            testCase.App.saveSessionToFile(saved, 'legacy-none') ;
+            loaded = load(saved, 'sessionData') ;
+            loaded.sessionData.convolution = testCase.addLegacyOptions( ...
+                loaded.sessionData.convolution, 'None') ;
+            sessionData = loaded.sessionData ; %#ok<NASGU>
+            save(saved, 'sessionData') ;
+
+            testCase.App.loadSessionFromFile(saved) ;
+
+            labels = findall(testCase.Figure, 'Type', 'uilabel') ;
+            messages = string({labels.Text}) ;
+            testCase.verifyFalse(any(contains(messages, ...
+                'the session was recomputed without it.'))) ;
+            roundTrip = fullfile(testCase.Folder, 'none-round-trip.mat') ;
+            testCase.App.saveSessionToFile(roundTrip, 'none-round-trip') ;
+            stored = load(roundTrip, 'sessionData') ;
+            testCase.verifyNoLegacyOptions(stored.sessionData.convolution) ;
         end
     end
 
@@ -976,6 +1010,23 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             if isnumeric(data), cells = num2cell(data) ; else, cells = data ; end
         end
 
+        function state = addLegacyOptions(~, state, method)
+            state.('regularization') = method ;
+            state.('lambdaMode') = 'Manual' ;
+            state.('lambdaValue') = 0.1 ;
+            state.smoothing = 'identity' ;
+            state.('lowerPlot') = 'Reconvolution check' ;
+        end
+
+        function verifyNoLegacyOptions(testCase, state)
+            names = {'regularization', 'lambdaMode', ...
+                'lambdaValue', 'smoothing', 'lowerPlot'} ;
+            testCase.verifyFalse(any(isfield(state, names))) ;
+            infoNames = {'lambda', 'lambdaSelectedAutomatically', ...
+                'smoothing', 'regularizationMatrix', 'lCurve'} ;
+            testCase.verifyFalse(any(isfield(state.lastInfo, infoNames))) ;
+        end
+
         function configureCourseDeconvolution(testCase, unit)
             testCase.selectMode('Deconvolution') ;
             testCase.setDropdown('ConvTimeUnitCin', unit) ;
@@ -1014,16 +1065,13 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             testCase.control('ConvDt').Value = 0 ;
         end
 
-        function configureSyntheticTikhonovDeconvolution(testCase)
-            rng(187, 'twister') ;
+        function configureCleanSyntheticDeconvolution(testCase)
             dt = 0.2 ; % s
             time = 0:dt:20 ; % s
             inlet = nirp.conv.fromFunction( ...
                 @(value) exp(-((value - 2) / 0.7).^2), time) ;
             trueRTD = nirp.conv.fromRTD(RTD.tanks_in_series(3, 5, time), dt) ;
-            clean = nirp.conv.convolve(trueRTD, inlet) ;
-            noise = 0.05 * max(clean.C) * randn(size(clean.C)) ;
-            measured = nirp.conv.signal(clean.t, max(0, clean.C + noise)) ;
+            measured = nirp.conv.convolve(trueRTD, inlet) ;
 
             group = testCase.control('ConvModeGroup') ;
             buttons = group.Children ;
@@ -1037,9 +1085,6 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             supportMax = testCase.control('ConvSupportMax') ;
             supportMax.Value = 20 ;
             feval(supportMax.ValueChangedFcn, supportMax, []) ;
-            regularization = testCase.control('ConvRegularization') ;
-            regularization.Value = 'Tikhonov' ;
-            feval(regularization.ValueChangedFcn, regularization, []) ;
         end
 
     end

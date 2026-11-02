@@ -3,7 +3,7 @@ classdef ConvolutionTabHelper < handle
 % All times passed to nirp.conv are expressed in seconds.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 9, 2026. Last update: October 26, 2026
+% Created: October 9, 2026. Last update: November 2, 2026
 % =========================================================================
 
     properties (SetAccess = private)
@@ -25,11 +25,6 @@ classdef ConvolutionTabHelper < handle
         SupportMax
         SupportUnit
         SupportIsDefault = true
-        Regularization
-        Smoothing
-        LambdaMode
-        LambdaValue
-        LowerPlot
         SignalTabs
         HiddenSignalTabs
         Signals = struct()
@@ -67,11 +62,6 @@ classdef ConvolutionTabHelper < handle
                 'supportMax', obj.SupportMax.Value, ...
                 'supportUnit', obj.SupportUnit.Value, ...
                 'supportIsDefault', obj.SupportIsDefault, ...
-                'regularization', obj.Regularization.Value, ...
-                'smoothing', obj.Smoothing.Value, ...
-                'lambdaMode', obj.LambdaMode.Value, ...
-                'lambdaValue', obj.LambdaValue.Value, ...
-                'lowerPlot', obj.LowerPlot.Value, ...
                 'outputTimeUnit', obj.OutputTimeUnit.Value, ...
                 'outputConcentrationUnit', obj.OutputConcentrationUnit.Value, ...
                 'signals', struct(), 'lastSignals', obj.LastSignals, ...
@@ -97,6 +87,9 @@ classdef ConvolutionTabHelper < handle
             end
             storedMode = obj.getField(snapshot, 'mode', 'Convolution') ;
             seriesCompositionMoved = strcmp(storedMode, 'Series composition') ;
+            removedMethod = obj.getField(snapshot, 'regularization', 'None') ;
+            removedMethodUsed = strcmpi(char(string(removedMethod)), ...
+                'Tikhonov') && strcmp(storedMode, 'Deconvolution') ;
             if seriesCompositionMoved
                 storedMode = 'Convolution' ;
                 obj.reset() ;
@@ -114,16 +107,6 @@ classdef ConvolutionTabHelper < handle
             obj.setDropdown(obj.SupportUnit, ...
                 obj.getField(snapshot, 'supportUnit', legacyTimeUnit)) ;
             obj.SupportIsDefault = obj.getField(snapshot, 'supportIsDefault', true) ;
-            obj.setDropdown(obj.Regularization, ...
-                obj.getField(snapshot, 'regularization', 'None')) ;
-            obj.setDropdown(obj.Smoothing, ...
-                obj.getField(snapshot, 'smoothing', 'second difference')) ;
-            obj.setDropdown(obj.LambdaMode, ...
-                obj.getField(snapshot, 'lambdaMode', 'Auto (L-curve)')) ;
-            obj.LambdaValue.Value = obj.getField(snapshot, 'lambdaValue', 0.01) ;
-            obj.setDropdown(obj.LowerPlot, ...
-                obj.getField(snapshot, 'lowerPlot', 'Reconvolution check')) ;
-            obj.regularizationChanged(false) ;
             storedSignals = obj.getField(snapshot, 'signals', struct()) ;
             names = fieldnames(obj.Signals) ;
             for k = 1:numel(names)
@@ -165,9 +148,17 @@ classdef ConvolutionTabHelper < handle
                 obj.LastSignals = struct() ;
                 obj.LastResult = [] ;
                 obj.LastInfo = struct() ;
+            elseif removedMethodUsed
+                obj.LastSignals = struct() ;
+                obj.LastResult = [] ;
+                obj.LastInfo = struct() ;
             end
             obj.modeChanged() ;
-            if isstruct(obj.LastResult) && isfield(obj.LastResult, 't')
+            if removedMethodUsed
+                obj.compute() ;
+                obj.SetStatus(['Tikhonov regularization is no longer available; ' ...
+                    'the session was recomputed without it.']) ;
+            elseif isstruct(obj.LastResult) && isfield(obj.LastResult, 't')
                 obj.showResults() ;
             else
                 obj.clearResults() ;
@@ -190,12 +181,6 @@ classdef ConvolutionTabHelper < handle
             obj.SupportMax.Value = 10 ;
             obj.SupportUnit.Value = 's' ;
             obj.SupportIsDefault = true ;
-            obj.Regularization.Value = 'None' ;
-            obj.Smoothing.Value = 'second difference' ;
-            obj.LambdaMode.Value = 'Auto (L-curve)' ;
-            obj.LambdaValue.Value = 0.01 ;
-            obj.LowerPlot.Value = 'Reconvolution check' ;
-            obj.regularizationChanged(false) ;
             names = fieldnames(obj.Signals) ;
             for k = 1:numel(names)
                 ui = obj.Signals.(names{k}) ;
@@ -263,9 +248,9 @@ classdef ConvolutionTabHelper < handle
                 'Tooltip', ['Delays used as deconvolution unknowns. Defaults to the ' ...
                 'largest support compatible with the stated signal windows.']) ;
             obj.SupportPanel.Layout.Row = 4 ;
-            supportGrid = uigridlayout(obj.SupportPanel, [6 7], ...
+            supportGrid = uigridlayout(obj.SupportPanel, [2 7], ...
                 'ColumnWidth', {'fit', '1x', 'fit', '1x', 'fit', 58, 64}, ...
-                'RowHeight', {22, 18, 22, 22, 22, 18}, 'Padding', [6 1 6 1], ...
+                'RowHeight', {22, 18}, 'Padding', [6 1 6 1], ...
                 'RowSpacing', 0) ;
             uilabel(supportGrid, 'Text', '$\tau_{\min}$:', 'Interpreter', 'latex') ;
             obj.SupportMin = uieditfield(supportGrid, 'numeric', 'Value', 0, ...
@@ -290,59 +275,6 @@ classdef ConvolutionTabHelper < handle
                 'FontSize', 10, 'Tag', 'ConvSupportDescription') ;
             supportDescription.Layout.Row = 2 ;
             supportDescription.Layout.Column = [1 7] ;
-            regularizationLabel = uilabel(supportGrid, 'Text', 'Regularization:') ;
-            obj.Regularization = uidropdown(supportGrid, ...
-                'Items', {'None', 'Tikhonov'}, 'Value', 'None', ...
-                'Tag', 'ConvRegularization', ...
-                'Tooltip', 'None preserves the unregularized NNLS result; Tikhonov suppresses noise.', ...
-                'ValueChangedFcn', @(~,~) obj.regularizationChanged()) ;
-            smoothingLabel = uilabel(supportGrid, 'Text', 'Smoothing:') ;
-            obj.Smoothing = uidropdown(supportGrid, ...
-                'Items', {'second difference', 'identity'}, ...
-                'Value', 'second difference', 'Tag', 'ConvSmoothing', ...
-                'Tooltip', 'Second difference penalizes curvature; identity penalizes the RTD magnitude.') ;
-            regularizationLabel.Layout.Row = 3 ;
-            regularizationLabel.Layout.Column = 1 ;
-            obj.Regularization.Layout.Row = 3 ;
-            obj.Regularization.Layout.Column = [2 3] ;
-            smoothingLabel.Layout.Row = 3 ;
-            smoothingLabel.Layout.Column = 4 ;
-            obj.Smoothing.Layout.Row = 3 ;
-            obj.Smoothing.Layout.Column = [5 7] ;
-            lowerPlotLabel = uilabel(supportGrid, 'Text', 'Lower plot:') ;
-            obj.LowerPlot = uidropdown(supportGrid, ...
-                'Items', {'Reconvolution check', 'L-curve'}, ...
-                'Value', 'Reconvolution check', 'Tag', 'ConvLowerPlot', ...
-                'Tooltip', 'Switch the lower graph between data fit and regularization diagnostics.', ...
-                'ValueChangedFcn', @(~,~) obj.refreshPresentation()) ;
-            lambdaLabel = uilabel(supportGrid, 'Text', '$\lambda$:', 'Interpreter', 'latex') ;
-            obj.LambdaMode = uidropdown(supportGrid, ...
-                'Items', {'Auto (L-curve)', 'Manual'}, 'Value', 'Auto (L-curve)', ...
-                'Tag', 'ConvLambdaMode', ...
-                'Tooltip', 'Auto selects the maximum-curvature L-curve point; Manual uses the entered value.', ...
-                'ValueChangedFcn', @(~,~) obj.regularizationChanged()) ;
-            valueLabel = uilabel(supportGrid, 'Text', 'Value:') ;
-            obj.LambdaValue = uieditfield(supportGrid, 'numeric', ...
-                'Value', 0.01, 'Limits', [0 Inf], 'Tag', 'ConvLambdaValue', ...
-                'Tooltip', 'Manual nonnegative Tikhonov parameter in the augmented NNLS system.') ;
-            lambdaLabel.Layout.Row = 4 ;
-            lambdaLabel.Layout.Column = 1 ;
-            obj.LambdaMode.Layout.Row = 4 ;
-            obj.LambdaMode.Layout.Column = [2 3] ;
-            valueLabel.Layout.Row = 4 ;
-            valueLabel.Layout.Column = 4 ;
-            obj.LambdaValue.Layout.Row = 4 ;
-            obj.LambdaValue.Layout.Column = [5 7] ;
-            lowerPlotLabel.Layout.Row = 5 ;
-            lowerPlotLabel.Layout.Column = 1 ;
-            obj.LowerPlot.Layout.Row = 5 ;
-            obj.LowerPlot.Layout.Column = [2 7] ;
-            regularizationDescription = uilabel(supportGrid, ...
-                'Text', 'Auto scans 40 logarithmic values from 10^{-6} to 10^{2} times ||A||_2.', ...
-                'Interpreter', 'tex', 'FontSize', 10, ...
-                'Tag', 'ConvRegularizationDescription') ;
-            regularizationDescription.Layout.Row = 6 ;
-            regularizationDescription.Layout.Column = [1 7] ;
 
             computeButton = uibutton(controls, 'Text', 'Compute', ...
                 'FontWeight', 'bold', 'BackgroundColor', [0.3 0.6 0.9], ...
@@ -565,7 +497,7 @@ classdef ConvolutionTabHelper < handle
             obj.SupportPanel.Visible = obj.onOff(isDeconvolution) ;
             controls = obj.SupportPanel.Parent ;
             if isDeconvolution
-                controls.RowHeight{4} = 168 ;
+                controls.RowHeight{4} = 70 ;
             else
                 controls.RowHeight{4} = 0 ;
             end
@@ -629,31 +561,6 @@ classdef ConvolutionTabHelper < handle
                 obj.SupportMin.Value = previousValues(1) ;
                 obj.SupportMax.Value = previousValues(2) ;
                 obj.SetStatus(['Cannot suggest E support: ' exception.message]) ;
-            end
-        end
-
-        function regularizationChanged(obj,refresh)
-            if nargin < 2, refresh = true ; end
-            enabled = strcmp(obj.Regularization.Value,'Tikhonov') ;
-            obj.Smoothing.Enable = obj.onOff(enabled) ;
-            obj.LambdaMode.Enable = obj.onOff(enabled) ;
-            obj.LambdaValue.Enable = obj.onOff(enabled && ...
-                strcmp(obj.LambdaMode.Value,'Manual')) ;
-            obj.LowerPlot.Enable = obj.onOff(enabled && ...
-                strcmp(obj.LambdaMode.Value,'Auto (L-curve)')) ;
-            if ~enabled || strcmp(obj.LambdaMode.Value,'Manual')
-                obj.LowerPlot.Value = 'Reconvolution check' ;
-            end
-            if refresh, obj.refreshPresentation() ; end
-        end
-
-        function options = deconvolutionRegularization(obj)
-            options = struct('lambda',0,'smoothing',obj.Smoothing.Value) ;
-            if ~strcmp(obj.Regularization.Value,'Tikhonov'), return, end
-            if strcmp(obj.LambdaMode.Value,'Auto (L-curve)')
-                options.lambda = 'auto' ;
-            else
-                options.lambda = obj.LambdaValue.Value ;
             end
         end
 
@@ -727,15 +634,11 @@ classdef ConvolutionTabHelper < handle
                 elseif strcmp(mode, 'Deconvolution')
                     support = obj.deconvolutionSupport(signals, dt) ;
                     [obj.LastResult, obj.LastInfo] = nirp.conv.deconvolve( ...
-                        signals.Cin, signals.Cout, support, ...
-                        obj.deconvolutionRegularization()) ;
+                        signals.Cin, signals.Cout, support) ;
                     obj.LastInfo.relativeResidual = obj.LastInfo.residualNorm / ...
                         max(norm(signals.Cout.C), eps) ;
                     signals.E = obj.LastResult ;
                     signals.Reconvolved = obj.LastInfo.reconvolved ;
-                    if obj.LastInfo.lambdaSelectedAutomatically
-                        obj.LowerPlot.Value = 'L-curve' ;
-                    end
                 end
                 obj.LastSignals = signals ;
                 obj.showResults() ;
@@ -964,13 +867,6 @@ classdef ConvolutionTabHelper < handle
                         '\ \mathrm{measurements;}\ ' ...
                         '\mathrm{review\ the\ E\ support.}$'] ;
                 end
-                selectedLambda = obj.getField(obj.LastInfo,'lambda',0) ;
-                selectedAutomatically = obj.getField( ...
-                    obj.LastInfo,'lambdaSelectedAutomatically',false) ;
-                lambdaReading = sprintf('%.6g',selectedLambda) ;
-                if selectedAutomatically
-                    lambdaReading = [lambdaReading ' (L-curve)'] ;
-                end
                 resultLabels = { ...
                     '$A_E$', '$\tau$', '$\sigma^2$', '$\sigma_\theta^2$', ...
                     '$N\simeq1/\sigma_\theta^2$'} ;
@@ -982,20 +878,11 @@ classdef ConvolutionTabHelper < handle
                     '\;\mathrm{' obj.latexUnit(timeUnit) '^2}$'], ...
                     ['$' sprintf('%.6g', sigmaTheta) '$'], ...
                     ['$' sprintf('%.6g', equivalentTanks) '$']} ;
-                if strcmp(obj.Regularization.Value, 'Tikhonov')
-                    resultLabels{end + 1} = '$\lambda$' ;
-                    resultValues{end + 1} = ['$' lambdaReading '$'] ;
-                end
                 resultLabels{end + 1} = '$\mathrm{Relative\ residual}$' ;
                 resultValues{end + 1} = ...
                     ['$' sprintf('%.2f', relativeResidual * 100) '\%$'] ;
                 obj.setResultRows(resultLabels, resultValues, ...
                     strjoin(warnings, newline)) ;
-                if strcmp(obj.Regularization.Value, 'Tikhonov')
-                    lambdaIndex = 6 ;
-                    obj.ResultValues{lambdaIndex}.Interpreter = 'none' ;
-                    obj.ResultValues{lambdaIndex}.Text = ['= ' lambdaReading] ;
-                end
                 residualIndex = numel(resultLabels) ;
                 obj.ResultLabels{residualIndex}.Layout.Row = 4 ;
                 obj.ResultLabels{residualIndex}.Layout.Column = 1 ;
@@ -1061,7 +948,7 @@ classdef ConvolutionTabHelper < handle
 
         function [passed, tooltip, quality] = deconvolutionRTDQuality(obj)
             quality = struct('area', NaN, 'relativeResidual', NaN, ...
-                'support', [NaN NaN], 'usedTikhonov', false, 'lambda', NaN) ;
+                'support', [NaN NaN]) ;
             if ~isstruct(obj.LastResult) || ~isfield(obj.LastResult, 't') || ...
                     ~isstruct(obj.LastSignals) || ~isfield(obj.LastSignals, 'Cout') || ...
                     ~strcmp(obj.ModeGroup.SelectedObject.Text, 'Deconvolution')
@@ -1076,8 +963,6 @@ classdef ConvolutionTabHelper < handle
             quality.relativeResidual = obj.relativeResidual() ;
             quality.support = obj.getField(obj.LastInfo, 'support', ...
                 obj.LastResult.t([1 end])) ;
-            quality.lambda = obj.getField(obj.LastInfo, 'lambda', 0) ;
-            quality.usedTikhonov = isfinite(quality.lambda) && quality.lambda > 0 ;
             areaPassed = isfinite(quality.area) && abs(quality.area - 1) <= 0.05 ;
             residualPassed = isfinite(quality.relativeResidual) && ...
                 quality.relativeResidual <= 0.15 ;
@@ -1104,19 +989,13 @@ classdef ConvolutionTabHelper < handle
         end
 
         function confirmed = confirmEstimatedRTD(obj, quality)
-            if quality.usedTikhonov
-                tikhonov = sprintf('Yes (lambda = %.6g)', quality.lambda) ;
-            else
-                tikhonov = 'No' ;
-            end
             message = sprintf([ ...
                 'A_E = %.6g\n' ...
                 'Relative reconvolution residual = %.2f%%\n' ...
-                'Support [tau_min, tau_max] = [%.6g, %.6g] s\n' ...
-                'Tikhonov used: %s\n\n' ...
+                'Support [tau_min, tau_max] = [%.6g, %.6g] s\n\n' ...
                 'Ê is an estimate; it will be normalized and treated as the Tab 1 RTD.'], ...
                 quality.area, 100 * quality.relativeResidual, quality.support(1), ...
-                quality.support(2), tikhonov) ;
+                quality.support(2)) ;
             overrideName = 'NirpDeconvolutionRTDConfirmOverride' ;
             if isappdata(groot, overrideName)
                 override = getappdata(groot, overrideName) ;
@@ -1275,7 +1154,9 @@ classdef ConvolutionTabHelper < handle
             end
             info.relativeResidual = obj.relativeResidual() ;
             obsolete = intersect(fieldnames(info), ...
-                {'residualNorm'; 'massBalance'; 'regularizationMatrix'}) ;
+                {'residualNorm'; 'massBalance'; 'regularizationMatrix'; ...
+                 'lambda'; 'lambdaSelectedAutomatically'; 'smoothing'; ...
+                 'lCurve'}) ;
             if ~isempty(obsolete), info = rmfield(info, obsolete) ; end
         end
 
@@ -1293,58 +1174,33 @@ classdef ConvolutionTabHelper < handle
         end
 
         function plotDeconvolutionCheck(obj,timeScale,concentrationScale)
-            legendInterpreter = 'latex' ;
-            if strcmp(obj.LowerPlot.Value,'L-curve') && ...
-                    isfield(obj.LastInfo,'lCurve') && ...
-                    ~isempty(obj.LastInfo.lCurve.lambda)
-                curve = obj.LastInfo.lCurve ;
-                loglog(obj.VerificationAxes,curve.residualNorm,curve.seminorm, ...
-                    '-o','LineWidth',1,'MarkerSize',3, ...
-                    'DisplayName','L-curve') ;
-                hold(obj.VerificationAxes,'on') ;
-                selected = curve.selectedIndex ;
-                loglog(obj.VerificationAxes,curve.residualNorm(selected), ...
-                    curve.seminorm(selected),'rp','MarkerSize',12, ...
-                    'MarkerFaceColor','r','DisplayName', ...
-                    sprintf('λ = %.3g',obj.LastInfo.lambda)) ;
-                hold(obj.VerificationAxes,'off') ;
-                obj.VerificationAxes.XScale = 'log' ;
-                obj.VerificationAxes.YScale = 'log' ;
-                title(obj.VerificationAxes,'L-curve','Interpreter','none') ;
-                xlabel(obj.VerificationAxes,'$\|A\widehat{e}-c_{\mathrm{out}}\|_2$', ...
-                    'Interpreter','latex') ;
-                ylabel(obj.VerificationAxes,'$\|L\widehat{e}\|_2$', ...
-                    'Interpreter','latex') ;
-                legendInterpreter = 'none' ;
-            else
-                hold(obj.VerificationAxes, 'on') ;
-                measuredLine = obj.plotSignal(obj.VerificationAxes, ...
-                    obj.LastSignals.Cout, false, timeScale, concentrationScale, ...
-                    '$C_{\mathrm{out,measured}}(t)$') ;
-                measuredLine.LineStyle = 'none' ;
-                measuredLine.Marker = 'o' ;
-                obj.plotSignal(obj.VerificationAxes, ...
-                    obj.LastSignals.Reconvolved, false, timeScale, ...
-                    concentrationScale, '$C_{\mathrm{out,reconvolved}}(t)$', 1.6) ;
-                residualValues = obj.LastInfo.residual / concentrationScale ;
-                bar(obj.VerificationAxes, obj.LastSignals.Cout.t / timeScale, ...
-                    residualValues, 0.35, ...
-                    'DisplayName', '$C_{\mathrm{measured}}-C_{\mathrm{fit}}$', ...
-                    'FaceAlpha', 0.35, 'EdgeColor', 'none') ;
-                xlim(obj.VerificationAxes, ...
-                    obj.LastSignals.Cout.t([1 end]) / timeScale) ;
-                hold(obj.VerificationAxes, 'off') ;
-                title(obj.VerificationAxes, ...
-                    '$\mathrm{Reconvolution\ check}$', 'Interpreter', 'latex') ;
-                xlabel(obj.VerificationAxes, ['$t\;[\mathrm{' ...
-                    obj.latexUnit(obj.OutputTimeUnit.Value) '}]$'], ...
-                    'Interpreter', 'latex') ;
-                ylabel(obj.VerificationAxes, ['$C_{\mathrm{out}}\;[\mathrm{' ...
-                    obj.latexUnit(obj.OutputConcentrationUnit.Value) '}]$'], ...
-                    'Interpreter', 'latex') ;
-            end
+            hold(obj.VerificationAxes, 'on') ;
+            measuredLine = obj.plotSignal(obj.VerificationAxes, ...
+                obj.LastSignals.Cout, false, timeScale, concentrationScale, ...
+                '$C_{\mathrm{out,measured}}(t)$') ;
+            measuredLine.LineStyle = 'none' ;
+            measuredLine.Marker = 'o' ;
+            obj.plotSignal(obj.VerificationAxes, ...
+                obj.LastSignals.Reconvolved, false, timeScale, ...
+                concentrationScale, '$C_{\mathrm{out,reconvolved}}(t)$', 1.6) ;
+            residualValues = obj.LastInfo.residual / concentrationScale ;
+            bar(obj.VerificationAxes, obj.LastSignals.Cout.t / timeScale, ...
+                residualValues, 0.35, ...
+                'DisplayName', '$C_{\mathrm{measured}}-C_{\mathrm{fit}}$', ...
+                'FaceAlpha', 0.35, 'EdgeColor', 'none') ;
+            xlim(obj.VerificationAxes, ...
+                obj.LastSignals.Cout.t([1 end]) / timeScale) ;
+            hold(obj.VerificationAxes, 'off') ;
+            title(obj.VerificationAxes, ...
+                '$\mathrm{Reconvolution\ check}$', 'Interpreter', 'latex') ;
+            xlabel(obj.VerificationAxes, ['$t\;[\mathrm{' ...
+                obj.latexUnit(obj.OutputTimeUnit.Value) '}]$'], ...
+                'Interpreter', 'latex') ;
+            ylabel(obj.VerificationAxes, ['$C_{\mathrm{out}}\;[\mathrm{' ...
+                obj.latexUnit(obj.OutputConcentrationUnit.Value) '}]$'], ...
+                'Interpreter', 'latex') ;
             legend(obj.VerificationAxes, 'show', 'Location', 'best', ...
-                'Interpreter', legendInterpreter) ;
+                'Interpreter', 'latex') ;
         end
 
         function plotMeanTime(~, axesControl, signal, timeScale, color, label)

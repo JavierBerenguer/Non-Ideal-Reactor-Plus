@@ -34,7 +34,6 @@
             <li><a href="#signals">Signals, units, and time step</a></li>
             <li><a href="#convolution">Convolution and SECT01</a></li>
             <li><a href="#deconvolution">Deconvolution and SECT02</a></li>
-            <li><a href="#regularization">Tikhonov regularization</a></li>
             <li><a href="#results">How to use every result</a></li>
             <li><a href="#reuse">Reuse the result in Tab 1</a></li>
           </ol>
@@ -103,35 +102,9 @@
       <ol>
         <li>Select <strong>Deconvolution</strong> and enter <em>C</em><sub>in</sub>(t) and measured <em>C</em><sub>out</sub>(t).</li>
         <li>Set &tau;<sub>min</sub>, &tau;<sub>max</sub>, and their unit from physical timing knowledge. The default is the widest support compatible with the signal windows.</li>
-        <li>Start with <strong>Regularization: None</strong> for exact or teaching data. Select <strong>Compute</strong>.</li>
+        <li>Select <strong>Compute</strong> to estimate E(t) by nonnegative least squares.</li>
         <li>Use the lower <strong>Reconvolution check</strong> to compare measured points, the fitted outlet, and residual bars. Then inspect the relative residual and the E-area warning.</li>
       </ol>
-    </section>
-
-    <section class="section" id="regularization">
-      <h2>Tikhonov Regularization for Noisy Data</h2>
-      <p>Deconvolution amplifies measurement noise. Select <strong>Tikhonov</strong> when an unregularized E follows point-to-point noise or contains implausibly sharp changes. Keep <strong>None</strong> for exact data unless there is a clear reason to smooth it: regularization can otherwise oversmooth the true RTD and increase the mismatch.</p>
-      <table>
-        <tr><th>Choice</th><th>Use it for</th><th>Interpretation</th></tr>
-        <tr><td><strong>Smoothing: second difference</strong></td><td>The usual noisy experimental RTD.</td><td>Discourages curvature, producing a smoother shape while allowing its overall level to be determined by the data.</td></tr>
-        <tr><td><strong>Smoothing: identity</strong></td><td>Cases where limiting the magnitude is more appropriate than smoothing curvature.</td><td>Penalizes the size of E itself and can shrink the whole estimate.</td></tr>
-        <tr><td><strong>&lambda;: Auto (L-curve)</strong></td><td>A defensible first choice when &lambda; is unknown.</td><td>Selects the marked corner that balances reconvolution error against the smoothing measure.</td></tr>
-        <tr><td><strong>&lambda;: Manual</strong></td><td>Sensitivity studies or a value justified from repeated experiments.</td><td>Enter the nonnegative strength directly; compare both the reconvolution and the resulting RTD as it changes.</td></tr>
-      </table>
-      <figure class="figure-card">
-        <img src="../assets/tab6-tikhonov-lcurve-sect02.png" alt="SECT02 with Tikhonov regularization and automatic lambda marked on the L-curve">
-        <figcaption>SECT02 shown with <strong>Tikhonov</strong>, second-difference smoothing, automatic &lambda;, and the <strong>L-curve</strong> lower plot. This view demonstrates the diagnostic; for the exact course data, the unregularized solution is the more faithful starting point.</figcaption>
-      </figure>
-      <div class="grid-2">
-        <div>
-          <h3>Reconvolution check</h3>
-          <p>Use it to see where the fitted outlet misses measured points. Structured residuals suggest a wrong support, baseline problem, timing mismatch, or model limitation rather than random noise alone.</p>
-        </div>
-        <div>
-          <h3>L-curve</h3>
-          <p>Use it to inspect the tradeoff behind automatic &lambda;. The marked point is the selected balance, not proof that the RTD is physically correct; still check area, support, shape, and reconvolution.</p>
-        </div>
-      </div>
     </section>
 
     <section class="section" id="results">
@@ -144,7 +117,6 @@
         <tr><td>&sigma;<sub>&theta;</sub><sup>2</sup></td><td>Dimensionless variance, &sigma;<sup>2</sup>/&tau;<sup>2</sup>.</td><td>Compares RTD breadth independently of vessel time scale. Use N &asymp; 1/&sigma;<sub>&theta;</sub><sup>2</sup> as a tanks-in-series estimate. For axial dispersion, interpret breadth with the Peclet number Pe: high Pe means weak dispersion and a narrow RTD; low Pe means stronger dispersion and a broader RTD.</td></tr>
         <tr><td>Relative residual</td><td>The reconvolution error relative to the measured outlet magnitude over the measured window.</td><td>Read the displayed rating as a fit screen: below 5% is good, 5&ndash;15% is acceptable, and above 15% asks you to check data or E support. A small value does not by itself validate the RTD physically.</td></tr>
         <tr><td>Warning A<sub>E</sub> &ne; 1</td><td>The estimated E does not have unit area within the chosen support.</td><td>Check tracer recovery, baselines, tails, units, and support before accepting it. Sending it to Tab 1 normalizes it, but normalization does not repair poor data or a wrong support.</td></tr>
-        <tr><td>&lambda;</td><td>The Tikhonov regularization strength; the result shows whether automatic selection used the L-curve.</td><td>Larger &lambda; favors the selected smoothing rule more strongly and usually sacrifices reconvolution fit. Compare nearby values manually when the automatic corner gives an implausible RTD.</td></tr>
       </table>
     </section>
 

@@ -1420,7 +1420,10 @@ classdef NonIdealReactorApp < handle
             backupSnapshot = app.buildSessionSnapshot('backup_before_load') ;
             try
                 app.loadSessionFromFile(fullfile(filePath, fileName)) ;
-                app.updateStatus(sprintf('Session loaded: %s', fileName)) ;
+                if ~contains(app.StatusBar.Text, ...
+                        'the session was recomputed without it.')
+                    app.updateStatus(sprintf('Session loaded: %s', fileName)) ;
+                end
 
                 loadedData = load(fullfile(filePath, fileName), 'sessionData') ;
                 if ~isfield(loadedData.sessionData, 'session_version') || ...

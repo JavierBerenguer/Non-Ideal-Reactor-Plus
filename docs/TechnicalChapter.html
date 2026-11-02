@@ -58,7 +58,7 @@
             <li>Ideal CSTR and Ideal PFR references</li>
             <li>Equivalent-model routes through Tanks-in-Series and Dispersion Model</li>
             <li>Design workspace with fitting, reactive comparison, and process optimization</li>
-            <li>Tracer-signal convolution and RTD estimation by deconvolution, including Tikhonov regularization</li>
+            <li>Tracer-signal convolution and nonnegative RTD estimation by deconvolution</li>
           </ul>
         </div>
       </div>
@@ -156,7 +156,7 @@
         </article>
         <article class="card">
           <h3>Tab 6 - Convolution</h3>
-          <p>Convolution of inlet tracer signals with an RTD, deconvolution, regularization, diagnostics, and reuse in Tab 1.</p>
+          <p>Convolution of inlet tracer signals with an RTD, nonnegative deconvolution, fit diagnostics, and reuse in Tab 1.</p>
           <a class="button" href="guides/tab-6-convolution.html">Open guide</a>
         </article>
       </div>
@@ -264,12 +264,12 @@
         <tr>
           <td>The deconvolution has a high relative residual</td>
           <td><a href="guides/tab-6-convolution.html#results">Tab 6 guide</a></td>
-          <td>The estimated RTD does not reconvolve closely enough to the measured outlet; recheck the signals, common grid, support, and regularization.</td>
+          <td>The estimated RTD does not reconvolve closely enough to the measured outlet; recheck the signals, common grid, and support.</td>
         </tr>
         <tr>
-          <td>The estimated E is noisy or oscillatory</td>
-          <td><a href="guides/tab-6-convolution.html#regularization">Tab 6 guide</a></td>
-          <td>Use Tikhonov regularization and compare the automatic L-curve choice with nearby manual &lambda; values.</td>
+          <td>The estimated E is oscillatory or implausible</td>
+          <td><a href="guides/tab-6-convolution.html#deconvolution">Tab 6 guide</a></td>
+          <td>Review the measured signals, common time grid, baselines, and physical support of E.</td>
         </tr>
       </table>
       <div class="footer-nav">
