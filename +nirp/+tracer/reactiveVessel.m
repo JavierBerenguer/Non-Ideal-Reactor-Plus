@@ -1,15 +1,18 @@
-function out = reactiveVessel(grid,E,RS,Cin,T,keyIndex)
+function out = reactiveVessel(grid,E,RS,Cin,T,keyIndex,varargin)
 %REACTIVEVESSEL Compute stationary micromixing limits for one vessel RTD.
 %   OUT = REACTIVEVESSEL(GRID,E,RS,CIN,T,KEYINDEX) returns Cseg and Cmm in
 %   mol/m^3 and the key-component conversions Xseg and Xmm. GRID time is in
 %   seconds, E is in 1/s on that grid, and T is in K. E is normalized by the
 %   RTD class for calculation; diagnostic.areaRetained reports its original
 %   rectangular mass on the flowsheet grid so truncated tails remain visible.
+%   The optional name-value Mode is 'both' (default), 'segregation', or
+%   'maxmixedness'. A selective call leaves the unrequested result empty.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 25, 2026. Last update: October 25, 2026
+% Created: October 25, 2026. Last update: November 3, 2026
 % =========================================================================
 
+    mode = parseMode(varargin{:}) ;
     grid = nirp.tracer.validateGrid(grid) ;
     validateattributes(E,{'numeric'},{'real','vector','numel',grid.length, ...
         'finite','nonnegative'},mfilename,'E') ;
@@ -56,21 +59,28 @@ function out = reactiveVessel(grid,E,RS,Cin,T,keyIndex)
 
     out = struct('Cseg',zeros(size(Cin)),'Cmm',zeros(size(Cin)), ...
         'Xseg',NaN,'Xmm',NaN,'diagnostic',diagnostic) ;
+    if strcmp(mode,'segregation')
+        out.Cmm = [] ;
+    elseif strcmp(mode,'maxmixedness')
+        out.Cseg = [] ;
+    end
     if all(Cin == 0)
         out.diagnostic.warnings(end+1) = zeroKeyNotice() ;
         return
     end
 
     rtd = RTD(grid.t,E) ;
-    segregation = SegregationModel(rtd) ;
-    segregation.keyComponentIndex = keyIndex ;
-    segregation = segregation.compute_isothermal(RS,Cin,T) ;
-    out.Cseg = max(reshape(segregation.C_exit,1,[]),0) ;
+    if ~strcmp(mode,'maxmixedness')
+        segregation = SegregationModel(rtd) ;
+        segregation.keyComponentIndex = keyIndex ;
+        segregation = segregation.compute_isothermal(RS,Cin,T) ;
+        out.Cseg = max(reshape(segregation.C_exit,1,[]),0) ;
+    end
 
     concentrated = nnz(E > max(E)*1e-12) == 1 ;
-    if concentrated
+    if strcmp(mode,'both') && concentrated
         out.Cmm = out.Cseg ;
-    else
+    elseif ~strcmp(mode,'segregation')
         maximumMixedness = MaxMixednessModel(rtd) ;
         maximumMixedness.keyComponentIndex = keyIndex ;
         maximumMixedness = maximumMixedness.compute_isothermal(RS,Cin,T) ;
@@ -80,8 +90,25 @@ function out = reactiveVessel(grid,E,RS,Cin,T,keyIndex)
     if Cin(keyIndex) == 0
         out.diagnostic.warnings(end+1) = zeroKeyNotice() ;
     else
-        out.Xseg = min(1,max(0,1-out.Cseg(keyIndex)/Cin(keyIndex))) ;
-        out.Xmm = min(1,max(0,1-out.Cmm(keyIndex)/Cin(keyIndex))) ;
+        if ~isempty(out.Cseg)
+            out.Xseg = min(1,max(0,1-out.Cseg(keyIndex)/Cin(keyIndex))) ;
+        end
+        if ~isempty(out.Cmm)
+            out.Xmm = min(1,max(0,1-out.Cmm(keyIndex)/Cin(keyIndex))) ;
+        end
+    end
+end
+
+function mode = parseMode(varargin)
+    parser = inputParser ;
+    parser.FunctionName = mfilename ;
+    addParameter(parser,'Mode','both',@(x) ischar(x) || ...
+        (isstring(x) && isscalar(x))) ;
+    parse(parser,varargin{:}) ;
+    mode = lower(strtrim(char(parser.Results.Mode))) ;
+    if ~ismember(mode,{'both','segregation','maxmixedness'})
+        error('nirp:tracer:InvalidMicromixingMode', ...
+            'Mode must be both, segregation, or maxmixedness.') ;
     end
 end
 
