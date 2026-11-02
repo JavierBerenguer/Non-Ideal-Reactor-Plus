@@ -2,7 +2,7 @@ function modelFiles = build_tracer_examples(folder,only)
 %BUILD_TRACER_EXAMPLES Generate the non-ideal tracer flowsheet examples.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 22, 2026. Last update: October 25, 2026
+% Created: October 22, 2026. Last update: November 2, 2026
 % =========================================================================
     root=fileparts(fileparts(mfilename('fullpath')));addpath(root);
     if nargin<1||isempty(folder),folder=fullfile(fileparts(mfilename('fullpath')),'tracer_examples');end
@@ -13,7 +13,8 @@ function modelFiles = build_tracer_examples(folder,only)
         'tracer_sec01_series',0.05,42,@buildSec01; ...
         'reactive_two_cstr_first_order',0.02,40,@buildReactiveFirstOrder; ...
         'reactive_two_cstr_second_order',0.02,40,@buildReactiveSecondOrder; ...
-        'reactive_pfr_cstr_parallel_second_order',0.02,40,@buildReactiveParallel};
+        'reactive_pfr_cstr_parallel_second_order',0.02,40,@buildReactiveParallel; ...
+        'reactive_exam_jan2024',0.005,30,@buildReactiveExamJan2024};
     if nargin>=2&&~isempty(only),definitions=definitions(ismember(string(definitions(:,1)),string(only)),:);end
     modelFiles=strings(size(definitions,1),1);
     for i=1:size(definitions,1)
@@ -88,14 +89,36 @@ add_line(model,'Source/1','Splitter/1');add_line(model,'Splitter/1','PFR/1');add
 add_line(model,'PFR/1','Mixer/1');add_line(model,'CSTR/1','Mixer/2');add_line(model,'Mixer/1','Monitor/1');
 end
 
-function configureReaction(model,dt,tFinal,folder,dictionaryFile,order,k)
-RS=ReactionSys;RS.componentNames={'A','B'};
-if order==1
-    RS.stochiometricMatrix=[-1 1];RS.k0=k;RS.Ea=0;
+function buildReactiveExamJan2024(model,dt,tFinal,folder,dictionaryFile)
+RS=ReactionSys;RS.componentNames={'A','B','C','D','E'};
+RS.stochiometricMatrix=[-1 1 0 0 0;0 -1 1 0 0;-2 0 0 1 1;0 1 0 -1 -1];
+% SI rates [mol/(m^3 s)]: A <-> B, B -> C, 2A -> D + E, D + E -> B.
+RS.userDefinedKinetics=@(C,T)[C(1)-2*C(2),C(2), ...
+    0.01*C(1)^2,0.001*C(4)*C(5)]; %#ok<INUSD>
+configureReaction(model,dt,tFinal,folder,dictionaryFile,RS,[]);
+addReactiveSource(model,dt,tFinal,[1000 0 0 0 0],0.05);
+addSystem(model,'Reactor 1 - tanks n 1','nirp.tracerblocks.Vessel',[220 140 390 220], ...
+    {'Model','Tanks','Tau','1','N','1'});
+addSystem(model,'Reactor 2 - tanks n 100','nirp.tracerblocks.Vessel',[445 140 625 220], ...
+    {'Model','Tanks','Tau','2','N','100'});
+addSystem(model,'Monitor','nirp.tracerblocks.Monitor',[685 150 815 210],{'ShowViewer','0'});
+add_line(model,'Source/1','Reactor 1 - tanks n 1/1');
+add_line(model,'Reactor 1 - tanks n 1/1','Reactor 2 - tanks n 100/1');
+add_line(model,'Reactor 2 - tanks n 100/1','Monitor/1');
+end
+
+function configureReaction(model,dt,tFinal,folder,dictionaryFile,reactionSpec,k)
+if isa(reactionSpec,'ReactionSys')
+    RS=reactionSpec;
 else
-    % ReactionSys derives power-law orders from stoichiometry. Scaling the
-    % extent coefficient by 1/2 gives the requested -r_A = k*C_A^2 law.
-    RS.stochiometricMatrix=[-2 2];RS.k0=k/2;RS.Ea=0;
+    RS=ReactionSys;RS.componentNames={'A','B'};
+    if reactionSpec==1
+        RS.stochiometricMatrix=[-1 1];RS.k0=k;RS.Ea=0;
+    else
+        % ReactionSys derives power-law orders from stoichiometry. Scaling
+        % the extent coefficient gives the requested -r_A = k*C_A^2 law.
+        RS.stochiometricMatrix=[-2 2];RS.k0=k/2;RS.Ea=0;
+    end
 end
 reactionFile=[model '_reaction.mat'];save(fullfile(folder,reactionFile),'RS','-mat');
 nirp.tracerflowsheet.writeDictionary(dictionaryFile,nirp.tracer.grid(dt,tFinal),RS.nComponents);
@@ -103,9 +126,11 @@ set_param([model '/Tracer Flowsheet'],'Micromixing','Both','ReactionOrigin','Fil
     'ReactionReference',reactionFile,'KeyComponent','1','Temperature','298.15');
 end
 
-function addReactiveSource(model,dt,tFinal)
+function addReactiveSource(model,dt,tFinal,concentrations,Q)
+if nargin<4,concentrations=[10 0];end
+if nargin<5,Q=1;end
 addSource(model,'Source',[40 150 165 210],dt,tFinal,1);
-set_param([model '/Source'],'FeedConcentrations','[10 0]');
+set_param([model '/Source'],'FeedConcentrations',mat2str(concentrations,15),'Q',num2str(Q,15));
 end
 
 function addSource(model,name,position,dt,~,id)

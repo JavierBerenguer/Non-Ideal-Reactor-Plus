@@ -2,7 +2,7 @@ classdef NirpTracerReactiveExamplesTest < matlab.unittest.TestCase
     % Headless tests for persisted reactive tracer flowsheet examples.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 25, 2026. Last update: October 25, 2026
+    % Created: October 25, 2026. Last update: November 2, 2026
     % =========================================================================
     properties,Folder;end
     methods (TestMethodSetup)
@@ -20,6 +20,8 @@ classdef NirpTracerReactiveExamplesTest < matlab.unittest.TestCase
             testCase.verifyEqual(descriptions(4:6),["Two reactive CSTRs in series (first order)"; ...
                 "Two reactive CSTRs in series (second order)"; ...
                 "Reactive PFR and CSTR in parallel (second order)"]);
+            testCase.verifyEqual(names(7),"reactive_exam_jan2024");
+            testCase.verifySubstring(descriptions(7),"2A -> D + E");
         end
         function firstOrderExampleRestoresAndMatchesAnalytical(testCase)
             reaction=openRestoreAndSimulate(testCase,"reactive_two_cstr_first_order");
@@ -49,9 +51,37 @@ classdef NirpTracerReactiveExamplesTest < matlab.unittest.TestCase
         function validationReportsEveryReactiveMagnitude(testCase)
             [tracer,reactive]=run_tracer_validation(testCase.Folder);
             testCase.verifySize(tracer,[3 5]);testCase.verifyLessThanOrEqual(tracer.maxAbsError,5e-3);
-            testCase.verifySize(reactive,[12 8]);testCase.verifyLessThanOrEqual(reactive.relativeError,reactive.tolerance);
+            testCase.verifySize(reactive,[22 9]);testCase.verifyLessThanOrEqual(reactive.relativeError,reactive.tolerance);
             summary=groupsummary(reactive,{'example','micromixing'});
-            testCase.verifyEqual(summary.GroupCount,2*ones(6,1));
+            legacy=summary.example~="reactive_exam_jan2024";
+            testCase.verifyEqual(summary.GroupCount(legacy),2*ones(6,1));
+            testCase.verifyEqual(summary.GroupCount(~legacy),5*ones(2,1));
+        end
+        function examCoreMatchesBothVesselsAndReportsValidity(testCase)
+            grid=nirp.tracer.grid(0.005,30);rs=examReactionSystem();
+            E1=nirp.tracer.rtdModel(grid,'tanks',struct('tau',1,'N',1),0.05);
+            first=nirp.tracer.reactiveVessel(grid,E1,rs,[1000 0 0 0 0],298.15,1);
+            E2=nirp.tracer.rtdModel(grid,'tanks',struct('tau',2,'N',100),0.05);
+            secondSeg=nirp.tracer.reactiveVessel(grid,E2,rs,first.Cseg,298.15,1);
+            secondMm=nirp.tracer.reactiveVessel(grid,E2,rs,first.Cmm,298.15,1);
+            expectedR1=[0.13824 0.060735 0.060735 0.31779 0.31779; ...
+                0.19385 0.069644 0.069644 0.29107 0.29107];
+            expectedR2=[0.044859 0.038064 0.16512 0.24168 0.24168; ...
+                0.045823 0.038935 0.18121 0.24376 0.24376];
+            testCase.verifyEqual([first.Cseg;first.Cmm]/1000,expectedR1,'RelTol',5e-3);
+            testCase.verifyEqual([secondSeg.Cseg;secondMm.Cmm]/1000,expectedR2,'RelTol',5e-3);
+            validity=first.diagnostic.boundValidity;
+            testCase.verifyFalse(validity.guaranteed);
+            testCase.verifySubstring(validity.reason,'exactly one reaction');
+        end
+        function examExampleRestoresAndMatchesIndependentReference(testCase)
+            reaction=openRestoreAndSimulate(testCase,"reactive_exam_jan2024");
+            expected=[0.044859 0.038064 0.16512 0.24168 0.24168; ...
+                0.045823 0.038935 0.18121 0.24376 0.24376];
+            testCase.verifyEqual([reaction.Cseg;reaction.Cmm]/1000,expected,'RelTol',5e-3);
+            testCase.verifyFalse(reaction.validity.guaranteed);
+            testCase.verifySubstring(reaction.warning,'Bounds not guaranteed');
+            testCase.verifySubstring(reaction.warning,'exactly one reaction');
         end
     end
 end
@@ -74,6 +104,13 @@ end
 
 function C=segregationReference(Cin,k,tau)
 t=0:0.001:100*tau;E=exp(-t/tau)/tau;batch=Cin./(1+k*Cin*t);C=trapz(t,E.*batch)/trapz(t,E);
+end
+
+function rs=examReactionSystem()
+rs=ReactionSys;rs.componentNames={'A','B','C','D','E'};
+rs.stochiometricMatrix=[-1 1 0 0 0;0 -1 1 0 0;-2 0 0 1 1;0 1 0 -1 -1];
+rs.userDefinedKinetics=@(C,T)[C(1)-2*C(2),C(2), ...
+    0.01*C(1)^2,0.001*C(4)*C(5)]; %#ok<INUSD>
 end
 
 function cleanup()

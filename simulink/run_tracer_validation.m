@@ -3,10 +3,11 @@ function [validation,reactiveValidation] = run_tracer_validation(folder)
 %   VALIDATION retains the original three-row tracer validation table.
 %   REACTIVEVALIDATION compares C_A and X_A for each micromixing model with
 %   independent analytical or fine-quadrature references. Relative errors
-%   must not exceed 0.4%, which covers the common-grid RTD quadrature.
+%   must not exceed 0.4% for the original examples. The five-species exam
+%   uses 0.5%, which covers its common-grid RTD quadrature.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 22, 2026. Last update: October 25, 2026
+% Created: October 22, 2026. Last update: November 2, 2026
 % =========================================================================
     root=fileparts(fileparts(mfilename('fullpath')));addpath(root);addpath(fileparts(mfilename('fullpath')));
     owned=false;if nargin<1||isempty(folder),folder=tempname;mkdir(folder);owned=true;end
@@ -33,6 +34,8 @@ function [validation,reactiveValidation] = run_tracer_validation(folder)
     validation=table(tracerNames,labels,maxAbsError,tau,sigma2,'VariableNames', ...
         {'names','labels','maxAbsError','tau','sigma2'});
     reactiveValidation=validateReactive(folder,names(4:6));
+    reactiveValidation.officialValue=nan(height(reactiveValidation),1);
+    reactiveValidation=[reactiveValidation;validateExamJan2024(folder,names(7))];
 end
 
 function validation=validateReactive(folder,names)
@@ -67,6 +70,74 @@ assert(all(relativeError<=tolerance),'nirp:tracerflowsheet:ReactiveValidationMis
     'A reactive example differs from its independent reference by more than 0.4%%.');
 validation=table(example,magnitude,micromixing,diagramValue,referenceValue, ...
     absoluteError,relativeError,tolerance);
+end
+
+function validation=validateExamJan2024(folder,name)
+% Independent calculation ported from exam24_ref.m; no nirp core is used.
+reference=examJan2024Reference();
+result=simulateOne(folder,name);reaction=result.reaction;
+assert(~isempty(reaction),'nirp:tracerflowsheet:MissingReactiveResult', ...
+    'Reactive example %s did not publish reaction results.',name);
+diagram=[reaction.Cseg(:);reaction.Cmm(:)]/1000;
+referenceValue=[reference(2,:)';reference(4,:)'];
+officialValue=[0.0688;0.0533;0.112;0.287;0.287; ...
+    0.0458;0.0389;0.181;0.244;0.244];
+absoluteError=abs(diagram-referenceValue);
+relativeError=absoluteError./max(abs(referenceValue),eps);
+tolerance=5e-3*ones(10,1);
+assert(all(relativeError<=tolerance),'nirp:tracerflowsheet:ExamValidationMismatch', ...
+    'Exam Jan 2024 differs from its independent reference by more than 0.5%%.');
+assert(~reaction.validity.guaranteed && contains(reaction.warning,'Bounds not guaranteed'), ...
+    'nirp:tracerflowsheet:MissingBoundWarning', ...
+    'Exam Jan 2024 must report that bounds are not guaranteed.');
+example=repmat(name,10,1);
+magnitude=repmat(["C_A";"C_B";"C_C";"C_D";"C_E"],2,1);
+micromixing=[repmat("Segregation",5,1);repmat("Max mixedness",5,1)];
+validation=table(example,magnitude,micromixing,diagram,referenceValue, ...
+    absoluteError,relativeError,tolerance,officialValue, ...
+    'VariableNames',{'example','magnitude','micromixing','diagramValue', ...
+    'referenceValue','absoluteError','relativeError','tolerance','officialValue'});
+end
+
+function reference=examJan2024Reference()
+% Rows are R1 segregation, R2 segregation, R1 maximum mixedness and R2.
+options=odeset('RelTol',1e-11,'AbsTol',1e-13);
+rhs=@examRates;
+c1s=examSegregation([1 0 0 0 0],1,1,rhs,options);
+c2s=examSegregation(c1s,100,2,rhs,options);
+c1m=fsolve(@(c)[1 0 0 0 0]-c+rhs(c)',[0.2 0.07 0.07 0.3 0.3], ...
+    optimoptions('fsolve','Display','off','FunctionTolerance',1e-14, ...
+    'StepTolerance',1e-14));
+c2m=examMaximumMixedness(c1m,100,2,rhs,options);
+reference=[c1s;c2s;c1m;c2m];
+end
+
+function c=examSegregation(c0,n,tau,rhs,options)
+tMax=tau*(1+12/sqrt(n))*1.5+30*(n==1);
+solution=ode15s(@(~,c)rhs(c),[0 tMax],c0,options);
+t=linspace(0,tMax,200001)';C=deval(solution,t)';
+tauTank=tau/n;
+if n>20
+    E=exp((n-1)*log(max(t,realmin))-t/tauTank-n*log(tauTank)-gammaln(n));
+else
+    E=t.^(n-1).*exp(-t/tauTank)/(tauTank^n*factorial(n-1));
+end
+c=trapz(t,C.*E);
+end
+
+function c=examMaximumMixedness(c0,n,tau,rhs,options)
+tauTank=tau/n;lambdaMax=tau*(1+12/sqrt(n))*1.5;
+lambda=@(value)exp((n-1)*log(max(value,realmin))-value/tauTank- ...
+    n*log(tauTank)-gammaln(n))./max(gammainc(value/tauTank,n,'upper'),realmin);
+ode=@(value,c)-rhs(c)+lambda(value)*(c(:)-c0(:));
+[~,profile]=ode15s(ode,[lambdaMax 0],c0(:),options);
+c=profile(end,:);
+end
+
+function rate=examRates(c)
+A=c(1);B=c(2);D=c(4);E=c(5);
+r1=A-2*B;r2=B;r3=10*A^2;r4=D*E;
+rate=[-r1-2*r3,r1-r2+r4,r2,r3-r4,r3-r4]';
 end
 
 function C=cstrSecondOrder(Cin,k,tau)
