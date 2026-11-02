@@ -2,7 +2,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
     % NirpConvolutionTabTest verifies the app integration of nirp.conv.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 9, 2026. Last update: October 21, 2026
+    % Created: October 9, 2026. Last update: November 2, 2026
     % =========================================================================
 
     properties
@@ -18,17 +18,19 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             fixture = testCase.applyFixture(TemporaryFolderFixture) ;
             testCase.Folder = fixture.Folder ;
             testCase.Root = fileparts(fileparts(mfilename('fullpath'))) ;
-            testCase.App = NonIdealReactorApp() ;
+            testCase.App = NonIdealReactorApp('ProgressFcn',@(~,~) [], ...
+                'Visible','off') ;
             figures = findall(groot, 'Type', 'Figure', ...
                 'Name', 'Non-Ideal Reactor Analysis') ;
             testCase.Figure = figures(1) ;
-            testCase.Figure.Visible = 'on' ;
+            testCase.Figure.Visible = 'off' ;
             testCase.addTeardown(@() closeFigures()) ;
         end
     end
 
-    methods (Test)
+    methods (Test, TestTags = {'Interactive'})
         function tabIsSixthAfterDesignWorkspace(testCase)
+            testCase.showInteractiveApp() ;
             group = findall(testCase.Figure, 'Type', 'uitabgroup') ;
             mainGroup = group(arrayfun(@(g) any(strcmp({g.Children.Title}, ...
                 'RTD Analysis')), group)) ;
@@ -42,6 +44,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
         end
 
         function activeConvolutionTabRoundTripsByTitle(testCase)
+            testCase.showInteractiveApp() ;
             group = findall(testCase.Figure, 'Type', 'uitabgroup') ;
             mainGroup = group(arrayfun(@(g) any(strcmp({g.Children.Title}, ...
                 'RTD Analysis')), group)) ;
@@ -58,12 +61,14 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
         end
 
         function manualTableUsesAvailableEditorHeight(testCase)
+            testCase.showInteractiveApp() ;
             tableControl = testCase.control('ConvTableCin') ;
             testCase.verifyEqual(tableControl.Parent.RowHeight{4}, '1x') ;
             testCase.verifyEqual(tableControl.Layout.Row, 4) ;
         end
 
         function functionButtonsMatchTablePositionBelowEditor(testCase)
+            testCase.showInteractiveApp() ;
             tableControl = testCase.control('ConvTableCin') ;
             addButton = testCase.control('ConvAddRowCin') ;
             buttonsGrid = addButton.Parent ;
@@ -84,6 +89,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
         end
 
         function modeShowsOnlyItsDescriptiveSignalTabs(testCase)
+            testCase.showInteractiveApp() ;
             tabs = testCase.control('ConvSignalTabs') ;
             testCase.verifyEqual(sort(string({tabs.Children.Title})), ...
                 sort(["Inlet signal Cᵢₙ(t)", "RTD E(t)"])) ;
@@ -97,23 +103,12 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             testCase.verifyEqual(char(testCase.control('ConvVerificationAxes').Visible), 'on') ;
             testCase.verifyEqual(char(testCase.control('ConvUseAsRTD').Visible), 'on') ;
             testCase.verifyEqual(char(testCase.control('ConvUseAsRTD').Enable), 'off') ;
+            testCase.verifySubstring(testCase.control('ConvUseAsRTD').Text, 'Ê(t)') ;
             testCase.verifyEqual(char(testCase.control('ConvSupportPanel').Visible), 'on') ;
-
-            testCase.selectMode('Series composition') ;
-            testCase.verifyEqual(sort(string({tabs.Children.Title})), ...
-                sort(["RTD vessel 1 E₁(t)", "RTD vessel 2 E₂(t)"])) ;
-            testCase.verifyEqual(char(testCase.control('ConvVerificationAxes').Visible), 'off') ;
-            testCase.verifyEqual(char(testCase.control('ConvUseAsRTD').Visible), 'on') ;
-            testCase.verifySubstring(testCase.control('ConvUseAsRTD').Text, 'E₁₂') ;
-            testCase.verifyEqual(char(testCase.control('ConvSupportPanel').Visible), 'off') ;
-            saved = fullfile(testCase.Folder, 'series-active-signals.mat') ;
-            testCase.App.saveSessionToFile(saved, 'series-active-signals') ;
-            stored = load(saved, 'sessionData') ;
-            testCase.verifyEqual(sort(string(fieldnames( ...
-                stored.sessionData.convolution.signals))), sort(["E1"; "E2"])) ;
         end
 
         function supportedTextUsesLatex(testCase)
+            testCase.showInteractiveApp() ;
             testCase.verifyEqual(testCase.control('ConvDescriptionCin').Interpreter, 'latex') ;
             testCase.verifySubstring(testCase.control('ConvDescriptionCin').Text, ...
                 'C_{\mathrm{in}}(t)') ;
@@ -125,7 +120,8 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             testCase.verifyEqual(testCase.control('ConvResultsDescription').Interpreter, 'latex') ;
         end
 
-        function resultsAreHorizontalVisibleAndDescribedInEveryMode(testCase)
+        function resultsAreHorizontalVisibleAndDescribedInBothModes(testCase)
+            testCase.showInteractiveApp() ;
             testCase.Figure.Position = [100 100 1200 750] ;
             testCase.control('ConvTableCin').Data = [0 0; 1 1; 2 0] ;
             testCase.control('ConvTableE').Data = [0 0; 1 1; 2 0] ;
@@ -137,15 +133,10 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             testCase.control('ConvTableCout').Data = [0 0; 1 1; 2 0] ;
             testCase.press(testCase.control('ConvCompute')) ;
             testCase.verifyResultGeometry(6, 'residual') ;
-
-            testCase.selectMode('Series composition') ;
-            testCase.control('ConvTableE1').Data = [0 0; 1 1; 2 0] ;
-            testCase.control('ConvTableE2').Data = [0 0; 1 1; 2 0] ;
-            testCase.press(testCase.control('ConvCompute')) ;
-            testCase.verifyResultGeometry(4, 'E_{12}=E_1*E_2') ;
         end
 
         function functionIsTheOnlyExpressionSource(testCase)
+            testCase.showInteractiveApp() ;
             source = testCase.control('ConvSourceCin') ;
             testCase.verifyEqual(string(source.Items), ["Table" "Function"]) ;
             testCase.verifyFalse(any(string(source.Items) == "Piecewise")) ;
@@ -160,6 +151,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
         end
 
         function oneIntervalFunctionUsesCommonStep(testCase)
+            testCase.showInteractiveApp() ;
             testCase.setDropdown('ConvSourceCin', 'Function') ;
             testCase.control('ConvFunctionTableCin').Data = {0 2 't'} ;
             testCase.control('ConvTableE').Data = [0 0; 1 1; 2 0] ;
@@ -173,6 +165,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
         end
 
         function twoIntervalFunctionUsesEveryExpression(testCase)
+            testCase.showInteractiveApp() ;
             testCase.setDropdown('ConvSourceCin', 'Function') ;
             testCase.control('ConvFunctionTableCin').Data = ...
                 {0 1 't'; 1 2 '2.*t'} ;
@@ -187,6 +180,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
         end
 
         function automaticStepUsesTableBeforeBuildingFunction(testCase)
+            testCase.showInteractiveApp() ;
             testCase.selectMode('Deconvolution') ;
             testCase.setDropdown('ConvSourceCin', 'Function') ;
             testCase.control('ConvFunctionTableCin').Data = ...
@@ -205,6 +199,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
         end
 
         function automaticStepDefaultsAcrossFunctionDomain(testCase)
+            testCase.showInteractiveApp() ;
             testCase.setDropdown('ConvSourceCin', 'Function') ;
             testCase.setDropdown('ConvSourceE', 'Function') ;
             testCase.control('ConvFunctionTableCin').Data = {0 2 '1'} ;
@@ -220,6 +215,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
         end
 
         function topicExampleOneUsesAddedTableRows(testCase)
+            testCase.showInteractiveApp() ;
             Cin = [0:4; 0 8 4 6 0].' ;
             E = [2:6; 0 .05 .5 .35 0].' ;
             testCase.press(testCase.control('ConvAddRowCin')) ;
@@ -244,14 +240,12 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             testCase.verifyEqual(result(:, 1).', 2:10, 'AbsTol', 1e-12) ;
             testCase.verifyEqual(result(:, 2).', ...
                 [0 0 .4 4.2 5.1 4.4 2.1 0 0], 'AbsTol', 1e-12) ;
-            testCase.verifyEqual(testCase.control('ConvResultLabel1').Text, ...
-                '$C_{\mathrm{out}}(t)$') ;
-            resultsText = testCase.control('ConvResultValue1').Text ;
+            resultsText = testCase.resultValue('$C_{\mathrm{out}}(t)$') ;
             testCase.verifySubstring(resultsText, ...
                 '[0,\;0,\;0.4,\;4.2,\;5.1,\;4.4,\;2.1,\;0,\;0]') ;
             testCase.verifySubstring(resultsText, '\mathrm{mol/m^3}') ;
-            testCase.verifyEqual(testCase.control('ConvResultLabel2').Text, ...
-                '$m_{\mathrm{out}}/(m_{\mathrm{in}}A_E)$') ;
+            testCase.verifyNotEmpty(testCase.resultValue( ...
+                '$m_{\mathrm{out}}/(m_{\mathrm{in}}A_E)$')) ;
             testCase.verifyEqual(char(testCase.control('ConvResultLabel3').Visible), ...
                 'off') ;
             testCase.verifyEqual(testCase.control('ConvResultTable').ColumnName{2}, ...
@@ -277,6 +271,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
         end
 
         function excelImportMatchesRTDAnalysisAndStoresNumbers(testCase)
+            testCase.showInteractiveApp() ;
             imported = [0 0; 1 8; 2 4; 3 6; 4 0] ;
             file = fullfile(testCase.Folder, 'tracer.xlsx') ;
             writematrix(imported, file) ;
@@ -292,6 +287,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
         end
 
         function removeRowUsesSelectionAndKeepsOneRow(testCase)
+            testCase.showInteractiveApp() ;
             tableControl = testCase.control('ConvTableCin') ;
             testCase.press(testCase.control('ConvAddRowCin')) ;
             testCase.type(tableControl, [2 1], '17') ;
@@ -314,6 +310,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
         end
 
         function modelCstrAndCurrentRTDAreAvailable(testCase)
+            testCase.showInteractiveApp() ;
             testCase.control('ConvTableCin').Data = [0:10; ones(1, 11)].' ;
             testCase.setDropdown('ConvSourceE', 'Model') ;
             testCase.setDropdown('ConvModelE', 'CSTR') ;
@@ -340,7 +337,8 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             testCase.verifyEqual(eLine.YData, expected.C, 'AbsTol', 1e-12) ;
         end
 
-        function deconvolutionFunctionMatchesCourseAndLoadsTabOne(testCase)
+        function deconvolutionFunctionMatchesCourseWithoutTabOneTransfer(testCase)
+            testCase.showInteractiveApp() ;
             testCase.configureCourseDeconvolution('min') ;
 
             testCase.press(testCase.control('ConvCompute')) ;
@@ -351,33 +349,27 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
                 'AbsTol', 2e-2) ;
             testCase.verifyEqual(testCase.control('ConvResultTable').ColumnName{2}, ...
                 'Ê(t) [min⁻¹]') ;
-            testCase.verifyEqual(testCase.control('ConvResultLabel5').Text, ...
-                '$N\simeq1/\sigma_\theta^2$') ;
-            testCase.verifyEqual(testCase.control('ConvResultLabel6').Text, ...
-                '$\mathrm{Relative\ residual}$') ;
-            testCase.verifyNotEmpty(testCase.control('ConvResultValue6').Text) ;
+            testCase.verifyNotEmpty(testCase.resultValue( ...
+                '$N\simeq1/\sigma_\theta^2$')) ;
+            testCase.verifyNotEmpty(testCase.resultValue( ...
+                '$\mathrm{Relative\ residual}$')) ;
             testCase.verifyEqual(char(testCase.control('ConvResultLabel7').Visible), 'off') ;
             testCase.verifyFalse(contains(testCase.control('ConvDiagnostics').Text, ...
                 'Truncated')) ;
             testCase.verifyEqual(char(testCase.control('ConvDiagnostics').Visible), 'on') ;
             testCase.verifyEqual(char(testCase.control('ConvVerificationAxes').Visible), 'on') ;
-            testCase.verifyEqual(char(testCase.control('ConvUseAsRTD').Enable), 'on') ;
+            testCase.verifyEqual(char(testCase.control('ConvUseAsRTD').Visible), 'on') ;
+            testCase.verifyEqual(char(testCase.control('ConvUseAsRTD').Enable), 'off') ;
+            testCase.verifySubstring(testCase.control('ConvUseAsRTD').Tooltip, 'A_E') ;
             testCase.verifyNumElements(findall(testCase.control('ConvAxes'), ...
                 'Type', 'ConstantLine'), 1) ;
             testCase.verifyEmpty(findall(testCase.control('ConvVerificationAxes'), ...
                 'Type', 'ConstantLine')) ;
             testCase.verifyEqual(char(testCase.control('ConvMomentsTable').Visible), 'off') ;
-            testCase.press(testCase.control('ConvUseAsRTD')) ;
-            saved = fullfile(testCase.Folder, 'deconvolved.mat') ;
-            testCase.App.saveSessionToFile(saved, 'deconvolved') ;
-            session = load(saved, 'sessionData') ;
-            testCase.verifyEqual(session.sessionData.rtd.source, 'Tabular Input') ;
-            testCase.verifyEqual(session.sessionData.shared.rtd.source, 'deconvolution') ;
-            testCase.verifyEqual(session.sessionData.shared.rtd.t, (4:9) * 60, ...
-                'AbsTol', 1e-12) ;
         end
 
         function sec02SessionWithTruncatedOutletWindowComputes(testCase)
+            testCase.showInteractiveApp() ;
             testCase.configureSec02Deconvolution() ;
             saved = fullfile(testCase.Folder, 'SEC02-sanitized.mat') ;
             testCase.App.saveSessionToFile(saved, 'SEC02-sanitized') ;
@@ -403,6 +395,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
         end
 
         function sec02InputsEnteredDirectlyCompute(testCase)
+            testCase.showInteractiveApp() ;
             testCase.configureSec02Deconvolution() ;
 
             testCase.press(testCase.control('ConvCompute')) ;
@@ -410,8 +403,8 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             result = testCase.control('ConvResultTable').Data ;
             testCase.verifySize(result, [10 2]) ;
             testCase.verifyEqual(result(:, 1).', 0:9, 'AbsTol', 1e-12) ;
-            testCase.verifyEqual(testCase.control('ConvResultLabel6').Text, ...
-                '$\mathrm{Relative\ residual}$') ;
+            testCase.verifyNotEmpty(testCase.resultValue( ...
+                '$\mathrm{Relative\ residual}$')) ;
             testCase.verifyFalse(contains(testCase.control('ConvDiagnostics').Text, ...
                 'Truncated')) ;
 
@@ -435,6 +428,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
         end
 
         function userWindowUsesDefaultSupportAndRatesResidual(testCase)
+            testCase.showInteractiveApp() ;
             testCase.selectMode('Deconvolution') ;
             testCase.setDropdown('ConvSourceCin', 'Function') ;
             testCase.control('ConvFunctionTableCin').Data = ...
@@ -451,7 +445,8 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
                 'AbsTol', 1e-12) ;
             testCase.verifyEqual(testCase.control('ConvSupportMax').Value, 13, ...
                 'AbsTol', 1e-12) ;
-            testCase.verifySubstring(testCase.control('ConvResultValue6').Text, ...
+            testCase.verifySubstring(testCase.resultValue( ...
+                '$\mathrm{Relative\ residual}$'), ...
                 'check data or E support') ;
             testCase.verifySubstring(testCase.control('ConvDiagnostics').Text, ...
                 'Underdetermined') ;
@@ -459,7 +454,8 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
                 'Truncated')) ;
         end
 
-        function convolutionAndSeriesButtonsLoadTabOne(testCase)
+        function convolutionButtonLoadsTabOne(testCase)
+            testCase.showInteractiveApp() ;
             testCase.control('ConvTableCin').Data = [0 0; 1 1; 2 0] ;
             testCase.control('ConvTableE').Data = [0 0; 1 1; 2 0] ;
             testCase.press(testCase.control('ConvCompute')) ;
@@ -471,52 +467,21 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             convolutionSession = load(convolutionFile, 'sessionData') ;
             testCase.verifyEqual(convolutionSession.sessionData.shared.rtd.source, ...
                 'experimental_pulse') ;
-
-            testCase.selectMode('Series composition') ;
-            testCase.control('ConvTableE1').Data = [0 0; 1 1; 2 0] ;
-            testCase.control('ConvTableE2').Data = [0 0; 1 1; 2 0] ;
-            testCase.press(testCase.control('ConvCompute')) ;
-            testCase.verifyEqual(char(testCase.control('ConvUseAsRTD').Enable), 'on') ;
-            testCase.press(testCase.control('ConvUseAsRTD')) ;
-            seriesFile = fullfile(testCase.Folder, 'series-to-tab-one.mat') ;
-            testCase.App.saveSessionToFile(seriesFile, 'series') ;
-            seriesSession = load(seriesFile, 'sessionData') ;
-            testCase.verifyEqual(seriesSession.sessionData.shared.rtd.source, ...
-                'series_composition') ;
-        end
-
-        function seriesCompositionHasDedicatedResults(testCase)
-            testCase.selectMode('Series composition') ;
-            testCase.control('ConvTableE1').Data = [0 0; 1 1; 2 0] ;
-            testCase.control('ConvTableE2').Data = [0 0; 1 1; 2 0] ;
-
-            testCase.press(testCase.control('ConvCompute')) ;
-
-            resultTable = testCase.control('ConvResultTable') ;
-            testCase.verifyEqual(resultTable.ColumnName{2}, 'E₁₂(t) [s⁻¹]') ;
-            testCase.verifyEqual(testCase.control('ConvResultLabel1').Text, '$\tau_{12}$') ;
-            testCase.verifyEqual(testCase.control('ConvResultLabel3').Text, '$\sigma_{12}^2$') ;
-            testCase.verifyEqual(char(testCase.control('ConvDiagnostics').Visible), 'off') ;
-            lines = findall(testCase.control('ConvAxes'), 'Type', 'Line') ;
-            testCase.verifyEqual(sort(string({lines.DisplayName})), ...
-                sort(["$E_1(t)$", "$E_2(t)$", "$E_{12}(t)$"])) ;
-            meanLines = findall(testCase.control('ConvAxes'), 'Type', 'ConstantLine') ;
-            testCase.verifyNumElements(meanLines, 3) ;
-            testCase.verifyEqual(sort([meanLines.Value]), [1 1 2], 'AbsTol', 1e-12) ;
         end
 
         function deconvolutionResultsUseSelectedTimeUnitWithoutMomentsTable(testCase)
+            testCase.showInteractiveApp() ;
             testCase.configureCourseDeconvolution('min') ;
             testCase.press(testCase.control('ConvCompute')) ;
 
             minuteTable = testCase.control('ConvMomentsTable') ;
             testCase.verifyEqual(char(minuteTable.Visible), 'off') ;
             testCase.verifyEmpty(minuteTable.Data) ;
-            minuteTau = testCase.control('ConvResultValue2').Text ;
-            testCase.verifyEqual(testCase.control('ConvResultLabel1').Text, '$A_E$') ;
-            testCase.verifyEqual(testCase.control('ConvResultLabel4').Text, '$\sigma_\theta^2$') ;
-            testCase.verifyEqual(testCase.control('ConvResultLabel5').Text, ...
-                '$N\simeq1/\sigma_\theta^2$') ;
+            minuteTau = testCase.resultValue('$\tau$') ;
+            testCase.verifyNotEmpty(testCase.resultValue('$A_E$')) ;
+            testCase.verifyNotEmpty(testCase.resultValue('$\sigma_\theta^2$')) ;
+            testCase.verifyNotEmpty(testCase.resultValue( ...
+                '$N\simeq1/\sigma_\theta^2$')) ;
             testCase.verifySubstring(testCase.control('ConvDiagnostics').Text, 'Warning') ;
 
             testCase.configureCourseDeconvolution('s') ;
@@ -524,10 +489,11 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
 
             secondTable = testCase.control('ConvMomentsTable') ;
             testCase.verifyEqual(char(secondTable.Visible), 'off') ;
-            testCase.verifyNotEqual(testCase.control('ConvResultValue2').Text, minuteTau) ;
+            testCase.verifyNotEqual(testCase.resultValue('$\tau$'), minuteTau) ;
         end
 
         function oldSessionsLoadWithoutNewWarnings(testCase)
+            testCase.showInteractiveApp() ;
             files = dir(fullfile(testCase.Root, 'saves', 'SE*.mat')) ;
             testCase.verifyGreaterThanOrEqual(numel(files), 10) ;
             for k = 1:numel(files)
@@ -541,6 +507,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
         end
 
         function convolutionStateRoundTripsAllUnits(testCase)
+            testCase.showInteractiveApp() ;
             input = [0 0; 1 2; 2 0] ;
             testCase.control('ConvTableCin').Data = input ;
             testCase.choose(testCase.control('ConvTimeUnitCin'), 'min') ;
@@ -571,6 +538,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
         end
 
         function equivalentInputUnitsAndPresentationOnlyOutputUnits(testCase)
+            testCase.showInteractiveApp() ;
             testCase.choose(testCase.control('ConvTimeUnitCin'), 'min') ;
             testCase.choose(testCase.control('ConvConcentrationUnitCin'), 'mol/L') ;
             testCase.choose(testCase.control('ConvTimeUnitE'), 'min') ;
@@ -596,6 +564,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
         end
 
         function legacySnapshotAppliesOneTimeUnitEverywhere(testCase)
+            testCase.showInteractiveApp() ;
             saved = fullfile(testCase.Folder, 'legacy-convolution.mat') ;
             testCase.App.saveSessionToFile(saved, 'legacy-convolution') ;
             loaded = load(saved, 'sessionData') ;
@@ -620,6 +589,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
         end
 
         function legacyFunctionSessionLoadsAsOneRowAndCalculates(testCase)
+            testCase.showInteractiveApp() ;
             saved = fullfile(testCase.Folder, 'legacy-function.mat') ;
             testCase.control('ConvTableE').Data = [0 0; 1 1; 2 0] ;
             testCase.control('ConvDt').Value = 1 ;
@@ -644,6 +614,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
         end
 
         function legacyPiecewiseSessionLoadsAsFunctionAndCalculates(testCase)
+            testCase.showInteractiveApp() ;
             saved = fullfile(testCase.Folder, 'legacy-piecewise.mat') ;
             testCase.control('ConvTableE').Data = [0 0; 1 1; 2 0] ;
             testCase.control('ConvDt').Value = 1 ;
@@ -666,7 +637,298 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
         end
     end
 
+    methods (Test)
+        function suggestedSupportUsesCurrentGridAndComputes(testCase)
+            testCase.App.loadSessionFromFile(fullfile(testCase.Root, ...
+                'saves', 'SECT02.mat')) ;
+            testCase.control('ConvDt').Value = 3 ;
+            supportUnit = testCase.control('ConvSupportUnit') ;
+            supportUnit.Value = 's' ;
+            feval(supportUnit.ValueChangedFcn, supportUnit, []) ;
+            suggest = testCase.control('ConvSuggestSupport') ;
+            feval(suggest.ButtonPushedFcn, suggest, []) ;
+
+            supportMin = testCase.control('ConvSupportMin') ;
+            supportMax = testCase.control('ConvSupportMax') ;
+            dt = testCase.control('ConvDt').Value * ...
+                UnitConverterHelper.factorToSI('Time', ...
+                testCase.control('ConvDtUnit').Value) ;
+            testCase.verifyEqual(supportMin.Value, 0, 'AbsTol', 1e-12) ;
+            testCase.verifyEqual(supportMax.Value, 720, 'AbsTol', 1e-12) ;
+            testCase.verifyEqual(char(supportMin.Editable), 'on') ;
+            testCase.verifyEqual(char(supportMax.Editable), 'on') ;
+            intervals = (supportMax.Value - supportMin.Value) / dt ;
+            testCase.verifyEqual(intervals, round(intervals), 'AbsTol', 1e-12) ;
+
+            compute = testCase.control('ConvCompute') ;
+            feval(compute.ButtonPushedFcn, compute, []) ;
+            testCase.verifyNotEmpty(testCase.control('ConvResultTable').Data) ;
+            saved = fullfile(testCase.Folder, 'suggested-support.mat') ;
+            testCase.App.saveSessionToFile(saved, 'suggested-support') ;
+            snapshot = load(saved, 'sessionData') ;
+            testCase.verifyFalse( ...
+                snapshot.sessionData.convolution.supportIsDefault) ;
+        end
+
+        function suggestedSupportUsesSelectedMinutes(testCase)
+            testCase.App.loadSessionFromFile(fullfile(testCase.Root, ...
+                'saves', 'SECT02.mat')) ;
+            supportUnit = testCase.control('ConvSupportUnit') ;
+            supportUnit.Value = 's' ;
+            feval(supportUnit.ValueChangedFcn, supportUnit, []) ;
+            supportUnit.Value = 'min' ;
+            feval(supportUnit.ValueChangedFcn, supportUnit, []) ;
+            suggest = testCase.control('ConvSuggestSupport') ;
+            feval(suggest.ButtonPushedFcn, suggest, []) ;
+
+            testCase.verifyEqual(testCase.control('ConvSupportMin').Value, ...
+                0, 'AbsTol', 1e-12) ;
+            testCase.verifyEqual(testCase.control('ConvSupportMax').Value, ...
+                13, 'AbsTol', 1e-12) ;
+        end
+
+        function incompleteDataDoesNotChangeSuggestedSupport(testCase)
+            testCase.App.loadSessionFromFile(fullfile(testCase.Root, ...
+                'saves', 'SECT02.mat')) ;
+            supportMin = testCase.control('ConvSupportMin') ;
+            supportMax = testCase.control('ConvSupportMax') ;
+            previousValues = [supportMin.Value supportMax.Value] ;
+            testCase.control('ConvTableCout').Data = [] ;
+            suggest = testCase.control('ConvSuggestSupport') ;
+            feval(suggest.ButtonPushedFcn, suggest, []) ;
+
+            testCase.verifyEqual([supportMin.Value supportMax.Value], ...
+                previousValues, 'AbsTol', 0) ;
+            labels = findall(testCase.Figure, 'Type', 'uilabel') ;
+            messages = string({labels.Text}) ;
+            testCase.verifyTrue(any(contains(messages, ...
+                'Cannot suggest E support:'))) ;
+        end
+
+        function sec02FailsAreaQualityAndCannotTransferToTabOne(testCase)
+            testCase.App.loadSessionFromFile(fullfile(testCase.Root, ...
+                'saves', 'SECT02.mat')) ;
+            compute = testCase.control('ConvCompute') ;
+            feval(compute.ButtonPushedFcn, compute, []) ;
+            transfer = testCase.control('ConvUseAsRTD') ;
+            testCase.verifyEqual(char(transfer.Visible), 'on') ;
+            testCase.verifyEqual(char(transfer.Enable), 'off') ;
+            testCase.verifySubstring(transfer.Tooltip, 'A_E = 7.05') ;
+            testCase.verifySubstring(transfer.Tooltip, ...
+                'requires |A_E - 1| <= 5%') ;
+
+            beforeFile = fullfile(testCase.Folder, 'before-transfer.mat') ;
+            testCase.App.saveSessionToFile(beforeFile, 'before-transfer') ;
+            before = load(beforeFile, 'sessionData') ;
+            feval(transfer.ButtonPushedFcn, transfer, []) ;
+            afterFile = fullfile(testCase.Folder, 'after-transfer.mat') ;
+            testCase.App.saveSessionToFile(afterFile, 'after-transfer') ;
+            after = load(afterFile, 'sessionData') ;
+            testCase.verifyEqual(after.sessionData.shared.rtd, ...
+                before.sessionData.shared.rtd) ;
+
+            group = testCase.control('ConvModeGroup') ;
+            convolution = group.Children(strcmp( ...
+                {group.Children.Text}, 'Convolution')) ;
+            group.SelectedObject = convolution ;
+            feval(group.SelectionChangedFcn, group, []) ;
+            testCase.verifyEqual(char(transfer.Visible), 'on') ;
+            testCase.verifySubstring(transfer.Text, 'C_out') ;
+        end
+
+        function sec09RemainsDisabledForPoorFit(testCase)
+            testCase.App.loadSessionFromFile(fullfile(testCase.Root, ...
+                'saves', 'SEC09.mat')) ;
+            compute = testCase.control('ConvCompute') ;
+            feval(compute.ButtonPushedFcn, compute, []) ;
+            transfer = testCase.control('ConvUseAsRTD') ;
+
+            testCase.verifyEqual(char(transfer.Visible), 'on') ;
+            testCase.verifyEqual(char(transfer.Enable), 'off') ;
+            testCase.verifySubstring(transfer.Tooltip, ...
+                'relative reconvolution residual') ;
+            testCase.verifySubstring(transfer.Tooltip, 'requires <= 15%') ;
+        end
+
+        function cleanSyntheticRequiresConfirmationAndLoadsNormalizedRTD(testCase)
+            testCase.configureCleanSyntheticDeconvolution() ;
+            compute = testCase.control('ConvCompute') ;
+            feval(compute.ButtonPushedFcn, compute, []) ;
+            transfer = testCase.control('ConvUseAsRTD') ;
+            testCase.verifyEqual(char(transfer.Visible), 'on') ;
+            testCase.verifyEqual(char(transfer.Enable), 'on') ;
+            testCase.verifySubstring(transfer.Tooltip, 'Quality checks passed') ;
+
+            beforeFile = fullfile(testCase.Folder, 'synthetic-before.mat') ;
+            testCase.App.saveSessionToFile(beforeFile, 'synthetic-before') ;
+            before = load(beforeFile, 'sessionData') ;
+            estimated = before.sessionData.convolution.lastResult ;
+            testCase.verifyLessThanOrEqual( ...
+                abs(trapz(estimated.t, estimated.C) - 1), 0.05) ;
+            testCase.verifyLessThanOrEqual( ...
+                before.sessionData.convolution.lastInfo.relativeResidual, 0.15) ;
+            overrideName = 'NirpDeconvolutionRTDConfirmOverride' ;
+            setappdata(groot, overrideName, ...
+                @(message) recordRTDConfirmation(message, 'Cancel')) ;
+            testCase.addTeardown(@() clearRTDConfirmationOverride()) ;
+            feval(transfer.ButtonPushedFcn, transfer, []) ;
+            cancelledFile = fullfile(testCase.Folder, 'synthetic-cancelled.mat') ;
+            testCase.App.saveSessionToFile(cancelledFile, 'synthetic-cancelled') ;
+            cancelled = load(cancelledFile, 'sessionData') ;
+            testCase.verifyEqual(cancelled.sessionData.shared.rtd, ...
+                before.sessionData.shared.rtd) ;
+
+            setappdata(groot, overrideName, ...
+                @(message) recordRTDConfirmation(message, 'Use RTD')) ;
+            feval(transfer.ButtonPushedFcn, transfer, []) ;
+            message = getappdata(groot, 'NirpDeconvolutionRTDConfirmMessage') ;
+            testCase.verifySubstring(message, 'A_E = ') ;
+            testCase.verifySubstring(message, ...
+                'Relative reconvolution residual = ') ;
+            testCase.verifySubstring(message, ...
+                'Support [tau_min, tau_max] = [0, 20] s') ;
+            testCase.verifySubstring(message, ['Ê is an estimate; it will be ' ...
+                'normalized and treated as the Tab 1 RTD.']) ;
+
+            acceptedFile = fullfile(testCase.Folder, 'synthetic-accepted.mat') ;
+            testCase.App.saveSessionToFile(acceptedFile, 'synthetic-accepted') ;
+            accepted = load(acceptedFile, 'sessionData') ;
+            transferred = accepted.sessionData.shared.rtd ;
+            testCase.verifyEqual(transferred.source, 'deconvolution') ;
+            testCase.verifyEqual(trapz(transferred.t, transferred.Et), 1, ...
+                'AbsTol', 1e-12) ;
+            labels = findall(testCase.Figure, 'Type', 'uilabel') ;
+            testCase.verifyTrue(any(contains(string({labels.Text}), ...
+                'estimated by deconvolution (Tab 6)'))) ;
+        end
+
+        function representativePoorAreaKeepsTransferDisabled(testCase)
+            testCase.configureCleanSyntheticDeconvolution() ;
+            output = testCase.control('ConvTableCout') ;
+            output.Data(:, 2) = 0.7 * output.Data(:, 2) ;
+            compute = testCase.control('ConvCompute') ;
+            feval(compute.ButtonPushedFcn, compute, []) ;
+            transfer = testCase.control('ConvUseAsRTD') ;
+
+            testCase.verifyEqual(char(transfer.Visible), 'on') ;
+            testCase.verifyEqual(char(transfer.Enable), 'off') ;
+            testCase.verifySubstring(transfer.Tooltip, 'A_E = ') ;
+            testCase.verifySubstring(transfer.Tooltip, ...
+                'requires |A_E - 1| <= 5%') ;
+            snapshotFile = fullfile(testCase.Folder, 'user-problem.mat') ;
+            testCase.App.saveSessionToFile(snapshotFile, 'user-problem') ;
+            snapshot = load(snapshotFile, 'sessionData') ;
+            estimate = snapshot.sessionData.convolution.lastResult ;
+            area = trapz(estimate.t, estimate.C) ;
+            testCase.verifyGreaterThanOrEqual(area, 0.62) ;
+            testCase.verifyLessThanOrEqual(area, 0.80) ;
+        end
+
+        function onlyConvolutionAndDeconvolutionModesRemain(testCase)
+            group = testCase.control('ConvModeGroup') ;
+            testCase.verifyEqual(sort(string({group.Children.Text})), ...
+                sort(["Convolution", "Deconvolution"])) ;
+            testCase.verifyEmpty(findall(testCase.Figure, 'Tag', 'ConvSignalE1')) ;
+            testCase.verifyEmpty(findall(testCase.Figure, 'Tag', 'ConvSignalE2')) ;
+        end
+
+        function legacySeriesCompositionLoadsWithMovedWarning(testCase)
+            saved = fullfile(testCase.Folder, 'legacy-series-composition.mat') ;
+            testCase.App.saveSessionToFile(saved, 'legacy-series-composition') ;
+            loaded = load(saved, 'sessionData') ;
+            loaded.sessionData.convolution.mode = 'Series composition' ;
+            loaded.sessionData.convolution.lastSignals = struct( ...
+                'E1', nirp.conv.signal(0:2, [0 1 0]), ...
+                'E2', nirp.conv.signal(0:2, [0 1 0])) ;
+            loaded.sessionData.convolution.lastResult = ...
+                nirp.conv.signal(0:4, [0 0 1 0 0]) ;
+            sessionData = loaded.sessionData ; %#ok<NASGU>
+            save(saved, 'sessionData') ;
+
+            testCase.verifyWarning(@() testCase.App.loadSessionFromFile(saved), ...
+                'NonIdealReactorApp:SeriesCompositionMoved') ;
+
+            group = testCase.control('ConvModeGroup') ;
+            testCase.verifyEqual(group.SelectedObject.Text, 'Convolution') ;
+            testCase.verifyEmpty(testCase.control('ConvResultTable').Data) ;
+            labels = findall(testCase.Figure, 'Type', 'uilabel') ;
+            status = labels(contains(string({labels.Text}), ...
+                'tracer_sec01_series')) ;
+            testCase.verifyNumElements(status, 1) ;
+            testCase.verifySubstring(status.Text, 'non-ideal tracer flowsheet') ;
+        end
+
+        function removedControlsAreAbsent(testCase)
+            tags = {'ConvRegularization', 'ConvLambdaMode', ...
+                'ConvLambdaValue', 'ConvSmoothing', ...
+                'ConvLowerPlot'} ;
+            for k = 1:numel(tags)
+                testCase.verifyEmpty(findall(testCase.Figure, 'Tag', tags{k})) ;
+            end
+            testCase.verifyEqual(testCase.control('ConvSupportDescription').Text, ...
+                'Default: widest support compatible with the data.') ;
+        end
+
+        function legacyRemovedMethodRecomputesAndWarns(testCase)
+            testCase.configureCleanSyntheticDeconvolution() ;
+            compute = testCase.control('ConvCompute') ;
+            feval(compute.ButtonPushedFcn, compute, []) ;
+            expected = testCase.control('ConvResultTable').Data ;
+            saved = fullfile(testCase.Folder, 'legacy-removed-method.mat') ;
+            testCase.App.saveSessionToFile(saved, 'legacy-removed-method') ;
+            loaded = load(saved, 'sessionData') ;
+            loaded.sessionData.convolution = testCase.addLegacyOptions( ...
+                loaded.sessionData.convolution, 'Tikhonov') ;
+            sessionData = loaded.sessionData ; %#ok<NASGU>
+            save(saved, 'sessionData') ;
+
+            testCase.control('ConvTableCin').Data = cell(3, 2) ;
+            testCase.control('ConvTableCout').Data = cell(3, 2) ;
+            testCase.App.loadSessionFromFile(saved) ;
+
+            actual = testCase.control('ConvResultTable').Data ;
+            testCase.verifyEqual(actual, expected, 'AbsTol', 0) ;
+            labels = findall(testCase.Figure, 'Type', 'uilabel') ;
+            messages = string({labels.Text}) ;
+            testCase.verifyTrue(any(contains(messages, ...
+                'the session was recomputed without it.'))) ;
+            roundTrip = fullfile(testCase.Folder, 'round-trip.mat') ;
+            testCase.App.saveSessionToFile(roundTrip, 'round-trip') ;
+            stored = load(roundTrip, 'sessionData') ;
+            testCase.verifyNoLegacyOptions(stored.sessionData.convolution) ;
+        end
+
+        function legacyNoneLoadsWithoutRemovedMethodWarning(testCase)
+            testCase.configureCleanSyntheticDeconvolution() ;
+            compute = testCase.control('ConvCompute') ;
+            feval(compute.ButtonPushedFcn, compute, []) ;
+            saved = fullfile(testCase.Folder, 'legacy-none.mat') ;
+            testCase.App.saveSessionToFile(saved, 'legacy-none') ;
+            loaded = load(saved, 'sessionData') ;
+            loaded.sessionData.convolution = testCase.addLegacyOptions( ...
+                loaded.sessionData.convolution, 'None') ;
+            sessionData = loaded.sessionData ; %#ok<NASGU>
+            save(saved, 'sessionData') ;
+
+            testCase.App.loadSessionFromFile(saved) ;
+
+            labels = findall(testCase.Figure, 'Type', 'uilabel') ;
+            messages = string({labels.Text}) ;
+            testCase.verifyFalse(any(contains(messages, ...
+                'the session was recomputed without it.'))) ;
+            roundTrip = fullfile(testCase.Folder, 'none-round-trip.mat') ;
+            testCase.App.saveSessionToFile(roundTrip, 'none-round-trip') ;
+            stored = load(roundTrip, 'sessionData') ;
+            testCase.verifyNoLegacyOptions(stored.sessionData.convolution) ;
+        end
+    end
+
     methods (Access = private)
+        function showInteractiveApp(testCase)
+            testCase.Figure.Visible = 'on' ;
+            drawnow ;
+        end
+
         function verifyResultGeometry(testCase, count, descriptionText)
             drawnow ;
             panel = testCase.control('ConvResultsPanel') ;
@@ -709,6 +971,20 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             drawnow ;
         end
 
+        function value = resultValue(testCase, labelText)
+            matchingIndices = [] ;
+            for k = 1:7
+                label = testCase.control(sprintf('ConvResultLabel%d', k)) ;
+                if strcmp(label.Text, labelText) && strcmp(label.Visible, 'on')
+                    matchingIndices(end + 1) = k ; %#ok<AGROW>
+                end
+            end
+            testCase.assertNumElements(matchingIndices, 1, ...
+                ['Missing or duplicate result label: ' labelText]) ;
+            value = testCase.control(sprintf( ...
+                'ConvResultValue%d', matchingIndices(1))).Text ;
+        end
+
         function setDropdown(testCase, tag, value)
             testCase.choose(testCase.control(tag), value) ;
         end
@@ -732,6 +1008,23 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
 
         function cells = asCells(~, data)
             if isnumeric(data), cells = num2cell(data) ; else, cells = data ; end
+        end
+
+        function state = addLegacyOptions(~, state, method)
+            state.('regularization') = method ;
+            state.('lambdaMode') = 'Manual' ;
+            state.('lambdaValue') = 0.1 ;
+            state.smoothing = 'identity' ;
+            state.('lowerPlot') = 'Reconvolution check' ;
+        end
+
+        function verifyNoLegacyOptions(testCase, state)
+            names = {'regularization', 'lambdaMode', ...
+                'lambdaValue', 'smoothing', 'lowerPlot'} ;
+            testCase.verifyFalse(any(isfield(state, names))) ;
+            infoNames = {'lambda', 'lambdaSelectedAutomatically', ...
+                'smoothing', 'regularizationMatrix', 'lCurve'} ;
+            testCase.verifyFalse(any(isfield(state.lastInfo, infoNames))) ;
         end
 
         function configureCourseDeconvolution(testCase, unit)
@@ -772,6 +1065,28 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             testCase.control('ConvDt').Value = 0 ;
         end
 
+        function configureCleanSyntheticDeconvolution(testCase)
+            dt = 0.2 ; % s
+            time = 0:dt:20 ; % s
+            inlet = nirp.conv.fromFunction( ...
+                @(value) exp(-((value - 2) / 0.7).^2), time) ;
+            trueRTD = nirp.conv.fromRTD(RTD.tanks_in_series(3, 5, time), dt) ;
+            measured = nirp.conv.convolve(trueRTD, inlet) ;
+
+            group = testCase.control('ConvModeGroup') ;
+            buttons = group.Children ;
+            group.SelectedObject = buttons(strcmp({buttons.Text}, 'Deconvolution')) ;
+            feval(group.SelectionChangedFcn, group, []) ;
+            testCase.control('ConvTableCin').Data = [inlet.t(:) inlet.C(:)] ;
+            testCase.control('ConvTableCout').Data = ...
+                [measured.t(:) measured.C(:)] ;
+            testCase.control('ConvDt').Value = dt ;
+            testCase.control('ConvSupportMin').Value = 0 ;
+            supportMax = testCase.control('ConvSupportMax') ;
+            supportMax.Value = 20 ;
+            feval(supportMax.ValueChangedFcn, supportMax, []) ;
+        end
+
     end
 end
 
@@ -779,4 +1094,16 @@ function closeFigures()
     figures = findall(groot, 'Type', 'Figure') ;
     if ~isempty(figures), delete(figures) ; end
     evalin('base', 'clear convolutionResult') ;
+end
+
+function choice = recordRTDConfirmation(message, choice)
+    setappdata(groot, 'NirpDeconvolutionRTDConfirmMessage', message) ;
+end
+
+function clearRTDConfirmationOverride()
+    names = {'NirpDeconvolutionRTDConfirmOverride', ...
+        'NirpDeconvolutionRTDConfirmMessage'} ;
+    for k = 1:numel(names)
+        if isappdata(groot, names{k}), rmappdata(groot, names{k}) ; end
+    end
 end

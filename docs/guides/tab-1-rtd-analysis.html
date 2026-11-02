@@ -95,7 +95,7 @@
         <tr><td>Laminar Flow</td><td>You want the laminar-flow idealized RTD.</td></tr>
         <tr><td>Experimental Pulse / Experimental Step</td><td>You have tracer data and want the RTD reconstructed from measurements.</td></tr>
         <tr><td>C(t) Equation</td><td>You want to define the tracer signal piecewise with MATLAB expressions. Choose <em>Pulse C(t)</em> if it is the response to an ideal pulse, or <em>Step C(t)</em> (with the step height C<sub>0</sub>) if it is the response to an ideal step.</td></tr>
-        <tr><td>Tabular Input</td><td>You want to type the signal manually inside the app.</td></tr>
+        <tr><td>Tabular Input</td><td>You want to type the signal manually inside the app, or the RTD was received from Tab 6 or from the tracer flowsheet's Tracer Monitor.</td></tr>
       </table>
       <p>For file-based experimental routes, see the dedicated <a href="appendix-import-formats.html">Import Formats appendix</a>.</p>
     </section>
@@ -128,7 +128,7 @@
           <figcaption>Example of <code>E(t)</code> with the current app overlay for <code>&tau;</code> and <code>&tau; &plusmn; &sigma;</code>.</figcaption>
         </figure>
         <figure class="figure-card">
-          <img src="../assets/rtd_etheta_sigma_overlay.png" alt="E(theta) example with normalized sigma overlays">
+          <img src="../assets/rtd_etheta_sigma_overlay.png" alt="E(&theta;) example with normalized sigma overlays">
           <figcaption>Example of <code>E(&theta;)</code> with the normalized overlay used by the app.</figcaption>
         </figure>
       </div>
@@ -147,6 +147,7 @@
         <tr><td>Later tabs do not see the RTD</td><td>Confirm the RTD was actually generated in the current session and not just partially configured.</td></tr>
       </table>
       <div class="footer-nav">
+        <a class="button" href="../UserGuide.html">Previous: User Guide</a>
         <a class="button" href="appendix-rtd-interpretation.html">Open RTD interpretation appendix</a>
         <a class="button alt" href="tab-2-prediction-models.html">Next: Prediction Models</a>
       </div>

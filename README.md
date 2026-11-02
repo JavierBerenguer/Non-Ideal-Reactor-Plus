@@ -1,5 +1,7 @@
 # Non-Ideal Reactor Plus (NIRP)
 
+[![View NIRP - (Non) Ideal Reactorapp Plus on File Exchange](https://www.mathworks.com/matlabcentral/images/matlab-file-exchange.svg)](https://es.mathworks.com/matlabcentral/fileexchange/185035-nirp-non-ideal-reactorapp-plus)
+
 First public release: **v1.0 (October 2026)**. NIRP is under active development as a master's thesis project at the University of Alicante.
 
 ## Overview
@@ -15,9 +17,9 @@ The current release includes:
   3. **Tanks-in-Series**.
   4. **Dispersion Model**.
   5. **Design & Optimization**, including diagnosis and fitting, reactive-performance comparisons, and optimization.
-  6. **Convolution**, with convolution, series composition, and deconvolution workflows.
+  6. **Convolution**, with convolution and deconvolution workflows.
 - A Simulink library for steady-state flowsheets built from continuous ideal units. Its blocks are **Stream**, **CSTR**, **PFR**, **Mixer**, **Splitter**, **Separator**, **Heater**, **Jacket**, **Recycle**, **Adjust**, and the **Flowsheet** controller.
-- Generatable Simulink example flowsheets and solved application sessions in `saves/`, including the convolution examples `SECT01`-`SECT03` and `SEC01`-`SEC09`.
+- Generatable Simulink example flowsheets and solved application sessions in `saves/`, including the convolution examples `SECT01`-`SECT03` and `SEC02`-`SEC09`.
 
 ## Requirements
 
@@ -71,8 +73,14 @@ ReactorApp references:
 
 Non-Ideal-Reactor-App references:
 
+- [University of Alicante TFG repository entry](https://hdl.handle.net/10045/169730)
 - [GitHub repository](https://github.com/JavierBerenguer/Trabajo-Final-de-Grado.git)
 - [MathWorks File Exchange project](https://es.mathworks.com/matlabcentral/fileexchange/184241-trabajo-final-de-grado)
+
+NIRP references:
+
+- Master's thesis (University of Alicante repository): link pending publication.
+- [MathWorks File Exchange project](https://es.mathworks.com/matlabcentral/fileexchange/185035-nirp-non-ideal-reactorapp-plus)
 
 ## License
 

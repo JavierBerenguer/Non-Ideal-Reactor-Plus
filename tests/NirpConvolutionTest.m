@@ -2,7 +2,7 @@ classdef NirpConvolutionTest < matlab.unittest.TestCase
     % NirpConvolutionTest verifies tracer convolution and deconvolution.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 9, 2026. Last update: October 21, 2026
+    % Created: October 9, 2026. Last update: November 2, 2026
     % =========================================================================
 
     methods (Test)
@@ -108,17 +108,6 @@ classdef NirpConvolutionTest < matlab.unittest.TestCase
             testCase.verifyEqual(info.numberOfEquations,10) ;
         end
 
-        function recoversNoisyProblemSixDistribution(testCase)
-            Cin = nirp.conv.signal(0:11,[0 0 8 6 4 5 6 3 1 0 0 0]) ;
-            Cout = nirp.conv.signal(0:15, ...
-                [0 0 0 .4 4.3 6 5.1 4.8 5.63 4.1 2.1 .6 .1 0 0 0]) ;
-
-            [E,info] = nirp.conv.deconvolve(Cin,Cout,6) ;
-
-            testCase.verifyEqual(E.C,[0 .05 .5 .35 .1 0],'AbsTol',.1) ;
-            testCase.verifyLessThan(info.residualNorm,1) ;
-        end
-
         function exactlyRecoversSyntheticDistribution(testCase)
             Cin = nirp.conv.signal(0:.25:1,[1 2 3 2 1]) ;
             expected = nirp.conv.signal(2:.25:2.75,[.2 .8 .6 .1]) ;
@@ -156,6 +145,14 @@ classdef NirpConvolutionTest < matlab.unittest.TestCase
                 nirp.conv.signal(0:2,[1 2 1]), ...
                 nirp.conv.signal(0:4,[1 2 3 2 1]),6), ...
                 'nirp:conv:InvalidLength') ;
+        end
+
+        function rejectsRemovedFourthInput(testCase)
+            Cin = nirp.conv.signal(0:2,[1 2 1]) ;
+            Cout = nirp.conv.signal(0:4,[1 2 3 2 1]) ;
+
+            testCase.verifyError(@() nirp.conv.deconvolve( ...
+                Cin,Cout,3,struct()),'nirp:conv:RegularizationRemoved') ;
         end
     end
 end

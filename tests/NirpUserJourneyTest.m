@@ -6,7 +6,7 @@ classdef NirpUserJourneyTest < matlab.uitest.TestCase
 %   journeys type into the cells with matlab.uitest.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 15, 2026. Last update: October 16, 2026
+% Created: October 15, 2026. Last update: October 22, 2026
 % =========================================================================
     properties
         Folder
@@ -35,7 +35,7 @@ classdef NirpUserJourneyTest < matlab.uitest.TestCase
         end
     end
 
-    methods (Test)
+    methods (Test, TestTags = {'Interactive'})
         function j1CreatesReactiveSystemAndFlowsheetFromControls(testCase)
             dialog=nirp.flowsheet.ReactiveSystemDialog('Visible','on');
             testCase.addTeardown(@()deleteValid(dialog));drawnow;

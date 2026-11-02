@@ -9,7 +9,7 @@ classdef NonIdealReactorApp < handle
 %
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: March 21, 2026. Last update: October 18, 2026
+% Created: March 21, 2026. Last update: October 22, 2026
 % =========================================================================
 
     properties (Access = private)
@@ -237,8 +237,11 @@ classdef NonIdealReactorApp < handle
             parser.FunctionName = 'NonIdealReactorApp' ;
             addParameter(parser, 'ProgressFcn', [], ...
                 @(value) isempty(value) || isa(value, 'function_handle')) ;
+            addParameter(parser, 'Visible', 'on', ...
+                @(value) any(strcmpi(char(string(value)), {'on', 'off'}))) ;
             parse(parser, varargin{:}) ;
             progressFcn = parser.Results.ProgressFcn ;
+            initialVisibility = lower(char(string(parser.Results.Visible))) ;
 
             loadingCleanup = [] ;
             if isempty(progressFcn)
@@ -264,6 +267,7 @@ classdef NonIdealReactorApp < handle
                 'Visible', 'off', ...
                 'AutoResizeChildren', 'off') ;
             app.UIFigure.CloseRequestFcn = @(~,~) delete(app) ;
+            setappdata(app.UIFigure, 'NirpNonIdealReactorApp', app) ;
 
             % Menu bar
             mFile = uimenu(app.UIFigure, 'Text', 'File') ;
@@ -341,7 +345,7 @@ classdef NonIdealReactorApp < handle
             % relayout all of its descendants repeatedly and can starve painting for minutes.
             app.applyFigureSize() ;
             app.UIFigure.SizeChangedFcn = @(~,~) app.onFigureResize() ;
-            app.UIFigure.Visible = 'on' ;
+            app.UIFigure.Visible = initialVisibility ;
             drawnow ;
             app.applyFigureSize() ;
             % Drawing the visible window is the slow part of a cold start: Ready only after it (Claude, T-161)
@@ -380,6 +384,11 @@ classdef NonIdealReactorApp < handle
             end
 
             app.applySessionSnapshot(loadedData.sessionData) ;
+        end
+
+        function useTracerFlowsheetRTD(app, signal)
+            % Load a tracer-flowsheet accumulated E signal into Tab 1.
+            app.useConvolutionRTD(signal, 'Tracer flowsheet') ;
         end
 
     end
@@ -1411,7 +1420,10 @@ classdef NonIdealReactorApp < handle
             backupSnapshot = app.buildSessionSnapshot('backup_before_load') ;
             try
                 app.loadSessionFromFile(fullfile(filePath, fileName)) ;
-                app.updateStatus(sprintf('Session loaded: %s', fileName)) ;
+                if ~contains(app.StatusBar.Text, ...
+                        'the session was recomputed without it.')
+                    app.updateStatus(sprintf('Session loaded: %s', fileName)) ;
+                end
 
                 loadedData = load(fullfile(filePath, fileName), 'sessionData') ;
                 if ~isfield(loadedData.sessionData, 'session_version') || ...
@@ -3560,10 +3572,12 @@ classdef NonIdealReactorApp < handle
             app.rtd = RTD(signal.t, signal.C) ;
             if strcmp(mode, 'Deconvolution')
                 app.rtd.source = 'deconvolution' ;
+                modelSource = 'Convolution tab' ;
             else
-                app.rtd.source = 'series_composition' ;
+                app.rtd.source = 'tracer_flowsheet' ;
+                modelSource = 'Non-ideal tracer flowsheet' ;
             end
-            app.rtd.modelInfo = struct('source', 'Convolution tab') ;
+            app.rtd.modelInfo = struct('source', modelSource) ;
             app.RTD_SourceDropdown.Value = 'Tabular Input' ;
             app.RTD_sourceChanged() ;
             app.RTD_DataTypeDropdown.Value = 'Pulse C(t)' ;
@@ -8926,46 +8940,7 @@ classdef NonIdealReactorApp < handle
         end
 
         function showTechnicalGuide(~)
-            docsDir = fullfile(fileparts(mfilename('fullpath')), 'docs') ;
-            guidePath = fullfile(docsDir, 'TechnicalChapter.html') ;
-
-            try
-                if ~isfile(guidePath)
-                    error('NonIdealReactorApp:MissingTechnicalGuide', ...
-                        'Technical guide HTML file not found.') ;
-                end
-
-                fig = uifigure('Name', 'Help - Technical Guide', ...
-                    'Position', [120 60 980 740], ...
-                    'Resize', 'on') ;
-                uihtml(fig, ...
-                    'HTMLSource', guidePath, ...
-                    'Position', [10 10 960 720]) ;
-            catch
-                fallbackPath = fullfile(docsDir, 'TechnicalChapter.md') ;
-                helpText = { ...
-                    'Formatted technical guide not available.', ...
-                    '', ...
-                    ['Expected file: ' guidePath], ...
-                    '', ...
-                    ['Reference markdown: ' fallbackPath], ...
-                    '', ...
-                    'Opening the HTML guide in the system browser if possible.'} ;
-                try
-                    web(guidePath, '-browser') ;
-                catch
-                end
-
-                fig = uifigure('Name', 'Help - Technical Guide', ...
-                    'Position', [180 120 700 220], ...
-                    'Resize', 'off') ;
-                uitextarea(fig, ...
-                    'Value', helpText, ...
-                    'Position', [10 10 680 200], ...
-                    'Editable', 'off', ...
-                    'FontName', 'Consolas', ...
-                    'FontSize', 12) ;
-            end
+            openNirpGuide('TechnicalChapter.html') ;
         end
 
         % -----------------------------------------------------------------

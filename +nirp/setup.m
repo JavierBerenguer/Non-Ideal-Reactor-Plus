@@ -17,6 +17,7 @@ function libraryFile = setup()
     if isfolder(exampleFolder), addFolder(exampleFolder) ; end
 
     libraryFile = fullfile(simulinkFolder,'NirpLibrary.slx') ;
+    tracerLibraryFile = fullfile(simulinkFolder,'NirpTracerLibrary.slx') ;
     developmentCopy = hasGitMetadata(repoRoot) && isWritable(repoRoot) ;
     if developmentCopy && (~isfile(libraryFile) || ...
             isStale(libraryFile,repoRoot,simulinkFolder))
@@ -25,6 +26,13 @@ function libraryFile = setup()
         error('nirp:setup:missingPackagedLibrary', ...
             'The installed NIRP toolbox does not contain simulink/NirpLibrary.slx.') ;
     end
+    if developmentCopy && (~isfile(tracerLibraryFile) || ...
+            isTracerStale(tracerLibraryFile,repoRoot,simulinkFolder))
+        build_tracer_library(simulinkFolder) ;
+    elseif ~isfile(tracerLibraryFile)
+        error('nirp:setup:missingPackagedTracerLibrary', ...
+            'The installed NIRP toolbox does not contain simulink/NirpTracerLibrary.slx.') ;
+    end
 
     try
         browser = LibraryBrowser.LibraryBrowser2 ;
@@ -32,6 +40,13 @@ function libraryFile = setup()
     catch
         % The browser is unavailable in headless MATLAB and some releases.
     end
+end
+
+function tf = isTracerStale(libraryFile,repoRoot,simulinkFolder)
+    sources=[dir(fullfile(simulinkFolder,'build_tracer_library.m')); ...
+        dir(fullfile(repoRoot,'+nirp','+tracerblocks','*.m')); ...
+        dir(fullfile(repoRoot,'+nirp','+tracerflowsheet','*.m'))] ;
+    library=dir(libraryFile);tf=~isempty(sources)&&any([sources.datenum]>library.datenum) ;
 end
 
 function tf = hasGitMetadata(folder)

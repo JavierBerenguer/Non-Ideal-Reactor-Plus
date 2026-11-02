@@ -2,7 +2,7 @@ classdef NirpDialogInvariantsTest < matlab.unittest.TestCase
 %NIRPDIALOGINVARIANTSTEST Common presentation and editing invariants.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 15, 2026. Last update: October 17, 2026
+% Created: October 15, 2026. Last update: October 22, 2026
 % =========================================================================
     properties
         Folder
@@ -132,6 +132,9 @@ classdef NirpDialogInvariantsTest < matlab.unittest.TestCase
             reactive=nirp.flowsheet.ReactiveSystemDialog('Mode','edit','Model','apply_roundtrip','Visible','off');testCase.verifyEqual(string(reactive.StatusLabel.Text),"Package loaded.");delete(reactive);
         end
 
+    end
+
+    methods (Test, TestTags = {'Interactive'})
         function conflictAlertLeavesDialogResponsive(testCase)
             createDialogModel(testCase,'alert_invariant');
             dialog=nirp.flowsheet.SplitterDialog('alert_invariant/Splitter','Visible','on');testCase.addTeardown(@()deleteValid(dialog));drawnow;
@@ -139,6 +142,10 @@ classdef NirpDialogInvariantsTest < matlab.unittest.TestCase
             testCase.verifyTrue(isvalid(dialog.Figure));testCase.verifyEqual(string(dialog.NameField.Value),"Splitter");
             dialog.setFractions([0.4 NaN]);testCase.verifySubstring(dialog.StatusLabel.Text,'Fully specified');
         end
+
+    end
+
+    methods (Test)
 
         function incompleteDialogsApplyWithoutConflict(testCase)
             createDialogModel(testCase,'incomplete_apply');

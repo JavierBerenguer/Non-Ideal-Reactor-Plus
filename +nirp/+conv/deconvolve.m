@@ -1,5 +1,5 @@
-function [E,info] = deconvolve(Cin,Cout,support)
-%DECONVOLVE Estimate a nonnegative RTD signal by least squares.
+function [E,info] = deconvolve(Cin,Cout,support,varargin)
+%DECONVOLVE Estimate an RTD signal by nonnegative least squares.
 %   CIN and COUT use seconds and must have a common uniform DT. SUPPORT is
 %   either [TAUMIN TAUMAX] in seconds or the legacy scalar number of RTD
 %   samples. When omitted, the legacy complete-convolution length is used.
@@ -7,8 +7,14 @@ function [E,info] = deconvolve(Cin,Cout,support)
 %   normalized.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 9, 2026. Last update: October 21, 2026
+% Created: October 9, 2026. Last update: November 2, 2026
 % =========================================================================
+
+    if ~isempty(varargin)
+        error('nirp:conv:RegularizationRemoved', ...
+            ['A fourth input is no longer supported. Deconvolution now ' ...
+             'uses nonnegative least squares only.']) ;
+    end
 
     Cin = nirp.conv.signal(Cin.t,Cin.C) ;
     Cout = nirp.conv.signal(Cout.t,Cout.C) ;
@@ -53,7 +59,9 @@ function [E,info] = deconvolve(Cin,Cout,support)
 
     sampleTimes = Cout.t(:)-tau ;
     matrix = interp1(Cin.t,Cin.C,sampleTimes,'linear',0)*dtIn ;
-    [estimated,resnorm,residual] = lsqnonneg(matrix,Cout.C.') ;
+    estimated = lsqnonneg(matrix,Cout.C.') ;
+    residual = Cout.C.'-matrix*estimated ;
+    resnorm = residual.'*residual ;
     E = nirp.conv.signal(tau,estimated.') ;
 
     fitted = (matrix*estimated).' ;

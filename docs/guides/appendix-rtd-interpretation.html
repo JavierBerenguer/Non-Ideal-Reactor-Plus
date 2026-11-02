@@ -23,14 +23,14 @@
       <div class="hero-grid">
         <div>
           <h1>How to Read the RTD Plots</h1>
-          <p>This appendix explains the meaning of the main RTD plots used by the app and how the recent overlays help you read them without changing the underlying RTD calculation.</p>
+          <p>This appendix explains the meaning of the main RTD plots used by the app and how the overlays help you read them without changing the underlying RTD calculation.</p>
         </div>
         <aside class="toc">
           <h2>On This Page</h2>
           <ol>
             <li><a href="#et">E(t)</a></li>
             <li><a href="#ft">F(t)</a></li>
-            <li><a href="#etheta">E(theta)</a></li>
+            <li><a href="#etheta">E(&theta;)</a></li>
             <li><a href="#moments">Moments and overlays</a></li>
             <li><a href="#mistakes">Common mistakes</a></li>
           </ol>
@@ -39,7 +39,7 @@
     </section>
     <section class="section" id="et">
       <h2>E(t)</h2>
-      <p><code>E(t)</code> is the residence time distribution in dimensional time. The app now marks the mean residence time and the characteristic spread band based on one standard deviation.</p>
+      <p><code>E(t)</code> is the residence time distribution in dimensional time. The app marks the mean residence time and the characteristic spread band based on one standard deviation.</p>
       <figure class="figure-card">
         <img src="../assets/rtd_et_sigma_overlay.png" alt="E(t) overlay example">
         <figcaption>The shaded band and the vertical lines are visual guides only. They do not replace the real RTD curve.</figcaption>
@@ -66,7 +66,7 @@
       <h2>E(&theta;)</h2>
       <p><code>E(&theta;)</code> shows the same RTD in normalized time, which makes it easier to compare shapes independently of the absolute residence time scale.</p>
       <figure class="figure-card">
-        <img src="../assets/rtd_etheta_sigma_overlay.png" alt="E(theta) overlay example">
+        <img src="../assets/rtd_etheta_sigma_overlay.png" alt="E(&theta;) overlay example">
         <figcaption>The normalized overlay highlights spread relative to <code>&theta; = 1</code>, not relative to an absolute time unit.</figcaption>
       </figure>
       <ul>
@@ -86,9 +86,9 @@
           <th>Quantity</th>
           <th>Interpret it as...</th>
         </tr>
-        <tr><td><code>tau</code></td><td>The characteristic mean residence time.</td></tr>
-        <tr><td><code>sigma^2</code></td><td>The spread of ages around the mean in dimensional time.</td></tr>
-        <tr><td><code>sigma_theta^2</code></td><td>The same spread seen after time normalization.</td></tr>
+        <tr><td><code>&tau;</code></td><td>The characteristic mean residence time.</td></tr>
+        <tr><td><code>&sigma;<sup>2</sup></code></td><td>The spread of ages around the mean in dimensional time.</td></tr>
+        <tr><td><code>&sigma;<sub>&theta;</sub><sup>2</sup></code></td><td>The same spread seen after time normalization.</td></tr>
         <tr><td>Skewness</td><td>How asymmetric the RTD is, especially whether it has a long tail.</td></tr>
       </table>
       <div class="callout info">

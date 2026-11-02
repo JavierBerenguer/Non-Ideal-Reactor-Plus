@@ -1,8 +1,8 @@
-classdef NirpConvolutionSessionsTest < matlab.uitest.TestCase
+classdef NirpConvolutionSessionsTest < matlab.unittest.TestCase
     % NirpConvolutionSessionsTest verifies the saved convolution examples.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 21, 2026. Last update: October 21, 2026
+    % Created: October 21, 2026. Last update: October 22, 2026
     % =========================================================================
 
     properties
@@ -14,11 +14,12 @@ classdef NirpConvolutionSessionsTest < matlab.uitest.TestCase
     methods (TestMethodSetup)
         function openApp(testCase)
             testCase.Root = fileparts(fileparts(mfilename('fullpath'))) ;
-            testCase.App = NonIdealReactorApp() ;
+            testCase.App = NonIdealReactorApp('ProgressFcn',@(~,~) [], ...
+                'Visible','off') ;
             figures = findall(groot, 'Type', 'Figure', ...
                 'Name', 'Non-Ideal Reactor Analysis') ;
             testCase.Figure = figures(1) ;
-            testCase.Figure.Visible = 'on' ;
+            testCase.Figure.Visible = 'off' ;
             testCase.addTeardown(@() closeFigures()) ;
         end
     end
@@ -26,8 +27,8 @@ classdef NirpConvolutionSessionsTest < matlab.uitest.TestCase
     methods (Test)
         function savedSessionsLoadAndComputeTheirReferences(testCase)
             names = ["SECT01" "SECT02" "SECT03" ...
-                "SEC01" "SEC02" "SEC03" "SEC04" "SEC05" ...
-                "SEC06" "SEC07" "SEC08" "SEC09"] ;
+                "SEC02" "SEC03" "SEC04" "SEC05" "SEC06" ...
+                "SEC07" "SEC08" "SEC09"] ;
             for k = 1:numel(names)
                 file = fullfile(testCase.Root, 'saves', names(k) + ".mat") ;
                 testCase.assertTrue(isfile(file), char(names(k))) ;
@@ -38,7 +39,8 @@ classdef NirpConvolutionSessionsTest < matlab.uitest.TestCase
                 drawnow ;
                 testCase.verifyEqual(testCase.mainTabs().SelectedTab.Title, ...
                     'Convolution', char(names(k))) ;
-                testCase.press(testCase.control('ConvCompute')) ;
+                compute = testCase.control('ConvCompute') ;
+                feval(compute.ButtonPushedFcn,compute,[]) ;
                 drawnow ;
 
                 actual = testCase.control('ConvResultTable').Data ;

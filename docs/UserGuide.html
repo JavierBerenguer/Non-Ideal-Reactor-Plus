@@ -61,7 +61,7 @@
         </div>
         <div class="flow-step">
           <strong>5. Use Tab 6 for tracer-signal calculations</strong>
-          Use <a href="guides/tab-6-convolution.html">Convolution</a> to predict an outlet tracer signal, recover an RTD by deconvolution, or combine two RTDs in series. A recovered RTD can be sent back to Tab 1 and reused by Tabs 2-5.
+          Use <a href="guides/tab-6-convolution.html">Convolution</a> to predict an outlet tracer signal or recover an RTD by deconvolution. A recovered RTD can be sent back to Tab 1 and reused by Tabs 2-5; vessel networks belong in the non-ideal tracer flowsheet.
         </div>
       </div>
       <div class="callout info">
@@ -108,7 +108,7 @@
         <div class="dependency-row">
           <div class="node">
             <strong>Tab 6 - Convolution</strong>
-            <p>Uses its own tracer signals or the RTD from Tab 1 for convolution and series composition.</p>
+            <p>Uses its own tracer signals or the RTD from Tab 1 for convolution and deconvolution.</p>
           </div>
           <div class="arrow">&harr;</div>
           <div class="node shared">
@@ -160,9 +160,9 @@
           <td>It is the integrated workspace for design-oriented analysis.</td>
         </tr>
         <tr>
-          <td>Predict or reconstruct tracer signals, or compose RTDs in series</td>
+          <td>Predict or reconstruct tracer signals</td>
           <td><a href="guides/tab-6-convolution.html">Tab 6 - Convolution</a></td>
-          <td>It provides convolution, nonnegative deconvolution, and series composition in one workspace.</td>
+          <td>It provides convolution and nonnegative deconvolution in one workspace.</td>
         </tr>
       </table>
     </section>
@@ -197,7 +197,7 @@
         </article>
         <article class="card">
           <h3>Tab 6 - Convolution</h3>
-          <p>Predict tracer outputs, recover an RTD by nonnegative deconvolution, or compose two RTDs in series.</p>
+          <p>Predict tracer outputs or recover an RTD by nonnegative deconvolution.</p>
           <a class="button" href="guides/tab-6-convolution.html">Open Tab 6 guide</a>
         </article>
         <article class="card">

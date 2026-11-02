@@ -2,7 +2,7 @@ classdef NirpLauncherTest < matlab.uitest.TestCase
     % NirpLauncherTest verifies the main launcher and startup feedback.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 16, 2026. Last update: October 18, 2026
+    % Created: October 16, 2026. Last update: October 22, 2026
     % =========================================================================
 
     methods (TestMethodSetup)
@@ -14,14 +14,16 @@ classdef NirpLauncherTest < matlab.uitest.TestCase
 
     methods (Test)
         function launcherShowsActionsAndCredits(testCase)
-            launcher = NonIdealReactorPlus() ;
+            launcher = NonIdealReactorPlus('Visible','off') ;
             testCase.addTeardown(@() deleteIfValid(launcher)) ;
             figureHandle = launcher.UIFigure ;
             buttons = findall(figureHandle, 'Type', 'uibutton') ;
             testCase.verifyEqual(sort(string({buttons.Text})), sort([ ...
                 "Ideal Reactor App", "Non-Ideal Reactor App", ...
                 "Open block library", "Open example...", ...
-                "New flowsheet..."])) ;
+                "New flowsheet...", ...
+                "Open block library", "Open example...", ...
+                "New flowsheet..."])) ; % ideal and tracer flowsheet groups (T-191)
             panels = findall(figureHandle, 'Type', 'uipanel') ;
             testCase.verifyFalse(any(string({panels.Title}) == "Guides")) ;
             labels = findall(figureHandle, 'Type', 'uilabel') ;
@@ -32,6 +34,9 @@ classdef NirpLauncherTest < matlab.uitest.TestCase
             testCase.verifyTrue(any(contains(labelText, 'Isabela Fons'))) ;
         end
 
+    end
+
+    methods (Test, TestTags = {'Interactive'})
         function nonIdealButtonKeepsLauncherIndependent(testCase)
             launcher = NonIdealReactorPlus() ;
             testCase.addTeardown(@() deleteIfValid(launcher)) ;
@@ -89,8 +94,11 @@ classdef NirpLauncherTest < matlab.uitest.TestCase
             end
         end
 
+    end
+
+    methods (Test)
         function directLaunchRemovesLoadingWindow(testCase)
-            app = NonIdealReactorApp() ;
+            app = NonIdealReactorApp('Visible','off') ;
             testCase.addTeardown(@() deleteIfValid(app)) ;
             figures = findall(groot, 'Type', 'Figure') ;
             testCase.verifyFalse(any(startsWith(string({figures.Name}), ...
@@ -98,7 +106,8 @@ classdef NirpLauncherTest < matlab.uitest.TestCase
         end
 
         function resizeEventsAreCoalescedAndApplyLastSize(testCase)
-            app = NonIdealReactorApp('ProgressFcn', @(~,~) []) ;
+            app = NonIdealReactorApp('ProgressFcn', @(~,~) [], ...
+                'Visible','off') ;
             testCase.addTeardown(@() deleteIfValid(app)) ;
             figureHandle = findall(groot, 'Type', 'Figure', ...
                 'Name', 'Non-Ideal Reactor Analysis') ;
@@ -120,6 +129,9 @@ classdef NirpLauncherTest < matlab.uitest.TestCase
             testCase.verifyEqual(statusBar(1).Position, [0 0 1600 22]) ;
         end
 
+    end
+
+    methods (Test, TestTags = {'Interactive'})
         function idealButtonOpensOriginalApp(testCase)
             launcher = NonIdealReactorPlus() ;
             testCase.addTeardown(@() deleteIfValid(launcher)) ;
@@ -143,11 +155,15 @@ classdef NirpLauncherTest < matlab.uitest.TestCase
             end
         end
 
+    end
+
+    methods (Test)
         function nonIdealUserGuideUsesCommonOpener(testCase)
             openedPath = "" ;
             setappdata(groot, 'NirpGuideOpenOverride', @recordGuidePath) ;
             testCase.addTeardown(@() clearGuideOverride()) ;
-            app = NonIdealReactorApp('ProgressFcn', @(~,~) []) ;
+            app = NonIdealReactorApp('ProgressFcn', @(~,~) [], ...
+                'Visible','off') ;
             testCase.addTeardown(@() deleteIfValid(app)) ;
             figureHandle = findall(groot, 'Type', 'Figure', ...
                 'Name', 'Non-Ideal Reactor Analysis') ;
@@ -195,6 +211,9 @@ classdef NirpLauncherTest < matlab.uitest.TestCase
             testCase.verifyEmpty(strfind(guideText, 'data:image')) ; %#ok<STREMP>
         end
 
+    end
+
+    methods (Test, TestTags = {'Interactive'})
         function libraryButtonLoadsLibrary(testCase)
             launcher = NonIdealReactorPlus() ;
             testCase.addTeardown(@() deleteIfValid(launcher)) ;

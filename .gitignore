@@ -9,6 +9,7 @@ release/
 
 # Regenerated NIRP Simulink models and dictionaries
 simulink/NirpLibrary.slx
+simulink/NirpTracerLibrary.slx
 simulink/examples/*.slx
 simulink/examples/*.sldd
 
