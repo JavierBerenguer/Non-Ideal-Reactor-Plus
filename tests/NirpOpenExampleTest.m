@@ -2,7 +2,7 @@ classdef NirpOpenExampleTest < matlab.unittest.TestCase
     % NirpOpenExampleTest verifies on-demand example generation.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 17, 2026. Last update: November 3, 2026
+    % Created: October 17, 2026. Last update: November 4, 2026
     % =========================================================================
 
     properties
@@ -142,6 +142,26 @@ classdef NirpOpenExampleTest < matlab.unittest.TestCase
             ideal = concentration(results{4},'Ideal product',1) ;
             nonIdeal = concentration(results{4},'Non-ideal product',1) ;
             testCase.verifyEqual(nonIdeal,ideal,'RelTol',1e-4) ;
+        end
+
+        function methanolExamplesOpenFromCatalog(testCase)
+            names = ["ex55_methanol_exam_january2020"; ...
+                "ex56_methanol_exam_january2022"] ;
+            [catalog,descriptions] = nirp.flowsheet.exampleNames() ;
+            testCase.verifyTrue(all(ismember(names,catalog))) ;
+            selected = descriptions(ismember(catalog,names)) ;
+            testCase.verifyTrue(all(startsWith(selected,"Methanol:"))) ;
+            for index = 1:numel(names)
+                destination = fullfile(testCase.Folder,char(names(index))) ;
+                modelFile = nirp.flowsheet.openExample(names(index), ...
+                    'Folder',destination,'NoWindow',true) ;
+                testCase.verifyTrue(isfile(modelFile)) ;
+                testCase.verifyTrue(isfile(fullfile(destination, ...
+                    names(index)+".sldd"))) ;
+                close_system(char(names(index)),0) ;
+                Simulink.data.dictionary.closeAll('-discard') ;
+                rmpathIfPresent(destination) ;
+            end
         end
     end
 end

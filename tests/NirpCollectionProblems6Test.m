@@ -3,7 +3,7 @@ classdef (SharedTestFixtures={nirptest.ExamplesFixture}) ...
     % NirpCollectionProblems6Test verifies problems 16 and 35 (T-135).
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 9, 2026. Last update: October 9, 2026
+    % Created: October 9, 2026. Last update: November 4, 2026
     % =========================================================================
 
     properties
@@ -41,7 +41,7 @@ classdef (SharedTestFixtures={nirptest.ExamplesFixture}) ...
                 "ex46_problem35_isothermal_cstr"; ...
                 "ex47_problem35_adiabatic_feed_T"]) ;
             testCase.verifyTrue(all(strlength(descriptions(45:47)) > 20)) ;
-            testCase.verifyEqual(numel(testCase.Files),54) ;
+            testCase.verifyEqual(numel(testCase.Files),56) ;
         end
 
         function problem16MatchesScriptAndReferences(testCase)

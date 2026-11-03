@@ -1,7 +1,7 @@
 % run_validation - Validate collection-problem flowsheets against scripts.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 3, 2026. Last update: November 3, 2026
+% Created: October 3, 2026. Last update: November 4, 2026
 % =========================================================================
 
 repoRoot = fileparts(fileparts(mfilename('fullpath'))) ; addpath(repoRoot) ;
@@ -788,6 +788,66 @@ assert(relative216(14) <= 1e-4, ...
     'nirp:validation:idealEquivalence216', ...
     'The RTD-based CSTR differs from the ideal CSTR by more than 1e-4 relative.') ;
 
+% T-220: methanol exam examples, compared with an independent ode15s
+% reference that does not call nirp.* or ReactionSys.
+diagram55 = simulateValidationExample(files(55), ...
+    "ex55_methanol_exam_january2020") ;
+diagram56 = simulateValidationExample(files(56), ...
+    "ex56_methanol_exam_january2022") ;
+reference55 = methanolJanuary2020Reference() ;
+reference56 = methanolJanuary2022Reference() ;
+
+outletNames55 = {'PFR 1 outlet','PFR 2 outlet','Product'} ;
+outletNames56 = {'PFR 1 outlet','Product'} ;
+diagramRows55 = methanolOutletRows(diagram55,outletNames55) ;
+referenceRows55 = [methanolStateRows(reference55.pfr1); ...
+    methanolStateRows(reference55.pfr2); ...
+    methanolStateRows(reference55.pfr3)] ;
+diagramRows55 = [diagramRows55; ...
+    resultStream(diagram55,'Heater 2 outlet').T; ...
+    resultStream(diagram55,'Heater 3 outlet').T; ...
+    resultStream(diagram55,'PFR 2 inlet').T; ...
+    resultStream(diagram55,'PFR 3 inlet').T] ;
+referenceRows55 = [referenceRows55;reference55.heater2T; ...
+    reference55.heater3T;623.15;673.15] ;
+
+diagramRows56 = methanolOutletRows(diagram56,outletNames56) ;
+referenceRows56 = [methanolStateRows(reference56.pfr1); ...
+    methanolStateRows(reference56.pfr2)] ;
+diagramRows56 = [diagramRows56; ...
+    resultStream(diagram56,'Heater outlet').T; ...
+    resultStream(diagram56,'PFR 2 inlet').T; ...
+    diagnosticHeat(diagram56,"ex56_methanol_exam_january2022","PFR 2")] ;
+referenceRows56 = [referenceRows56;reference56.heaterT; ...
+    reference56.heaterT;-1.8e7] ;
+
+outletMagnitudes = ["F_CH3OH (mol/s)";"F_CO (mol/s)"; ...
+    "F_CO2 (mol/s)";"T_out (K)"] ;
+magnitude220 = ["PFR 1 "+outletMagnitudes; ...
+    "PFR 2 "+outletMagnitudes;"PFR 3 "+outletMagnitudes; ...
+    "Heater 2 T_out (K)";"Heater 3 T_out (K)"; ...
+    "PFR 2 T_in (K)";"PFR 3 T_in (K)"; ...
+    "PFR 1 "+outletMagnitudes;"PFR 2 "+outletMagnitudes; ...
+    "Heater T_out (K)";"PFR 2 T_in (K)";"PFR 2 Q (W)"] ;
+problem220 = [repmat("ex55_methanol_exam_january2020",16,1); ...
+    repmat("ex56_methanol_exam_january2022",11,1)] ;
+diagram220 = [diagramRows55;diagramRows56] ;
+script220 = [referenceRows55;referenceRows56] ;
+official220 = nan(size(diagram220)) ;
+difference220 = abs(diagram220-script220) ;
+note220 = repmat("Independent ODE reference (no professor solution)", ...
+    size(problem220)) ;
+validation220 = table(problem220,magnitude220,diagram220,script220, ...
+    official220,difference220,note220, ...
+    'VariableNames',{'Problem','Magnitude','Diagram','Script','Official', ...
+    'Difference','Note'}) ;
+disp(validation220) ;
+
+relative220 = abs(diagram220-script220)./max(abs(script220),1e-12) ;
+assert(all(relative220 <= 1e-4), ...
+    'nirp:validation:methanolExams220', ...
+    'A methanol exam row differs from the independent ODE reference by more than 1e-4 relative.') ;
+
 function results = simulateValidationExample(file,name)
     evalin('base','clear nirpResults') ;
     load_system(char(file)) ; sim(char(name)) ;
@@ -805,6 +865,94 @@ function values = streamConcentrations(results,name,count)
     stream = results.Streams.(key).streamSI ;
     values = stream.F(1:count)./stream.Q ;
     if count > 1, values = values(:)/1000 ; end
+end
+
+function rows = methanolOutletRows(results,names)
+    rows = zeros(4*numel(names),1) ;
+    for index = 1:numel(names)
+        stream = resultStream(results,names{index}) ;
+        range = (4*index-3):(4*index) ;
+        rows(range) = [stream.F([3 1 4]);stream.T] ;
+    end
+end
+
+function rows = methanolStateRows(state)
+    rows = [state.F([3 1 4]);state.T] ;
+end
+
+function stream = resultStream(results,name)
+    key = matlab.lang.makeValidName(name) ;
+    stream = results.Streams.(key).streamSI ;
+end
+
+function reference = methanolJanuary2020Reference()
+    cp = [31.75 29.21 195.7 53.10 112.6 29.1] ;
+    stoichiometry = [-1 -2 1 0 0 0;1 2 -1 0 0 0; ...
+        0 -3 1 -1 1 0;0 3 -1 1 -1 0] ;
+    branch = [840 2400 0 400 0 360]'/3 ;
+    reference.pfr1 = methanolPfrReference(branch,558.15,1,0, ...
+        cp,stoichiometry) ;
+    reference.heater2T = fzero(@(temperature) methanolMixTemperature( ...
+        reference.pfr1.F,reference.pfr1.T,branch,temperature,cp)-623.15, ...
+        [500 900]) ;
+    secondFeed = reference.pfr1.F+branch ;
+    reference.pfr2 = methanolPfrReference(secondFeed,623.15,1,0, ...
+        cp,stoichiometry) ;
+    reference.heater3T = fzero(@(temperature) methanolMixTemperature( ...
+        reference.pfr2.F,reference.pfr2.T,branch,temperature,cp)-673.15, ...
+        [500 1000]) ;
+    thirdFeed = reference.pfr2.F+branch ;
+    reference.pfr3 = methanolPfrReference(thirdFeed,673.15,1,0, ...
+        cp,stoichiometry) ;
+end
+
+function reference = methanolJanuary2022Reference()
+    cp = [31.75 29.21 195.7 53.10 112.6] ;
+    stoichiometry = [-1 -2 1 0 0;1 2 -1 0 0; ...
+        0 -3 1 -1 1;0 3 -1 1 -1] ;
+    branch = [840 2600 0 560 0]'/2 ;
+    reference.pfr1 = methanolPfrReference(branch,473.15,0.8,0, ...
+        cp,stoichiometry) ;
+    reference.heaterT = reference.pfr1.T ;
+    secondFeed = reference.pfr1.F+branch ;
+    reference.pfr2 = methanolPfrReference(secondFeed,reference.heaterT, ...
+        4,-1.8e7,cp,stoichiometry) ;
+end
+
+function outlet = methanolPfrReference(feed,temperature,length,Q,cp,stoichiometry)
+    initial = [feed(:);temperature] ;
+    tolerance = [max(1e-11*abs(feed(:)),1e-12);1e-9] ;
+    options = odeset('RelTol',1e-10,'AbsTol',tolerance) ;
+    [~,states] = ode15s(@(~,state) methanolPfrDerivative( ...
+        state,length,Q,cp,stoichiometry),[0 length],initial,options) ;
+    outlet = struct('F',states(end,1:numel(feed))', ...
+        'T',states(end,numel(feed)+1)) ;
+end
+
+function derivative = methanolPfrDerivative(state,length,Q,cp,stoichiometry)
+    gasConstant = 8.314 ; pressure = 150e5 ;
+    totalArea = 5000*pi*(0.025/2)^2 ;
+    flows = state(1:numel(cp))' ; temperature = state(end) ;
+    concentration = flows/sum(flows)*pressure/(gasConstant*temperature) ;
+    rateConstants = [165 4.1e17 0.012 2.80e11].*exp( ...
+        -[66200 164588 25800 84505]/(gasConstant*temperature)) ;
+    rates = [rateConstants(1)*concentration(1)*concentration(2), ...
+        rateConstants(2)*concentration(3)/concentration(2), ...
+        rateConstants(3)*concentration(2)*concentration(4), ...
+        rateConstants(4)*concentration(3)*concentration(5)/ ...
+        concentration(2)^2] ;
+    baseCp = cp(1:5) ;
+    reactionEnthalpy = [-90.7e3 90.7e3 -49.32e3 49.32e3]+ ...
+        (temperature-298)*(stoichiometry(:,1:5)*baseCp')' ;
+    flowDerivative = totalArea*(rates*stoichiometry) ;
+    temperatureDerivative = (Q/length-totalArea* ...
+        sum(rates.*reactionEnthalpy))/(flows*cp') ;
+    derivative = [flowDerivative';temperatureDerivative] ;
+end
+
+function temperature = methanolMixTemperature(flow1,T1,flow2,T2,cp)
+    temperature = (flow1'*cp'*T1+flow2'*cp'*T2)/ ...
+        ((flow1+flow2)'*cp') ;
 end
 
 function value = cstrRtdBatchReference(initial,k,tau)
