@@ -11,8 +11,8 @@ classdef JacketDialog < handle
         UtilityTinPortLabel; UtilityToutField; UtilityToutUnitDropDown
         UtilityCpField; CondensesCheckBox; LatentHeatField
         ConnectionTable; StatusLabel; DataModel
-        ModeDropDown; SpecifiedTField; SpecifiedTUnitDropDown; SpecifiedTSourceDropDown; SpecifiedTPortLabel
-        SpecifiedQField; SpecifiedQUnitDropDown; SpecifiedQSourceDropDown; SpecifiedQPortLabel
+        ModeDropDown; SpecifiedTField; SpecifiedTUnitDropDown; SpecifiedTSourceDropDown; SpecifiedTSourceLabel; SpecifiedTPortLabel
+        SpecifiedQField; SpecifiedQUnitDropDown; SpecifiedQSourceDropDown; SpecifiedQSourceLabel; SpecifiedQPortLabel
         ServiceFlowField; ReactorDutyField
     end
     properties (Access=private),Origins,end
@@ -96,7 +96,7 @@ classdef JacketDialog < handle
             dutyLabel=uilabel(grid,'Text','Reactor duty Q (W)','HorizontalAlignment','right');dutyLabel.Layout.Row=8;dutyLabel.Layout.Column=4;obj.ReactorDutyField=uieditfield(grid,'text','Editable','off');obj.ReactorDutyField.Layout.Row=8;obj.ReactorDutyField.Layout.Column=[5 6];
             obj.ServiceFlowField=textfield(grid,9,'Service flow (kg/s)');obj.ServiceFlowField.Editable='off';
             obj.ASourceDropDown=drop(grid,1,'Area source',{'Dialog','Input port'});obj.UtilityTinSourceDropDown=drop(grid,2,'Utility inlet T source',{'Dialog','Input port'});obj.ASourceDropDown.ValueChangedFcn=@(~,~) obj.configurationChanged();obj.UtilityTinSourceDropDown.ValueChangedFcn=@(~,~) obj.configurationChanged();
-            obj.SpecifiedTSourceDropDown=drop(grid,3,'Reactor T source',{'Dialog','Input port'});obj.SpecifiedQSourceDropDown=drop(grid,4,'Heat duty source',{'Dialog','Input port'});obj.SpecifiedTSourceDropDown.ValueChangedFcn=@(~,~)obj.configurationChanged();obj.SpecifiedQSourceDropDown.ValueChangedFcn=@(~,~)obj.configurationChanged();
+            [obj.SpecifiedTSourceDropDown,obj.SpecifiedTSourceLabel]=drop(grid,3,'Reactor T source',{'Dialog','Input port'});[obj.SpecifiedQSourceDropDown,obj.SpecifiedQSourceLabel]=drop(grid,4,'Heat duty source',{'Dialog','Input port'});obj.SpecifiedTSourceDropDown.ValueChangedFcn=@(~,~)obj.configurationChanged();obj.SpecifiedQSourceDropDown.ValueChangedFcn=@(~,~)obj.configurationChanged();
             fields={obj.UField,'U';obj.AField,'A';obj.UtilityTinField,'T_in_s';obj.UtilityToutField,'T_out_s';obj.UtilityCpField,'Cp_s';obj.LatentHeatField,'lambda';obj.UAField,'UA';obj.SpecifiedTField,'T_reactor';obj.SpecifiedQField,'Q'};for i=1:size(fields,1),fields{i,1}.ValueChangedFcn=@(~,event)obj.fieldEdited(fields{i,2},event);end
             cgrid=uigridlayout(connections,[2 1],'RowHeight',{30,'1x'});uilabel(cgrid,'Text','Connected signals (read only)','FontWeight','bold');obj.ConnectionTable=uitable(cgrid,'ColumnName',{'Direction','Port','Signal'},'ColumnEditable',[false false false]);
             obj.StatusLabel=uilabel(main,'Text','Ready.','FontAngle','italic');buttons=uigridlayout(main,[1 5],'ColumnWidth',{'1x',70,90,90,90});uilabel(buttons,'Text','');uibutton(buttons,'Text','Help','ButtonPushedFcn',@(~,~) openNirpGuide('guides/flowsheet-reactors.html#jacket'));uibutton(buttons,'Text','OK','ButtonPushedFcn',@(~,~) obj.accept());uibutton(buttons,'Text','Cancel','ButtonPushedFcn',@(~,~) obj.cancel());uibutton(buttons,'Text','Apply','ButtonPushedFcn',@(~,~) obj.apply());
@@ -121,7 +121,7 @@ classdef JacketDialog < handle
             for i=1:numel(labels),if strcmp(labels(i).Text,specT{1}),labels(i).Visible=onoff(strcmp(mode,'Specified T'));elseif strcmp(labels(i).Text,specQ{1}),labels(i).Visible=onoff(strcmp(mode,'Specified Q'));end,end
             set([obj.SpecifiedTField obj.SpecifiedTUnitDropDown],'Visible',onoff(strcmp(mode,'Specified T')));
             set([obj.SpecifiedQField obj.SpecifiedQUnitDropDown],'Visible',onoff(strcmp(mode,'Specified Q')));
-            obj.SpecifiedTSourceDropDown.Visible=onoff(strcmp(mode,'Specified T'));obj.SpecifiedQSourceDropDown.Visible=onoff(strcmp(mode,'Specified Q'));
+            obj.SpecifiedTSourceDropDown.Visible=onoff(strcmp(mode,'Specified T'));obj.SpecifiedTSourceLabel.Visible=obj.SpecifiedTSourceDropDown.Visible;obj.SpecifiedQSourceDropDown.Visible=onoff(strcmp(mode,'Specified Q'));obj.SpecifiedQSourceLabel.Visible=obj.SpecifiedQSourceDropDown.Visible;
             inputT=strcmp(mode,'Specified T')&&strcmp(obj.SpecifiedTSourceDropDown.Value,'Input port');obj.SpecifiedTField.Visible=onoff(strcmp(mode,'Specified T')&&~inputT);obj.SpecifiedTUnitDropDown.Visible=obj.SpecifiedTField.Visible;obj.SpecifiedTPortLabel.Visible=onoff(inputT);if inputT,obj.SpecifiedTPortLabel.Text=nirp.flowsheet.receivedValue(obj.BlockPath,'specifiedT','Temperature',obj.SpecifiedTUnitDropDown.Value,1);end
             inputQ=strcmp(mode,'Specified Q')&&strcmp(obj.SpecifiedQSourceDropDown.Value,'Input port');obj.SpecifiedQField.Visible=onoff(strcmp(mode,'Specified Q')&&~inputQ);obj.SpecifiedQUnitDropDown.Visible=obj.SpecifiedQField.Visible;obj.SpecifiedQPortLabel.Visible=onoff(inputQ);if inputQ,obj.SpecifiedQPortLabel.Text=nirp.flowsheet.receivedValue(obj.BlockPath,'specifiedQ','Power',obj.SpecifiedQUnitDropDown.Value,1);end
             if ~utility,return,end
@@ -174,7 +174,7 @@ end
 function [field,units]=qty(grid,row,label,category),text=uilabel(grid,'Text',label,'HorizontalAlignment','right');text.Layout.Row=row;text.Layout.Column=1;field=uieditfield(grid,'numeric','AllowEmpty','on','Value',[]);field.Layout.Row=row;field.Layout.Column=2;units=uidropdown(grid,'Items',UnitConverterHelper.getUnits(category));units.Layout.Row=row;units.Layout.Column=3;end
 function [field,units]=textqty(grid,row,label,category),text=uilabel(grid,'Text',label,'HorizontalAlignment','right');text.Layout.Row=row;text.Layout.Column=1;field=uieditfield(grid,'text');field.Layout.Row=row;field.Layout.Column=2;units=uidropdown(grid,'Items',UnitConverterHelper.getUnits(category));units.Layout.Row=row;units.Layout.Column=3;end
 function field=textfield(grid,row,label),text=uilabel(grid,'Text',label,'HorizontalAlignment','right');text.Layout.Row=row;text.Layout.Column=1;field=uieditfield(grid,'text');field.Layout.Row=row;field.Layout.Column=[2 3];end
-function field=drop(grid,row,label,items),text=uilabel(grid,'Text',label,'HorizontalAlignment','right');text.Layout.Row=row;text.Layout.Column=4;field=uidropdown(grid,'Items',items);field.Layout.Row=row;field.Layout.Column=[5 6];end
+function [field,text]=drop(grid,row,label,items),text=uilabel(grid,'Text',label,'HorizontalAlignment','right');text.Layout.Row=row;text.Layout.Column=4;field=uidropdown(grid,'Items',items);field.Layout.Row=row;field.Layout.Column=[5 6];end
 function label=portLabel(grid,row),label=uilabel(grid,'Text','From input port','FontAngle','italic','Visible','off');label.Layout.Row=row;label.Layout.Column=2;end
 function value=onoff(flag),if flag,value='on';else,value='off';end,end
 function flag=ison(value),if islogical(value)||isnumeric(value),flag=logical(value);else,flag=strcmp(value,'on')||strcmp(value,'1');end,end
