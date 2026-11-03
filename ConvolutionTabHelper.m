@@ -3,7 +3,7 @@ classdef ConvolutionTabHelper < handle
 % All times passed to nirp.conv are expressed in seconds.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 9, 2026. Last update: November 2, 2026
+% Created: October 9, 2026. Last update: November 3, 2026
 % =========================================================================
 
     properties (SetAccess = private)
@@ -827,7 +827,7 @@ classdef ConvolutionTabHelper < handle
                     {'Cᵢₙ', 'E', 'Cₒᵤₜ'}, ...
                     {obj.LastSignals.Cin, obj.LastSignals.E, result}, ...
                     [false true false], timeScale, concentrationScale) ;
-                displayedResult = strrep(mat2str(resultValues, 6), ' ', ',\;') ;
+                displayedResult = obj.displayVector(resultValues) ;
                 obj.setResultRows({ ...
                     '$C_{\mathrm{out}}(t)$', ...
                     '$m_{\mathrm{out}}/(m_{\mathrm{in}}A_E)$'}, { ...
@@ -1121,6 +1121,22 @@ classdef ConvolutionTabHelper < handle
             grid.RowHeight = [{34}, repmat({20}, 1, pairRows), ...
                 repmat({0}, 1, 3 - pairRows), {0}] ;
             if hasWarning, grid.RowHeight{5} = 44 ; end
+        end
+
+        function text = displayVector(~, values)
+            values = reshape(values, 1, []) ;
+            if numel(values) <= 9
+                text = strrep(mat2str(values, 6), ' ', ',\;') ;
+                return
+            end
+
+            edgeCount = 3 ;
+            leading = mat2str(values(1:edgeCount), 6) ;
+            trailing = mat2str(values(end-edgeCount+1:end), 6) ;
+            leading = strrep(leading(2:end-1), ' ', ',\;') ;
+            trailing = strrep(trailing(2:end-1), ' ', ',\;') ;
+            text = sprintf('[%s,\\;\\ldots,\\;%s]\\;\\mathrm{(%d\\ points)}', ...
+                leading, trailing, numel(values)) ;
         end
 
         function text = resultDescription(~, mode)
