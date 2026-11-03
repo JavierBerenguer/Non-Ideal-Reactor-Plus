@@ -99,6 +99,26 @@ classdef NirpNonIdealReactorBlockTest < matlab.unittest.TestCase
                 'RelTol',1e-10,'AbsTol',1e-14);
         end
 
+        function noHeatRequestWithoutThermodynamicsHasNoWarning(testCase)
+            name='nonideal_no_heat';pkg=nirp.pkg.examples.january2024Exam();
+            createModel(testCase,name,pkg);
+            addStream(name,'F1','Feed',[20 100 100 150]);
+            addUnit(name,'Reactor','nirp.blocks.NonIdealReactor',[180 85 330 165], ...
+                'RTDOrigin','Model','Model','CSTR','SizeBasis','Residence time', ...
+                'Tau','1','Micromixing','Maximum mixedness');
+            addStream(name,'Product','Product',[410 100 520 150]);
+            add_line(name,'F1/1','Reactor/1');add_line(name,'Reactor/1','Product/1');
+            finishModel(name);sim(name);results=evalin('base','nirpResults');
+            actual=results.Streams.Product.streamSI;
+            rs=nirp.pkg.toReactionSys(pkg);feed=nirp.pkg.feedStream(pkg,'F1');
+            expected=nirp.units.nonIdealReactor( ...
+                nonIdealParams('cstr',1,1,'maxmixedness'),feed,rs);
+            info=results.Diagnostics.nonideal_no_heat_Reactor.lastInfo;
+            testCase.verifyEqual(actual.F,expected.F,'RelTol',1e-10,'AbsTol',1e-14);
+            testCase.verifyFalse(any(contains(string(info.warnings), ...
+                'Heat duty unavailable')));
+        end
+
         function micromixingInvalidatesCacheAndIconShowsMode(testCase)
             name='nonideal_cache';
             createModel(testCase,name,nirp.pkg.examples.problem41SecondOrder());

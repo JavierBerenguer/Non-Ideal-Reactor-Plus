@@ -101,6 +101,8 @@ classdef NirpNonIdealReactorCoreTest < matlab.unittest.TestCase
             noKey = in ; noKey.F(1) = 0 ; params.keyIndex = 1 ;
             [~,info] = nirp.units.nonIdealReactor(params,noKey,rs) ;
             testCase.verifyTrue(isnan(info.conversion)) ;
+            testCase.verifyTrue(any(contains(string(info.warnings), ...
+                'inlet concentration'))) ;
             testCase.verifyTrue(any(contains(string(info.warnings),'undefined'))) ;
         end
 
@@ -127,6 +129,40 @@ classdef NirpNonIdealReactorCoreTest < matlab.unittest.TestCase
             testCase.verifyEqual(data.tau,trapz(t,t.*E)/trapz(t,E), ...
                 'RelTol',1e-12) ;
             testCase.verifyEqual(data.rawArea,trapz(t,E),'RelTol',1e-12) ;
+        end
+
+        function modelRtdQuadratureWarningsAreHidden(testCase)
+            [in,rs] = baseCase(1) ;
+            cstr = modelRtd('cstr',1) ; cstr.N = 1 ;
+            tanks = modelRtd('tanks',1) ; tanks.N = 3 ;
+            specifications = {cstr,tanks} ;
+            for k = 1:numel(specifications)
+                [~,info] = nirp.units.nonIdealReactor(commonParams( ...
+                    specifications{k},'segregation',false),in,rs) ;
+                messages = string(info.warnings) ;
+                testCase.verifyFalse(any(contains(messages,'will be normalized'))) ;
+                testCase.verifyFalse(any(contains(messages,'retains'))) ;
+            end
+        end
+
+        function unnormalizedDataWarnsOnceWithoutChangingResults(testCase)
+            [in,rs] = baseCase(1) ;
+            t = 0:0.02:10 ; E = exp(-t) ; E = E/trapz(t,E) ;
+            normalizedRtd = struct('origin','data','t',t,'E',E) ;
+            doubledRtd = normalizedRtd ; doubledRtd.E = 2*E ;
+            [normalized,normalizedInfo] = nirp.units.nonIdealReactor( ...
+                commonParams(normalizedRtd,'segregation',false),in,rs) ;
+            [doubled,doubledInfo] = nirp.units.nonIdealReactor( ...
+                commonParams(doubledRtd,'segregation',false),in,rs) ;
+            messages = string(doubledInfo.warnings) ;
+            areaWarnings = contains(messages,'The supplied RTD area is') ;
+            testCase.verifyEqual(sum(areaWarnings),1) ;
+            testCase.verifyEqual(messages(areaWarnings), ...
+                "The supplied RTD area is 2; it was normalized to 1.") ;
+            testCase.verifyFalse(any(contains(messages,'will be normalized'))) ;
+            testCase.verifyFalse(any(contains(string(normalizedInfo.warnings), ...
+                'The supplied RTD area is'))) ;
+            testCase.verifyEqual(doubled.F,normalized.F,'RelTol',1e-10) ;
         end
 
         function selectiveModeAndDefaultRegression(testCase)

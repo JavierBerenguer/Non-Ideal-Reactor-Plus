@@ -69,9 +69,6 @@ function [outputs,info,details] = evaluate(blockPath,inputs,varargin)
                 info.tau=NaN;
             end
             info.rtd=params.rtdLabel;
-            if ~params.computeHeat&&~packageHasThermodynamics(pkg)
-                info.warnings{end+1}='Heat duty unavailable: no thermodynamic data.';
-            end
             outputs={out};
         case "Jacket"
             if ~isempty(inputs),error('nirp:flowsheet:waitingFor','Jacket material inputs are not supported.');end

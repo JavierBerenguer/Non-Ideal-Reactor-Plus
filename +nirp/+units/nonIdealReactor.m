@@ -98,6 +98,12 @@ function [out,info] = nonIdealReactor(params,in,rs)
     info.rtdTailFraction = descriptor.tailFraction ;
     info.grid = descriptor.grid ;
     info.warnings = warningMessages(result.diagnostic.warnings) ;
+    if ismember(descriptor.origin,{'data','session'}) && ...
+            abs(descriptor.rawArea-1) > 1e-3
+        info.warnings{end+1} = sprintf( ...
+            'The supplied RTD area is %.4g; it was normalized to 1.', ...
+            descriptor.rawArea) ;
+    end
     if keySpecified && in.F(keyIndex) > 0
         info.conversion = min(1,max(0,1-out.F(keyIndex)/in.F(keyIndex))) ;
     elseif keySpecified
@@ -154,6 +160,8 @@ function V = volumeValue(spec,tau,Q)
 end
 
 function messages = warningMessages(notices)
+    ignored = {'nirp:tracer:UnnormalizedRTD','nirp:tracer:TruncatedRTD'} ;
+    notices = notices(~ismember({notices.identifier},ignored)) ;
     messages = cell(1,numel(notices)) ;
     for k = 1:numel(notices), messages{k} = notices(k).message ; end
 end
