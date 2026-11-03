@@ -6,7 +6,8 @@ classdef AdjustDialog < handle
 % =========================================================================
     properties (SetAccess=private)
         BlockPath;Figure;NameField;TargetLabel;TargetDropDown;ConnectButton
-        TargetVariableDropDown;KeyComponentField;ReferenceFeedField
+        TargetVariableDropDown;KeyComponentField;KeyComponentLabel
+        ReferenceFeedField;ReferenceFeedLabel
         TargetValueField;TargetUnitDropDown;InitialValueField;MinValueField
         MaxValueField;ParameterUnitDropDown;ToleranceField;DampingField
         StrategyDropDown;StatusLabel;DataModel
@@ -134,8 +135,8 @@ classdef AdjustDialog < handle
                 'ColumnWidth',{190,'1x',130},'RowHeight',repmat({32},1,5));
             obj.TargetVariableDropDown=dropRow(grid,1,'Target variable', ...
                 {'Select...','Conversion','Component molar flow','Temperature','Component concentration'});
-            obj.KeyComponentField=textRow(grid,2,'Key component');
-            obj.ReferenceFeedField=textRow(grid,3,'Reference feed');
+            [obj.KeyComponentField,obj.KeyComponentLabel]=textRow(grid,2,'Key component');
+            [obj.ReferenceFeedField,obj.ReferenceFeedLabel]=textRow(grid,3,'Reference feed');
             obj.TargetValueField=numericRow(grid,4,'Target value');
             targetUnitLabel=uilabel(grid,'Text','Target unit','HorizontalAlignment','right');
             targetUnitLabel.Layout.Row=5;targetUnitLabel.Layout.Column=1;
@@ -225,7 +226,18 @@ classdef AdjustDialog < handle
                 'Damping',obj.DampingField.Value, ...
                 'Strategy',string(obj.StrategyDropDown.Value));
         end
+        function updateTargetFields(obj)
+            target=string(obj.TargetVariableDropDown.Value);
+            usesKeyComponent=any(target==["Conversion" "Component molar flow" ...
+                "Component concentration"]);
+            usesReferenceFeed=target=="Conversion";
+            obj.KeyComponentLabel.Visible=onoff(usesKeyComponent);
+            obj.KeyComponentField.Visible=onoff(usesKeyComponent);
+            obj.ReferenceFeedLabel.Visible=onoff(usesReferenceFeed);
+            obj.ReferenceFeedField.Visible=onoff(usesReferenceFeed);
+        end
         function valid=validateLive(obj)
+            obj.updateTargetFields();
             missing=strings(0,1);current=nirp.flowsheet.adjustTarget(obj.BlockPath);
             if current.Label=="<not connected>",missing(end+1)="manipulated variable";end
             if strcmp(obj.TargetVariableDropDown.Value,'Select...'),missing(end+1)="objective";end
@@ -251,7 +263,7 @@ function value=dropRow(grid,row,label,items)
     text.Layout.Row=row;text.Layout.Column=1;
     value=uidropdown(grid,'Items',items);value.Layout.Row=row;value.Layout.Column=2;
 end
-function value=textRow(grid,row,label)
+function [value,text]=textRow(grid,row,label)
     text=uilabel(grid,'Text',label,'HorizontalAlignment','right');
     text.Layout.Row=row;text.Layout.Column=1;
     value=uieditfield(grid,'text');value.Layout.Row=row;value.Layout.Column=2;
@@ -283,6 +295,7 @@ function units=parameterUnits()
 end
 function text=numberText(value),if isempty(value),text='NaN';else,text=num2str(value,17);end,end
 function setNumeric(field,text),value=str2double(text);if isfinite(value),field.Value=value;else,field.Value=[];end,end
+function value=onoff(flag),if flag,value='on';else,value='off';end,end
 
 function targets=freeParameterPorts(model)
     targets=struct('Block',{},'Port',{},'Variable',{},'Category',{},'Label',{});

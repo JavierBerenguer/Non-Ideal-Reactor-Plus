@@ -1095,7 +1095,9 @@ classdef ConvolutionTabHelper < handle
         function setResultRows(obj, labels, values, warningText)
             if nargin < 4, warningText = '' ; end
             grid = obj.ResultLabels{1}.Parent ;
-            pairRows = max(1, ceil(numel(labels) / 3)) ;
+            pairRow = 1 ;
+            pairColumn = 1 ;
+            pairRows = 1 ;
             for k = 1:numel(obj.ResultLabels)
                 visible = k <= numel(labels) ;
                 obj.ResultLabels{k}.Visible = obj.onOff(visible) ;
@@ -1104,12 +1106,30 @@ classdef ConvolutionTabHelper < handle
                     obj.ResultLabels{k}.Text = labels{k} ;
                     obj.ResultValues{k}.Interpreter = 'latex' ;
                     obj.ResultValues{k}.Text = ['$=\;' values{k}(2:end)] ;
-                    pairRow = 1 + ceil(k / 3) ;
-                    pairColumn = 1 + 2 * mod(k - 1, 3) ;
-                    obj.ResultLabels{k}.Layout.Row = pairRow ;
-                    obj.ResultLabels{k}.Layout.Column = pairColumn ;
-                    obj.ResultValues{k}.Layout.Row = pairRow ;
-                    obj.ResultValues{k}.Layout.Column = pairColumn + 1 ;
+                    wideValue = obj.isWideResultValue(values{k}) ;
+                    if wideValue && pairColumn > 1
+                        pairRow = pairRow + 1 ;
+                        pairColumn = 1 ;
+                    end
+                    obj.ResultLabels{k}.Layout.Row = 1 + pairRow ;
+                    obj.ResultValues{k}.Layout.Row = 1 + pairRow ;
+                    if wideValue
+                        obj.ResultLabels{k}.Layout.Column = 1 ;
+                        obj.ResultValues{k}.Layout.Column = [2 6] ;
+                        pairRows = max(pairRows, pairRow) ;
+                        pairRow = pairRow + 1 ;
+                        pairColumn = 1 ;
+                    else
+                        labelColumn = 1 + 2 * (pairColumn - 1) ;
+                        obj.ResultLabels{k}.Layout.Column = labelColumn ;
+                        obj.ResultValues{k}.Layout.Column = labelColumn + 1 ;
+                        pairRows = max(pairRows, pairRow) ;
+                        pairColumn = pairColumn + 1 ;
+                        if pairColumn > 3
+                            pairRow = pairRow + 1 ;
+                            pairColumn = 1 ;
+                        end
+                    end
                 else
                     obj.ResultLabels{k}.Text = '' ;
                     obj.ResultValues{k}.Text = '' ;
@@ -1121,6 +1141,18 @@ classdef ConvolutionTabHelper < handle
             grid.RowHeight = [{34}, repmat({20}, 1, pairRows), ...
                 repmat({0}, 1, 3 - pairRows), {0}] ;
             if hasWarning, grid.RowHeight{5} = 44 ; end
+        end
+
+        function wide = isWideResultValue(~, value)
+            visibleText = strrep(value, '\mathrm{', '') ;
+            visibleText = strrep(visibleText, '\;', '') ;
+            visibleText = strrep(visibleText, '\ldots', '...') ;
+            visibleText = strrep(visibleText, '$', '') ;
+            visibleText = strrep(visibleText, '\', '') ;
+            visibleText = strrep(visibleText, '{', '') ;
+            visibleText = strrep(visibleText, '}', '') ;
+            wide = contains(value, '\ldots') || ...
+                strlength(string(visibleText)) > 40 ;
         end
 
         function text = displayVector(~, values)

@@ -3,7 +3,7 @@ classdef (SharedTestFixtures={nirptest.ExamplesFixture}) ...
     % NirpAdjustDialogTest verifies Adjust targets, units, and editor UI.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 9, 2026. Last update: October 9, 2026
+    % Created: October 9, 2026. Last update: November 3, 2026
     % =========================================================================
 
     properties
@@ -81,6 +81,28 @@ classdef (SharedTestFixtures={nirptest.ExamplesFixture}) ...
             end
         end
 
+        function targetFieldsFollowSelectedObjective(testCase)
+            new_system('adjust_target_fields');
+            addUnit('adjust_target_fields','Adjust','nirp.blocks.Adjust', ...
+                [30 180 240 240]);
+            dialog=nirp.flowsheet.AdjustDialog( ...
+                'adjust_target_fields/Adjust','Visible','off');
+            testCase.addTeardown(@() deleteValid(dialog));
+            dialog.setValues('KeyComponent','B','ReferenceFeed','Feed 2');
+
+            dialog.setValues('TargetVariable','Conversion');
+            verifyTargetFieldVisibility(testCase,dialog,true,true);
+            dialog.setValues('TargetVariable','Component molar flow');
+            verifyTargetFieldVisibility(testCase,dialog,true,false);
+            dialog.setValues('TargetVariable','Component concentration');
+            verifyTargetFieldVisibility(testCase,dialog,true,false);
+            dialog.setValues('TargetVariable','Temperature');
+            verifyTargetFieldVisibility(testCase,dialog,false,false);
+            values=dialog.getValues();
+            testCase.verifyEqual(values.KeyComponent,"B");
+            testCase.verifyEqual(values.ReferenceFeed,"Feed 2");
+        end
+
         function dialogLoadsAppliesAndMovesConnection(testCase)
             new_system('adjust_dialog_test');
             addUnit('adjust_dialog_test','Adjust','nirp.blocks.Adjust',[30 180 240 240]);
@@ -154,4 +176,17 @@ function addUnit(model,name,className,position,varargin)
 end
 function deleteValid(value)
     try,if isvalid(value),delete(value);end,catch,end
+end
+function verifyTargetFieldVisibility(testCase,dialog,keyVisible,feedVisible)
+    testCase.verifyEqual(string(dialog.KeyComponentLabel.Visible), ...
+        string(onoff(keyVisible)));
+    testCase.verifyEqual(string(dialog.KeyComponentField.Visible), ...
+        string(onoff(keyVisible)));
+    testCase.verifyEqual(string(dialog.ReferenceFeedLabel.Visible), ...
+        string(onoff(feedVisible)));
+    testCase.verifyEqual(string(dialog.ReferenceFeedField.Visible), ...
+        string(onoff(feedVisible)));
+end
+function value=onoff(flag)
+    if flag,value='on';else,value='off';end
 end
