@@ -86,9 +86,15 @@ function tables = showResults(model,varargin)
     % Keep each result and unit in its typed column. The table deliberately
     % scrolls horizontally so neither engineering values nor headings are
     % truncated at the default window size.
-    createDisplayTable(unitGrid,tables.Units,2, ...
-        {130,75,65,110,65,110,65,110,95,110,75,110,75,140,70, ...
-        130,80,320},true) ;
+    unitDisplay=tables.Units;unitWidths={130,75,65,110,65,110,65,110,95, ...
+        110,75,110,75,140,70,130,80,320};
+    if any(tables.Units.Type=="NonIdealReactor")
+        unitWidths={130,105,65,90,60,90,55,90,80,90,65,90,65,100,60, ...
+            100,65,125,125,85,65,260};
+    else
+        unitDisplay=unitDisplay(:,[1:17 22]);
+    end
+    createDisplayTable(unitGrid,unitDisplay,2,unitWidths,true) ;
     uilabel(unitGrid,'Text','Adjust','FontWeight','bold') ;
     createDisplayTable(unitGrid,tables.Adjust,4, ...
         {115,130,55,80,95,105,70,90,75,80,75,160},true) ;
@@ -427,8 +433,8 @@ function [units,adjusts] = unitTables(model,results)
             if isfield(info,'status'), row{3} = double(info.status) ;
             elseif isfield(item,'lastOutput'), row{3} = outputStatus(item.lastOutput) ;
             end
-            if isfield(info,'message'), row{18} = string(info.message) ; end
-            if any(type == ["CSTR","PFR"])
+            if isfield(info,'message'), row{22} = string(info.message) ; end
+            if any(type == ["CSTR","PFR","NonIdealReactor"])
                 row = reactorValues(block,info,row) ;
             elseif type == "Jacket"
                 row = jacketValues(model,block,info,row,diagnostics) ;
@@ -437,6 +443,24 @@ function [units,adjusts] = unitTables(model,results)
                 row{15} = heatUnit(block,type) ;
                 row{14} = UnitConverterHelper.convertFromSI( ...
                     'Power',info.heatDuty,char(row{15})) ;
+            end
+            if type == "NonIdealReactor"
+                if isfield(info,'micromixing')
+                    row{18} = micromixingName(info.micromixing) ;
+                end
+                if isfield(info,'rtd'), row{19} = string(info.rtd) ; end
+                if isfield(info,'tau')
+                    row{21} = string(get_param(block,'TauUnit')) ;
+                    row{20} = UnitConverterHelper.convertFromSI( ...
+                        'Time',info.tau,char(row{21})) ;
+                end
+            end
+            if isfield(info,'warnings')
+                notices = nonemptyText(info.warnings) ;
+                if ~isempty(notices)
+                    row{22} = strjoin([row{22};notices(:)],' | ') ;
+                    row{22} = regexprep(row{22},'^[\s|]+','') ;
+                end
             end
             if type == "Adjust"
                 adjusts(end+1,:) = adjustValues(block,info,registryEntries) ; %#ok<AGROW>
@@ -453,7 +477,7 @@ function [units,adjusts] = unitTables(model,results)
                 adjusts(end+1,:) = failed ; %#ok<AGROW>
                 continue
             end
-            row{18} = string(exception.message) ;
+            row{22} = string(exception.message) ;
         end
         units(end+1,:) = row ; %#ok<AGROW>
     end
@@ -463,11 +487,12 @@ end
 function value = emptyUnitTable()
     columns = {'Block','Type','Status','V','VUnit','A','AUnit','U','UUnit', ...
         'UtilityTin','UtilityTinUnit','UtilityTout','UtilityToutUnit', ...
-        'HeatDuty','QUnit','ServiceFlow','ServiceFlowUnit','Message'} ;
+        'HeatDuty','QUnit','ServiceFlow','ServiceFlowUnit', ...
+        'Micromixing','RTD','Tau','TauUnit','Message'} ;
     value = table('Size',[0 numel(columns)], ...
         'VariableTypes',{'string','string','double','double','string', ...
         'double','string','double','string','double','string','double','string', ...
-        'double','string','double','string','string'}, ...
+        'double','string','double','string','string','string','double','string','string'}, ...
         'VariableNames',columns) ;
 end
 
@@ -523,7 +548,7 @@ end
 
 function row = emptyUnitRow(block,type)
     row = {string(get_param(block,'Name')),type,NaN,NaN,"",NaN,"", ...
-        NaN,"",NaN,"",NaN,"",NaN,"",NaN,"",""} ;
+        NaN,"",NaN,"",NaN,"",NaN,"",NaN,"","","",NaN,"",""} ;
 end
 
 function row = emptyAdjustRow(block)
@@ -533,7 +558,8 @@ function row = emptyAdjustRow(block)
 end
 
 function [blocks,types] = functionalBlocks(model)
-    supported = ["CSTR","PFR","Heater","Jacket","Mixer","Splitter","Separator","Adjust","Recycle"] ;
+    supported = ["CSTR","PFR","NonIdealReactor","Heater","Jacket", ...
+        "Mixer","Splitter","Separator","Adjust","Recycle"] ;
     paths = find_system(model,'LookUnderMasks','all','SearchDepth',1, ...
         'BlockType','MATLABSystem') ;
     blocks = cell(0,1) ; types = strings(0,1) ;
@@ -579,16 +605,26 @@ end
 
 function row = reactorValues(block,info,row)
     if isfield(info,'V')
-        row{5} = parameterUnit(block,'V') ;
+        if strcmp(get_param(block,'System'),'nirp.blocks.NonIdealReactor')
+            row{5} = string(get_param(block,'VUnit')) ;
+        else
+            row{5} = parameterUnit(block,'V') ;
+        end
         row{4} = UnitConverterHelper.convertFromSI( ...
             'Volume',info.V,char(row{5})) ;
     end
 end
 
+function value = micromixingName(value)
+    value = lower(string(value)) ;
+    if value == "segregation", value = "Segregation" ;
+    elseif value == "maxmixedness", value = "Maximum mixedness" ; end
+end
+
 function units = clearUnitsWithoutValues(units)
     pairs = {'V','VUnit';'A','AUnit';'U','UUnit'; ...
         'UtilityTin','UtilityTinUnit';'UtilityTout','UtilityToutUnit'; ...
-        'HeatDuty','QUnit';'ServiceFlow','ServiceFlowUnit'} ;
+        'HeatDuty','QUnit';'ServiceFlow','ServiceFlowUnit';'Tau','TauUnit'} ;
     for i = 1:size(pairs,1)
         missing = ismissing(units.(pairs{i,1})) ;
         units.(pairs{i,2})(missing) = "" ;
@@ -676,7 +712,7 @@ function status = outputStatus(output)
 end
 
 function unit = heatUnit(block,type)
-    if any(type == ["CSTR","PFR"])
+    if any(type == ["CSTR","PFR","NonIdealReactor"])
         % T-131: reactors no longer expose a specified-Q unit; the heat
         % port is in W.
         unit = "W" ;
@@ -701,7 +737,7 @@ function row = adjustValues(block,info,entries)
     if isempty(fieldnames(info)), return, end
     row{5} = string(info.parameterUnit) ;
     category = nirp.blocks.internal.unitCategory( ...
-        char(row{5}),{'Volume','Temperature','VolumetricFlow','Area'}) ;
+        char(row{5}),{'Volume','Time','Temperature','VolumetricFlow','Area'}) ;
     row{4} = UnitConverterHelper.convertFromSI( ...
         category,info.value,char(row{5})) ;
     row{6} = string(info.targetVariable) ; row{8} = string(info.targetUnit) ;
@@ -723,7 +759,13 @@ function createDisplayTable(parent,value,row,columnWidths,formatUnitResults)
         data = formatUnitResultData(data,value.Properties.VariableNames) ;
     end
     columnNames = value.Properties.VariableNames ;
-    if formatUnitResults && width(value) == 18
+    if formatUnitResults && width(value) == 22
+        columnNames = {'Block','Type','Status','V','V unit','A','A unit', ...
+            'U','U unit','Tin','Tin unit','Tout','Tout unit','Q','Q unit', ...
+            'Service flow','Flow unit','Micromixing','RTD','Tau','Tau unit', ...
+            'Message'} ;
+    elseif formatUnitResults && width(value) == 18 && ...
+            all(ismember({'Block','Type','Status','Message'},columnNames))
         columnNames = {'Block','Type','Status','V','V unit','A','A unit', ...
             'U','U unit','Tin','Tin unit','Tout','Tout unit','Q','Q unit', ...
             'Service flow','Flow unit','Message'} ;

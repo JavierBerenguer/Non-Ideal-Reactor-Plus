@@ -52,6 +52,26 @@ function [outputs,info,details] = evaluate(blockPath,inputs,varargin)
             if type=="CSTR",[out,info]=nirp.units.cstr(params,inputs{1},rs);
             else,[out,info]=nirp.units.pfr(params,inputs{1},rs);end
             outputs={out};
+        case "NonIdealReactor"
+            requireInputs(inputs,1,type);
+            if isempty(prepared)
+                [params,rs]=nonIdealReactorParameters( ...
+                    blockPath,signals,pkg,rs);
+            else
+                params=prepared;
+            end
+            [out,info]=nirp.units.nonIdealReactor(params,inputs{1},rs);
+            info.meanResidenceTime=info.tau;
+            if isfield(info,'V')&&isfinite(info.V)&&inputs{1}.Q>0
+                info.tau=info.V/inputs{1}.Q;
+            else
+                info.tau=NaN;
+            end
+            info.rtd=params.rtdLabel;
+            if ~params.computeHeat&&~packageHasThermodynamics(pkg)
+                info.warnings{end+1}='Heat duty unavailable: no thermodynamic data.';
+            end
+            outputs={out};
         case "Jacket"
             if ~isempty(inputs),error('nirp:flowsheet:waitingFor','Jacket material inputs are not supported.');end
             [signal,info,result]=jacketSignal(blockPath,signals);outputs={signal};details.Dof=result;
@@ -215,6 +235,184 @@ function [params,result,rs]=reactorParameters(block,in,signals,pkg,rs,type)
     if type=="PFR",validateTubeCount(params.nTubes);end
     if type=="PFR"&&~isfield(params,'V')
         params.V=pi/4*params.D^2*params.nTubes*params.L;
+    end
+end
+
+function [params,rs]=nonIdealReactorParameters(block,signals,pkg,rs)
+    selected=get_param(block,'Reactions');
+    if ~isempty(strtrim(selected))
+        rs=nirp.pkg.toReactionSys(nirp.pkg.selectReactions(pkg,selected));
+    end
+    origin=string(get_param(block,'RTDOrigin'));
+    model=string(get_param(block,'Model'));
+    basis=string(get_param(block,'SizeBasis'));
+    source=string(get_param(block,'SizeSource'));
+    micromixing=string(get_param(block,'Micromixing'));
+    temperatureMode=string(get_param(block,'TemperatureMode'));
+    missing=strings(0,1);
+    if origin=="Select...",missing(end+1)="RTDOrigin";end
+    if origin=="Model"
+        if model=="Select...",missing(end+1)="Model";end
+        if source=="Dialog"
+            if basis=="Volume"&&~isfinite(str2double(get_param(block,'V'))),missing(end+1)="V";end
+            if basis=="Residence time"&&~isfinite(str2double(get_param(block,'Tau'))),missing(end+1)="Tau";end
+        end
+        if model=="Tanks in series"&&~isfinite(str2double(get_param(block,'N'))),missing(end+1)="N";end
+        if model=="Dispersion"&&~isfinite(str2double(get_param(block,'Pe'))),missing(end+1)="Pe";end
+    elseif origin=="Data"
+        if isempty(numericBlockParameter(block,'DataTime'))||all(isnan(numericBlockParameter(block,'DataTime'))),missing(end+1)="DataTime";end
+        if isempty(numericBlockParameter(block,'DataE'))||all(isnan(numericBlockParameter(block,'DataE'))),missing(end+1)="DataE";end
+    elseif origin=="Session"&&isempty(strtrim(get_param(block,'SessionFile')))
+        missing(end+1)="SessionFile";
+    end
+    if micromixing=="Select...",missing(end+1)="Micromixing";end
+    if temperatureMode=="Specified"&&~isfinite(str2double(get_param(block,'SpecifiedT')))
+        missing(end+1)="SpecifiedT";
+    end
+    nirp.blocks.internal.requireSpecifications( ...
+        'Non-ideal Reactor',get_param(block,'Name'),missing);
+
+    signalIndex=1;
+    rtd=struct('origin',lower(char(origin)));
+    switch origin
+        case "Model"
+            rtd.model=modelCode(model);
+            if source=="Input port"
+                if numel(signals)<signalIndex
+                    error('nirp:flowsheet:waitingFor', ...
+                        'Non-ideal Reactor is waiting for its %s signal input.',basis);
+                end
+                sizeValue=signals{signalIndex};signalIndex=signalIndex+1;
+                if ~isnumeric(sizeValue)||~isscalar(sizeValue)||~isfinite(sizeValue)||sizeValue<=0
+                    error('nirp:blocks:invalidParameterPort', ...
+                        'Non-ideal Reactor size input must be a positive SI scalar.');
+                end
+            elseif basis=="Volume"
+                sizeValue=convert(block,'V','Volume','VUnit');
+            else
+                sizeValue=timeToSI(str2double(get_param(block,'Tau')),get_param(block,'TauUnit'));
+            end
+            if basis=="Volume",rtd.V=sizeValue;else,rtd.tau=sizeValue;end
+            if model=="Tanks in series",rtd.N=str2double(get_param(block,'N'));end
+            if model=="Dispersion"
+                rtd.Pe=str2double(get_param(block,'Pe'));
+                rtd.boundary=lower(get_param(block,'Boundary'));
+            end
+        case "Data"
+            factor=timeFactor(get_param(block,'DataTimeUnit'));
+            rtd.t=numericBlockParameter(block,'DataTime')*factor;
+            rtd.E=numericBlockParameter(block,'DataE')/factor;
+        case "Session"
+            rtd.file=resolveSessionFile(block,get_param(block,'SessionFile'));
+    end
+    if numel(signals)>=signalIndex
+        error('nirp:blocks:invalidParameterPort', ...
+            'Non-ideal Reactor received too many signal inputs.');
+    end
+    if micromixing=="Segregation",mixing='segregation';else,mixing='maxmixedness';end
+    params=struct('rtd',rtd,'micromixing',mixing, ...
+        'temperatureMode',lower(char(temperatureMode)), ...
+        'computeHeat',logical(packageHasThermodynamics(pkg)), ...
+        'rtdLabel',rtdLabel(origin,model,rtd));
+    if temperatureMode=="Specified"
+        params.T=convert(block,'SpecifiedT','Temperature','SpecifiedTUnit');
+    end
+    if on(get_param(block,'ShowHeatPort'))
+        nirp.blocks.internal.requireThermodynamics(pkg, ...
+            sprintf('Non-ideal Reactor "%s"',get_param(block,'Name')));
+        params.computeHeat=true;
+    end
+    keyIndex=flowsheetKeyIndex(block,pkg);
+    if ~isempty(keyIndex),params.keyIndex=keyIndex;end
+    if isfield(rtd,'V'),params.rtd.V=rtd.V;end
+    if origin~="Model"
+        % Data and session volume is defined by the measured mean RTD.
+        params.rtd=rmfieldIfPresent(params.rtd,{'V','tau'});
+    end
+end
+
+function code=modelCode(model)
+    switch model
+        case "CSTR",code='cstr';
+        case "PFR",code='pfr';
+        case "Tanks in series",code='tanks';
+        otherwise,code='dispersion';
+    end
+end
+
+function label=rtdLabel(origin,model,rtd)
+    switch origin
+        case "Model"
+            if model=="Tanks in series",label=sprintf('Tanks N=%g',rtd.N);
+            elseif model=="Dispersion",label=sprintf('Dispersion Pe=%g (%s)',rtd.Pe,rtd.boundary);
+            else,label=char(model);end
+        case "Data",label='Data';
+        case "Session",label='Session';
+        otherwise,label='';
+    end
+end
+
+function value=numericBlockParameter(block,name)
+    raw=get_param(block,name);
+    if isnumeric(raw),value=raw;return,end
+    value=str2num(raw); %#ok<ST2NM>
+    if isempty(value)&&~any(strcmp(strtrim(raw),{'','[]'}))
+        error('nirp:blocks:invalidParameter','%s must be a numeric vector.',name);
+    end
+end
+
+function value=timeToSI(value,unit),value=value*timeFactor(unit);end
+function factor=timeFactor(unit)
+    switch char(string(unit))
+        case 's',factor=1;
+        case 'min',factor=60;
+        case 'h',factor=3600;
+        otherwise,error('nirp:blocks:invalidUnit','Unknown time unit "%s".',unit);
+    end
+end
+
+function flag=packageHasThermodynamics(pkg)
+    flag=~(isfield(pkg,'meta')&&isstruct(pkg.meta)&& ...
+        isfield(pkg.meta,'thermodynamics')&&isequal(pkg.meta.thermodynamics,false));
+end
+
+function file=resolveSessionFile(block,file)
+    file=char(string(file));
+    if isfile(file),return,end
+    modelFile=get_param(bdroot(block),'FileName');
+    if ~isempty(modelFile)
+        candidate=fullfile(fileparts(modelFile),file);
+        if isfile(candidate),file=candidate;end
+    end
+end
+
+function index=flowsheetKeyIndex(block,pkg)
+    index=[];candidate="";
+    if isfield(pkg,'keyIndex'),index=pkg.keyIndex;return,end
+    if isfield(pkg,'keyComponent'),candidate=string(pkg.keyComponent);end
+    if isfield(pkg,'meta')&&isstruct(pkg.meta)
+        if isfield(pkg.meta,'keyIndex'),index=pkg.meta.keyIndex;return,end
+        if strlength(candidate)==0&&isfield(pkg.meta,'keyComponent')
+            candidate=string(pkg.meta.keyComponent);
+        end
+    end
+    if strlength(candidate)==0
+        streams=find_system(bdroot(block),'LookUnderMasks','all','SearchDepth',1, ...
+            'BlockType','MATLABSystem','System','nirp.blocks.Stream');
+        for i=1:numel(streams)
+            value=strtrim(string(get_param(streams{i},'KeyComponent')));
+            if strlength(value)>0,candidate=value;break,end
+        end
+    end
+    if strlength(candidate)>0
+        names=nirp.pkg.componentNames(pkg);
+        index=find(names==candidate,1);
+    end
+end
+
+function value=rmfieldIfPresent(value,names)
+    for i=1:numel(names)
+        if isfield(value,names{i}),value=rmfield(value,names{i});end
     end
 end
 

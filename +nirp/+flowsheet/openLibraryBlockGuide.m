@@ -23,6 +23,8 @@ function opened = openLibraryBlockGuide(block)
                 guide = 'guides/flowsheet-reactors.html#cstr' ;
             case "nirp.blocks.PFR"
                 guide = 'guides/flowsheet-reactors.html#pfr' ;
+            case "nirp.blocks.NonIdealReactor"
+                guide = 'guides/flowsheet-reactors.html' ;
             case "nirp.blocks.Jacket"
                 guide = 'guides/flowsheet-reactors.html#jacket' ;
             case "nirp.blocks.Mixer"

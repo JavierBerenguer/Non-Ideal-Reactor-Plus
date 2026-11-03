@@ -52,6 +52,15 @@ function [variable,category] = parameterAtPort(block,port)
             if strcmp(get_param(block,'VSource'),'Input port') && port == 2
                 variable = "V" ; category = "Volume" ;
             end
+        case "nirp.blocks.NonIdealReactor"
+            if strcmp(get_param(block,'RTDOrigin'),'Model') && ...
+                    strcmp(get_param(block,'SizeSource'),'Input port') && port == 2
+                if strcmp(get_param(block,'SizeBasis'),'Volume')
+                    variable = "V" ; category = "Volume" ;
+                else
+                    variable = "Tau" ; category = "Time" ;
+                end
+            end
         case "nirp.blocks.Jacket"
             index = 0 ;
             [variable,category,index] = activeParameter( ...

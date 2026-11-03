@@ -274,6 +274,7 @@ function units=targetUnits()
 end
 function units=parameterUnits()
     units=[UnitConverterHelper.getUnits('Volume'), ...
+        {'s','min','h'}, ...
         UnitConverterHelper.getUnits('Temperature'), ...
         UnitConverterHelper.getUnits('VolumetricFlow'), ...
         UnitConverterHelper.getUnits('Area')];
@@ -308,6 +309,15 @@ function definitions=parameterDefinitions(block,className)
         case {"nirp.blocks.CSTR","nirp.blocks.PFR"}
             if strcmp(get_param(block,'VSource'),'Input port')
                 definitions(1)=definition(2,"V","Volume");
+            end
+        case "nirp.blocks.NonIdealReactor"
+            if strcmp(get_param(block,'RTDOrigin'),'Model')&& ...
+                    strcmp(get_param(block,'SizeSource'),'Input port')
+                if strcmp(get_param(block,'SizeBasis'),'Volume')
+                    definitions(1)=definition(2,"V","Volume");
+                else
+                    definitions(1)=definition(2,"Tau","Time");
+                end
             end
         case "nirp.blocks.Jacket"
             index=0;

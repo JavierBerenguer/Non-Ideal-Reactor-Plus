@@ -14,8 +14,8 @@ function libraryFile = build_library(folder)
     new_system(name,'Library');
     cleanup=onCleanup(@() closeLoaded(name));
     set_param(name,'EnableLBRepository','on');
-    labels={'Stream','CSTR','PFR','Mixer','Splitter','Separator','Heater','Jacket','Recycle','Adjust'};
-    classes={'Stream','CSTR','PFR','Mixer','Splitter','Separator','Heater','Jacket','Recycle','Adjust'};
+    labels={'Stream','CSTR','PFR','Non-ideal Reactor','Mixer','Splitter','Separator','Heater','Jacket','Recycle','Adjust'};
+    classes={'Stream','CSTR','PFR','NonIdealReactor','Mixer','Splitter','Separator','Heater','Jacket','Recycle','Adjust'};
     for i=1:numel(classes)
         row=mod(i-1,3); col=floor((i-1)/3);
         block=[name '/' labels{i}];
@@ -59,6 +59,10 @@ function makeEmpty(block,className)
                 'CatalystDensity','NaN','CatalystPorosity','NaN', ...
                 'PressureMode','Select...','PressureDropEqn','Select...', ...
                 'ParticleDiameter','NaN','Density','NaN','Viscosity','NaN');
+        case 'NonIdealReactor'
+            set_param(block,'RTDOrigin','Select...','Model','Select...', ...
+                'V','NaN','Tau','NaN','N','NaN','Pe','NaN', ...
+                'Micromixing','Select...','SpecifiedT','NaN');
         case 'Splitter'
             set_param(block,'Fractions','[NaN NaN]');
         case 'Separator'
