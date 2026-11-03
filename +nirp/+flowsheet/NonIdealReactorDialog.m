@@ -2,11 +2,12 @@ classdef NonIdealReactorDialog < handle
 %NONIDEALREACTORDIALOG Structured editor for Non-ideal Reactor blocks.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: November 3, 2026. Last update: November 3, 2026
+% Created: November 3, 2026. Last update: November 4, 2026
 % =========================================================================
     properties (SetAccess=private)
         BlockPath; Figure; NameField; StatusLabel; DataModel
-        OriginDropDown; ModelDropDown; NField; PeField; BoundaryDropDown
+        OriginDropDown; ModelDropDown; NField; NLabel; PeField; PeLabel
+        BoundaryDropDown; BoundaryLabel
         DataTable; DataTimeUnitDropDown; SessionField; RTDAxes
         AddRowButton; RemoveRowButton; ImportButton; BrowseButton
         VField; VUnitDropDown; TauField; TauUnitDropDown
@@ -110,7 +111,7 @@ classdef NonIdealReactorDialog < handle
             obj.buildRtdTab(rtdTab);obj.buildOperationTab(operationTab);obj.buildReactionsTab(reactionsTab);obj.buildResultsTab(resultsTab);
             obj.StatusLabel=uilabel(main,'Text','Ready.','FontAngle','italic','WordWrap','on');
             buttons=uigridlayout(main,[1 5],'ColumnWidth',{'1x',70,90,90,90});uilabel(buttons,'Text','');
-            uibutton(buttons,'Text','Help','ButtonPushedFcn',@(~,~)openNirpGuide('guides/flowsheet-reactors.html#non-ideal-reactor'));
+            uibutton(buttons,'Text','Help','ButtonPushedFcn',@(~,~)openNirpGuide('guides/flowsheet-nonideal-reactor.html#non-ideal-reactor'));
             uibutton(buttons,'Text','OK','ButtonPushedFcn',@(~,~)obj.accept());
             uibutton(buttons,'Text','Cancel','ButtonPushedFcn',@(~,~)obj.cancel());
             uibutton(buttons,'Text','Apply','ButtonPushedFcn',@(~,~)obj.apply());
@@ -124,8 +125,8 @@ classdef NonIdealReactorDialog < handle
             obj.RtdModelPanel=uipanel(grid,'Title','Analytical model');obj.RtdModelPanel.Layout.Row=2;obj.RtdModelPanel.Layout.Column=1;
             g=uigridlayout(obj.RtdModelPanel,[4 3],'ColumnWidth',{145,'1x',100},'RowHeight',repmat({34},1,4));
             obj.ModelDropDown=dropRow(g,1,'Model',{'Select...','CSTR','PFR','Tanks in series','Dispersion'});
-            obj.ModelDropDown.ValueChangedFcn=@(~,~)obj.configurationChanged();obj.NField=numericRow(g,2,'Number of tanks');
-            obj.PeField=numericRow(g,3,'Peclet number');obj.BoundaryDropDown=dropRow(g,4,'Boundary',{'open','closed'});obj.BoundaryDropDown.ValueChangedFcn=@(~,~)obj.configurationChanged();
+            obj.ModelDropDown.ValueChangedFcn=@(~,~)obj.configurationChanged();[obj.NField,obj.NLabel]=numericRow(g,2,'Number of tanks');
+            [obj.PeField,obj.PeLabel]=numericRow(g,3,'Peclet number');[obj.BoundaryDropDown,obj.BoundaryLabel]=dropRow(g,4,'Boundary',{'open','closed'});obj.BoundaryDropDown.ValueChangedFcn=@(~,~)obj.configurationChanged();
             obj.DataPanel=uipanel(grid,'Title','Tabulated t-E data');obj.DataPanel.Layout.Row=2;obj.DataPanel.Layout.Column=1;
             dg=uigridlayout(obj.DataPanel,[2 4],'RowHeight',{'1x',34},'ColumnWidth',{'1x',95,95,110});
             obj.DataTable=uitable(dg,'Data',zeros(0,2),'ColumnName',{'t','E(t)'},'ColumnEditable',[true true],'RowName',{});
@@ -187,8 +188,9 @@ classdef NonIdealReactorDialog < handle
         end
         function configurationChanged(obj)
             origin=string(obj.OriginDropDown.Value);obj.RtdModelPanel.Visible=onoff(origin=="Model");obj.DataPanel.Visible=onoff(origin=="Data");obj.SessionPanel.Visible=onoff(origin=="Session");
-            obj.NField.Visible=onoff(origin=="Model"&&strcmp(obj.ModelDropDown.Value,'Tanks in series'));
-            obj.PeField.Visible=onoff(origin=="Model"&&strcmp(obj.ModelDropDown.Value,'Dispersion'));obj.BoundaryDropDown.Visible=obj.PeField.Visible;
+            obj.NField.Visible=onoff(origin=="Model"&&strcmp(obj.ModelDropDown.Value,'Tanks in series'));obj.NLabel.Visible=obj.NField.Visible;
+            obj.PeField.Visible=onoff(origin=="Model"&&strcmp(obj.ModelDropDown.Value,'Dispersion'));obj.PeLabel.Visible=obj.PeField.Visible;
+            obj.BoundaryDropDown.Visible=obj.PeField.Visible;obj.BoundaryLabel.Visible=obj.PeField.Visible;
             specified=strcmp(obj.TemperatureModeDropDown.Value,'Specified');obj.TemperatureField.Visible=onoff(specified);obj.TemperatureUnitDropDown.Visible=onoff(specified);obj.TemperatureLabel.Visible=onoff(specified);
             obj.refreshRtdPlot();obj.closeDof();obj.captureModel();
         end
@@ -330,8 +332,8 @@ classdef NonIdealReactorDialog < handle
     end
 end
 
-function value=dropRow(grid,row,label,items),text=uilabel(grid,'Text',label,'HorizontalAlignment','right');text.Layout.Row=row;text.Layout.Column=1;value=uidropdown(grid,'Items',items);value.Layout.Row=row;value.Layout.Column=[2 3];end
-function value=numericRow(grid,row,label),text=uilabel(grid,'Text',label,'HorizontalAlignment','right');text.Layout.Row=row;text.Layout.Column=1;value=uieditfield(grid,'numeric','AllowEmpty','on','Value',[]);value.Layout.Row=row;value.Layout.Column=2;end
+function [value,text]=dropRow(grid,row,label,items),text=uilabel(grid,'Text',label,'HorizontalAlignment','right');text.Layout.Row=row;text.Layout.Column=1;value=uidropdown(grid,'Items',items);value.Layout.Row=row;value.Layout.Column=[2 3];end
+function [value,text]=numericRow(grid,row,label),text=uilabel(grid,'Text',label,'HorizontalAlignment','right');text.Layout.Row=row;text.Layout.Column=1;value=uieditfield(grid,'numeric','AllowEmpty','on','Value',[]);value.Layout.Row=row;value.Layout.Column=2;end
 function [field,units,label]=quantity(grid,row,column,text,category),label=uilabel(grid,'Text',text,'HorizontalAlignment','right');label.Layout.Row=row;label.Layout.Column=column;field=uieditfield(grid,'numeric','AllowEmpty','on','Value',[]);field.Layout.Row=row;field.Layout.Column=column+1;units=uidropdown(grid,'Items',UnitConverterHelper.getUnits(category));units.Layout.Row=row;units.Layout.Column=column+2;end
 function setNumeric(field,text),value=str2double(text);if isfinite(value),field.Value=value;else,field.Value=[];end,end
 function value=fieldNumber(field),value=field.Value;if isempty(value),value=NaN;end,end

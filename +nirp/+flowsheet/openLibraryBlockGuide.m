@@ -2,7 +2,7 @@ function opened = openLibraryBlockGuide(block)
 %OPENLIBRARYBLOCKGUIDE Open block help instead of editing library templates.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 17, 2026. Last update: October 17, 2026
+% Created: October 17, 2026. Last update: November 4, 2026
 % =========================================================================
 
     block = getfullname(block) ;
@@ -24,7 +24,7 @@ function opened = openLibraryBlockGuide(block)
             case "nirp.blocks.PFR"
                 guide = 'guides/flowsheet-reactors.html#pfr' ;
             case "nirp.blocks.NonIdealReactor"
-                guide = 'guides/flowsheet-reactors.html' ;
+                guide = 'guides/flowsheet-nonideal-reactor.html#non-ideal-reactor' ;
             case "nirp.blocks.Jacket"
                 guide = 'guides/flowsheet-reactors.html#jacket' ;
             case "nirp.blocks.Mixer"

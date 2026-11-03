@@ -2,7 +2,7 @@ function libraryFile = build_library(folder)
 %BUILD_LIBRARY Generate the NIRP Simulink block library.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 2, 2026. Last update: October 9, 2026
+% Created: October 2, 2026. Last update: November 4, 2026
 % =========================================================================
 
     repoRoot=fileparts(fileparts(mfilename('fullpath'))); addpath(repoRoot);
@@ -14,25 +14,36 @@ function libraryFile = build_library(folder)
     new_system(name,'Library');
     cleanup=onCleanup(@() closeLoaded(name));
     set_param(name,'EnableLBRepository','on');
-    labels={'Stream','CSTR','PFR','Non-ideal Reactor','Mixer','Splitter','Separator','Heater','Jacket','Recycle','Adjust'};
-    classes={'Stream','CSTR','PFR','NonIdealReactor','Mixer','Splitter','Separator','Heater','Jacket','Recycle','Adjust'};
-    for i=1:numel(classes)
-        row=mod(i-1,3); col=floor((i-1)/3);
-        block=[name '/' labels{i}];
-        add_block('simulink/User-Defined Functions/MATLAB System',block, ...
-            'System',['nirp.blocks.' classes{i}],'Position', ...
-            [40+col*320 50+row*115 320+col*320 125+row*115]);
-        makeEmpty(block,classes{i});
-        if strcmp(classes{i},'Stream')
-            set_param(block,'Role','Select...');nirp.flowsheet.setupStreamBlock(block);
-        else
-            nirp.flowsheet.setupUnitBlock(block);
+    groups={ ...
+        'Streams',{'Stream'},{'Stream'}; ...
+        'Reactors',{'CSTR','PFR','Non-ideal Reactor','Jacket'}, ...
+            {'CSTR','PFR','NonIdealReactor','Jacket'}; ...
+        'Material operations',{'Mixer','Splitter','Separator','Heater'}, ...
+            {'Mixer','Splitter','Separator','Heater'}; ...
+        'Convergence',{'Recycle','Adjust'},{'Recycle','Adjust'}};
+    columnX=40+(0:size(groups,1)-1)*320;
+    for groupIndex=1:size(groups,1)
+        heading=Simulink.Annotation(name,groups{groupIndex,1});
+        heading.Position=[columnX(groupIndex) 30 250 35];
+        heading.FontWeight='bold';heading.FontSize=14;
+        labels=groups{groupIndex,2};classes=groups{groupIndex,3};
+        for row=1:numel(classes)
+            block=[name '/' labels{row}];
+            add_block('simulink/User-Defined Functions/MATLAB System',block, ...
+                'System',['nirp.blocks.' classes{row}],'Position', ...
+                [columnX(groupIndex) 75+(row-1)*115 ...
+                columnX(groupIndex)+280 150+(row-1)*115]);
+            makeEmpty(block,classes{row});
+            if strcmp(classes{row},'Stream')
+                set_param(block,'Role','Select...');nirp.flowsheet.setupStreamBlock(block);
+            else
+                nirp.flowsheet.setupUnitBlock(block);
+            end
         end
     end
-    nirp.flowsheet.addBlock(name,'Flowsheet',[680 395 960 470],200);
+    nirp.flowsheet.addBlock(name,'Flowsheet',[columnX(4) 305 columnX(4)+280 380],200);
     [exampleNames,descriptions]=nirp.flowsheet.exampleNames();
-    numberOfColumns=ceil(numel(classes)/3);
-    exampleX=40+numberOfColumns*320;
+    exampleX=40+size(groups,1)*320;
     heading=Simulink.Annotation(name,'Examples');heading.Position=[exampleX 30 250 35];
     heading.FontWeight='bold';heading.FontSize=14;
     for i=1:numel(exampleNames)

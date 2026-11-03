@@ -2,7 +2,7 @@ function modelFiles = build_examples(folder,only)
 %BUILD_EXAMPLES Generate the milestone-1 NIRP example flowsheets.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 2, 2026. Last update: November 3, 2026
+% Created: October 2, 2026. Last update: November 4, 2026
 %   BUILD_EXAMPLES(FOLDER,ONLY) builds only the examples named in ONLY (T-143).
 % =========================================================================
 
@@ -204,6 +204,7 @@ end
 
 function buildEx51(model)
     % January 2024 exam: identical feeds compare the two micromixing limits.
+    set_param([model '/Flowsheet'],'Position',[20 5 140 40]) ;
     addSystem(model,'Segregation feed','nirp.blocks.Stream', ...
         [20 90 150 145],'Role','Feed') ;
     addNonIdeal(model,'R1 tanks N=1 SEG',[210 70 390 155],1,1, ...

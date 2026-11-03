@@ -2,7 +2,7 @@ classdef NirpNonIdealReactorDialogTest < matlab.unittest.TestCase
 %NIRPNONIDEALREACTORDIALOGTEST Headless structured-editor user journeys.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: November 3, 2026. Last update: November 3, 2026
+% Created: November 3, 2026. Last update: November 4, 2026
 % =========================================================================
     properties,Folder,end
     methods (TestMethodSetup)
@@ -41,8 +41,10 @@ classdef NirpNonIdealReactorDialogTest < matlab.unittest.TestCase
         end
         function modelSpecificControlsAndMicromixingText(testCase)
             createModel(testCase,'dialog_controls');dialog=nirp.flowsheet.NonIdealReactorDialog('dialog_controls/Reactor','Visible','off');testCase.addTeardown(@()deleteValid(dialog));
-            choose(dialog.OriginDropDown,'Model');choose(dialog.ModelDropDown,'Tanks in series');testCase.verifyEqual(dialog.NField.Visible,matlab.lang.OnOffSwitchState.on);testCase.verifyEqual(dialog.PeField.Visible,matlab.lang.OnOffSwitchState.off);
-            choose(dialog.ModelDropDown,'Dispersion');testCase.verifyEqual(dialog.NField.Visible,matlab.lang.OnOffSwitchState.off);testCase.verifyEqual(dialog.PeField.Visible,matlab.lang.OnOffSwitchState.on);testCase.verifyEqual(dialog.BoundaryDropDown.Visible,matlab.lang.OnOffSwitchState.on);
+            choose(dialog.OriginDropDown,'Model');choose(dialog.ModelDropDown,'Tanks in series');
+            verifyVisible(testCase,dialog.NField,dialog.NLabel,true);verifyVisible(testCase,dialog.PeField,dialog.PeLabel,false);verifyVisible(testCase,dialog.BoundaryDropDown,dialog.BoundaryLabel,false);
+            choose(dialog.ModelDropDown,'Dispersion');verifyVisible(testCase,dialog.NField,dialog.NLabel,false);verifyVisible(testCase,dialog.PeField,dialog.PeLabel,true);verifyVisible(testCase,dialog.BoundaryDropDown,dialog.BoundaryLabel,true);
+            choose(dialog.ModelDropDown,'CSTR');verifyVisible(testCase,dialog.NField,dialog.NLabel,false);verifyVisible(testCase,dialog.PeField,dialog.PeLabel,false);verifyVisible(testCase,dialog.BoundaryDropDown,dialog.BoundaryLabel,false);
             editNumber(dialog.TauField,2);editNumber(dialog.PeField,10);choose(dialog.ModelDropDown,'Dispersion');
             choose(dialog.MicromixingDropDown,'Segregation');testCase.verifySubstring(string(dialog.MicromixingDescription.Text),"mixing only at the outlet");
             choose(dialog.MicromixingDropDown,'Maximum mixedness');testCase.verifySubstring(string(dialog.MicromixingDescription.Text),"Earliest possible mixing");
@@ -74,5 +76,6 @@ end
 function addUnit(model,name,className,position,varargin),add_block('simulink/User-Defined Functions/MATLAB System',[model '/' name],'System',className,'Position',position,varargin{:});end
 function choose(control,value),control.Value=value;feval(control.ValueChangedFcn,control,[]);end
 function editNumber(control,value),control.Value=value;feval(control.ValueChangedFcn,control,struct('Value',value));end
+function verifyVisible(testCase,control,label,expected),state=matlab.lang.OnOffSwitchState.off;if expected,state=matlab.lang.OnOffSwitchState.on;end;testCase.verifyEqual(control.Visible,state);testCase.verifyEqual(label.Visible,state);end
 function deleteValid(value),if ~isempty(value)&&isvalid(value),delete(value);end,end
 function cleanup(folder),bdclose('all');Simulink.data.dictionary.closeAll('-discard');evalin('base','clear nirpResults');f=findall(groot,'Type','Figure');if ~isempty(f),delete(f);end;if contains(path,folder),rmpath(folder);end,end
