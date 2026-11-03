@@ -2,7 +2,7 @@ classdef NirpOpenExampleTest < matlab.unittest.TestCase
     % NirpOpenExampleTest verifies on-demand example generation.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 17, 2026. Last update: October 17, 2026
+    % Created: October 17, 2026. Last update: November 3, 2026
     % =========================================================================
 
     properties
@@ -90,7 +90,76 @@ classdef NirpOpenExampleTest < matlab.unittest.TestCase
                 rmpathIfPresent(destination) ;
             end
         end
+
+        function nonIdealExamplesOpenAndMatchIndependentReferences(testCase)
+            names = ["ex51_nonideal_exam_january2024"; ...
+                "ex52_nonideal_second_order_series"; ...
+                "ex53_nonideal_parallel_second_order"; ...
+                "ex54_ideal_nonideal_side_by_side"] ;
+            [catalog,descriptions] = nirp.flowsheet.exampleNames() ;
+            testCase.verifyTrue(all(ismember(names,catalog))) ;
+            selected = descriptions(ismember(catalog,names)) ;
+            testCase.verifyTrue(all(startsWith(selected,"Non-ideal:"))) ;
+
+            results = cell(size(names)) ;
+            for i = 1:numel(names)
+                destination = fullfile(testCase.Folder,char(names(i))) ;
+                modelFile = nirp.flowsheet.openExample(names(i), ...
+                    'Folder',destination,'NoWindow',true) ;
+                testCase.verifyTrue(isfile(modelFile)) ;
+                testCase.verifyTrue(isfile(fullfile(destination, ...
+                    names(i)+".sldd"))) ;
+                evalin('base','clear nirpResults') ;
+                sim(char(names(i))) ;
+                results{i} = evalin('base','nirpResults') ;
+                close_system(char(names(i)),0) ;
+                Simulink.data.dictionary.closeAll('-discard') ;
+                rmpathIfPresent(destination) ;
+            end
+
+            expectedExam = [0.044859 0.038064 0.16512 0.24168 0.24168; ...
+                0.045823 0.038935 0.18121 0.24376 0.24376] ;
+            actualExam = [concentration(results{1},'Segregation product',1:5); ...
+                concentration(results{1},'Maximum mixedness product',1:5)]/1000 ;
+            testCase.verifyEqual(actualExam,expectedExam,'RelTol',5e-3) ;
+
+            k = 0.05 ; tau = 2 ; initial = 10 ;
+            firstSeg = cstrRtdBatchReference(initial,k,tau) ;
+            secondSeg = cstrRtdBatchReference(firstSeg,k,tau) ;
+            firstMm = algebraicCstrReference(initial,k,tau) ;
+            secondMm = algebraicCstrReference(firstMm,k,tau) ;
+            actualSeries = [concentration(results{2},'Segregation product',1); ...
+                concentration(results{2},'Maximum mixedness product',1)] ;
+            testCase.verifyEqual(actualSeries,[secondSeg;secondMm], ...
+                'RelTol',5e-3) ;
+
+            pfr = initial/(1+k*initial*3) ;
+            cstr = algebraicCstrReference(initial,k,3) ;
+            parallel = 0.25*pfr+0.75*cstr ;
+            testCase.verifyEqual(concentration(results{3},'Product',1), ...
+                parallel,'RelTol',5e-3) ;
+
+            ideal = concentration(results{4},'Ideal product',1) ;
+            nonIdeal = concentration(results{4},'Non-ideal product',1) ;
+            testCase.verifyEqual(nonIdeal,ideal,'RelTol',1e-4) ;
+        end
     end
+end
+
+function value = concentration(results,name,index)
+    key = matlab.lang.makeValidName(name) ;
+    stream = results.Streams.(key).streamSI ;
+    values = stream.F/stream.Q ;
+    value = reshape(values(index),1,[]) ;
+end
+
+function value = cstrRtdBatchReference(initial,k,tau)
+    z = 1/(k*tau*initial) ;
+    value = exp(z)*expint(z)/(k*tau) ;
+end
+
+function value = algebraicCstrReference(initial,k,tau)
+    value = (sqrt(1+4*k*tau*initial)-1)/(2*k*tau) ;
 end
 
 function answer = restoreAnswer(message)

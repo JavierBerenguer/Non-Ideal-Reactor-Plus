@@ -70,7 +70,8 @@ classdef NirpNonIdealReactorBlockTest < matlab.unittest.TestCase
         end
 
         function january2024SeriesAndMixedModels(testCase)
-            pkg=examPackage();modes={'Segregation','Maximum mixedness'};
+            pkg=nirp.pkg.examples.january2024Exam();
+            modes={'Segregation','Maximum mixedness'};
             expectedFirst=[0.13824 0.060735 0.060735 0.31779 0.31779; ...
                 0.19385 0.069644 0.069644 0.29107 0.29107];
             expectedSecond=[0.044859 0.038064 0.16512 0.24168 0.24168; ...
@@ -274,30 +275,6 @@ function params=nonIdealParams(model,tau,N,mixing)
 rtd=struct('origin','model','model',model,'tau',tau,'N',N);
 params=struct('rtd',rtd,'micromixing',mixing, ...
     'temperatureMode','inlet','computeHeat',false,'keyIndex',1);
-end
-
-function pkg=examPackage()
-pkg.meta=struct('formatVersion',1,'name',"Exam January 2024", ...
-    'thermodynamics',false);
-cp=struct('type',"constant",'value',1,'unit',"J/(mol*K)");
-pkg.components=struct('name',{"A","B","C","D","E"}, ...
-    'Mw',{[],[],[],[],[]},'cp',{cp,cp,cp,cp,cp},'hf',{[],[],[],[],[]});
-pkg.reactions.stoich=[-1 1 0 0 0;0 -1 1 0 0;-2 0 0 1 1;0 1 0 -1 -1];
-pkg.reactions.DH=struct('value',zeros(1,4),'unit',"J/mol");
-pkg.reactions.Tref=struct('value',298.15,'unit',"K");
-pkg.reactions.rateUnits=struct('concentration',"mol/m^3",'time',"s");
-expressions={"concentration(1)-2*concentration(2)","concentration(2)", ...
-    "0.01*concentration(1)^2","0.001*concentration(4)*concentration(5)"};
-common=struct('type',"expression",'k0',[],'Ea',[],'orders',[], ...
-    'reverse',[],'expression',"");
-pkg.reactions.kinetics=repmat(common,1,4);
-for i=1:4,pkg.reactions.kinetics(i).expression=expressions{i};end
-pkg.feeds=struct('name',"F1",'phase',"L", ...
-    'T',struct('value',298.15,'unit',"K"), ...
-    'P',struct('value',101325,'unit',"Pa"),'basis',"concentrations", ...
-    'values',[1000 0 0 0 0],'valuesUnit',"mol/m^3", ...
-    'Q',struct('value',5e-5,'unit',"m^3/s"));
-nirp.pkg.validate(pkg);
 end
 
 function report=simulationFailure(name)
