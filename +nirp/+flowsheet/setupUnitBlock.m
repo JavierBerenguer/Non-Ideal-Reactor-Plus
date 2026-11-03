@@ -9,10 +9,7 @@ function setupUnitBlock(block)
         case {"nirp.blocks.CSTR","nirp.blocks.PFR"}
             callback='nirp.flowsheet.ReactorDialog.open(gcb);';
         case "nirp.blocks.NonIdealReactor"
-            % T-215 installs the structured editor. Until then Simulink's
-            % generated MATLAB System parameter dialog remains in use.
-            callback=['if ~nirp.flowsheet.openLibraryBlockGuide(gcb), ' ...
-                'open_system(gcb,''parameter''); end'];
+            callback='nirp.flowsheet.NonIdealReactorDialog.open(gcb);';
         case "nirp.blocks.Heater"
             callback='nirp.flowsheet.HeaterDialog.open(gcb);';
         case "nirp.blocks.Jacket"

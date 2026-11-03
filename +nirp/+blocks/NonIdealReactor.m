@@ -43,7 +43,7 @@ classdef NonIdealReactor < matlab.System
         Reactions = ''
         % Show the heat-duty output port.
         ShowHeatPort (1,1) logical = false
-        % Reserved JSON specifications for the structured editor (T-215).
+        % SI specifications persisted by the structured editor.
         Specifications = ''
     end
 
@@ -175,19 +175,21 @@ classdef NonIdealReactor < matlab.System
     methods (Access = private)
         function missing = missingSpecifications(obj)
             missing = strings(0,1) ;
+            specs=nirp.dof.readSpecs(obj.Specifications) ;
+            hasSize=any(isfield(specs,{'V','tau','SV'})) ;
             if strcmp(obj.RTDOrigin,'Select...'), missing(end+1) = "RTDOrigin" ; end
             if strcmp(obj.RTDOrigin,'Model')
                 if strcmp(obj.Model,'Select...'), missing(end+1) = "Model" ; end
                 if strcmp(obj.SizeSource,'Dialog')
-                    if strcmp(obj.SizeBasis,'Volume') && ~isfinite(obj.V)
+                    if ~hasSize && strcmp(obj.SizeBasis,'Volume') && ~isfinite(obj.V)
                         missing(end+1) = "V" ;
-                    elseif strcmp(obj.SizeBasis,'Residence time') && ~isfinite(obj.Tau)
+                    elseif ~hasSize && strcmp(obj.SizeBasis,'Residence time') && ~isfinite(obj.Tau)
                         missing(end+1) = "Tau" ;
                     end
                 end
-                if strcmp(obj.Model,'Tanks in series') && ~isfinite(obj.N)
+                if strcmp(obj.Model,'Tanks in series') && ~isfield(specs,'N') && ~isfinite(obj.N)
                     missing(end+1) = "N" ;
-                elseif strcmp(obj.Model,'Dispersion') && ~isfinite(obj.Pe)
+                elseif strcmp(obj.Model,'Dispersion') && ~isfield(specs,'Pe') && ~isfinite(obj.Pe)
                     missing(end+1) = "Pe" ;
                 end
             elseif strcmp(obj.RTDOrigin,'Data')

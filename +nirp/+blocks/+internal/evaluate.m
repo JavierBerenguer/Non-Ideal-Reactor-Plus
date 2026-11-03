@@ -55,8 +55,9 @@ function [outputs,info,details] = evaluate(blockPath,inputs,varargin)
         case "NonIdealReactor"
             requireInputs(inputs,1,type);
             if isempty(prepared)
-                [params,rs]=nonIdealReactorParameters( ...
-                    blockPath,signals,pkg,rs);
+                [params,rs,result]=nonIdealReactorParameters( ...
+                    blockPath,inputs{1},signals,pkg,rs);
+                details.Dof=result;
             else
                 params=prepared;
             end
@@ -238,7 +239,7 @@ function [params,result,rs]=reactorParameters(block,in,signals,pkg,rs,type)
     end
 end
 
-function [params,rs]=nonIdealReactorParameters(block,signals,pkg,rs)
+function [params,rs,result]=nonIdealReactorParameters(block,in,signals,pkg,rs)
     selected=get_param(block,'Reactions');
     if ~isempty(strtrim(selected))
         rs=nirp.pkg.toReactionSys(nirp.pkg.selectReactions(pkg,selected));
@@ -249,16 +250,18 @@ function [params,rs]=nonIdealReactorParameters(block,signals,pkg,rs)
     source=string(get_param(block,'SizeSource'));
     micromixing=string(get_param(block,'Micromixing'));
     temperatureMode=string(get_param(block,'TemperatureMode'));
+    specs=nirp.dof.readSpecs(get_param(block,'Specifications'));
+    hasSize=any(isfield(specs,{'V','tau','SV'}));
     missing=strings(0,1);
     if origin=="Select...",missing(end+1)="RTDOrigin";end
     if origin=="Model"
         if model=="Select...",missing(end+1)="Model";end
         if source=="Dialog"
-            if basis=="Volume"&&~isfinite(str2double(get_param(block,'V'))),missing(end+1)="V";end
-            if basis=="Residence time"&&~isfinite(str2double(get_param(block,'Tau'))),missing(end+1)="Tau";end
+            if ~hasSize&&basis=="Volume"&&~isfinite(str2double(get_param(block,'V'))),missing(end+1)="V";end
+            if ~hasSize&&basis=="Residence time"&&~isfinite(str2double(get_param(block,'Tau'))),missing(end+1)="Tau";end
         end
-        if model=="Tanks in series"&&~isfinite(str2double(get_param(block,'N'))),missing(end+1)="N";end
-        if model=="Dispersion"&&~isfinite(str2double(get_param(block,'Pe'))),missing(end+1)="Pe";end
+        if model=="Tanks in series"&&~isfield(specs,'N')&&~isfinite(str2double(get_param(block,'N'))),missing(end+1)="N";end
+        if model=="Dispersion"&&~isfield(specs,'Pe')&&~isfinite(str2double(get_param(block,'Pe'))),missing(end+1)="Pe";end
     elseif origin=="Data"
         if isempty(numericBlockParameter(block,'DataTime'))||all(isnan(numericBlockParameter(block,'DataTime'))),missing(end+1)="DataTime";end
         if isempty(numericBlockParameter(block,'DataE'))||all(isnan(numericBlockParameter(block,'DataE'))),missing(end+1)="DataE";end
@@ -272,7 +275,7 @@ function [params,rs]=nonIdealReactorParameters(block,signals,pkg,rs)
     nirp.blocks.internal.requireSpecifications( ...
         'Non-ideal Reactor',get_param(block,'Name'),missing);
 
-    signalIndex=1;
+    signalIndex=1;result=[];
     rtd=struct('origin',lower(char(origin)));
     switch origin
         case "Model"
@@ -287,6 +290,8 @@ function [params,rs]=nonIdealReactorParameters(block,signals,pkg,rs)
                     error('nirp:blocks:invalidParameterPort', ...
                         'Non-ideal Reactor size input must be a positive SI scalar.');
                 end
+            elseif hasSize
+                sizeValue=NaN;
             elseif basis=="Volume"
                 sizeValue=convert(block,'V','Volume','VUnit');
             else
@@ -304,6 +309,31 @@ function [params,rs]=nonIdealReactorParameters(block,signals,pkg,rs)
             rtd.E=numericBlockParameter(block,'DataE')/factor;
         case "Session"
             rtd.file=resolveSessionFile(block,get_param(block,'SessionFile'));
+    end
+    if ~isempty(fieldnames(specs))
+        [specified,specifiedOrigins]=specValues(specs);
+        if origin=="Model"
+            context=struct('origin','model','model',char(model));
+            values=merge(struct('Q0',in.Q),specified);
+            origins=merge(struct('Q0','external'),specifiedOrigins);
+            if source=="Input port"
+                if basis=="Volume",values.V=sizeValue;origins.V='external';
+                else,values.tau=sizeValue;origins.tau='external';end
+            end
+            if model=="Tanks in series" && ~isfield(values,'N')
+                values.N=str2double(get_param(block,'N'));origins.N='specified';
+            elseif model=="Dispersion" && ~isfield(values,'Pe')
+                values.Pe=str2double(get_param(block,'Pe'));origins.Pe='specified';
+            end
+            result=nirp.dof.solve(nirp.dof.catalog.nonIdealReactor(context),values,origins);
+            requireComplete(get_param(block,'Name'),result);
+            rtd.V=result.values.V;rtd.tau=result.values.tau;
+            if model=="Tanks in series",rtd.N=validatedInteger(result.values.N,'N');end
+            if model=="Dispersion",rtd.Pe=result.values.Pe;end
+        else
+            descriptor=nirp.tracer.rtdDescriptor(rtd,in.Q);
+            [result,rtd]=resolveMeasuredSize(block,origin,rtd,descriptor.tau,in.Q,specs);
+        end
     end
     if numel(signals)>=signalIndex
         error('nirp:blocks:invalidParameterPort', ...
@@ -325,10 +355,44 @@ function [params,rs]=nonIdealReactorParameters(block,signals,pkg,rs)
     keyIndex=flowsheetKeyIndex(block,pkg);
     if ~isempty(keyIndex),params.keyIndex=keyIndex;end
     if isfield(rtd,'V'),params.rtd.V=rtd.V;end
-    if origin~="Model"
-        % Data and session volume is defined by the measured mean RTD.
-        params.rtd=rmfieldIfPresent(params.rtd,{'V','tau'});
+end
+
+function [result,rtd]=resolveMeasuredSize(block,origin,rtd,tau,Q,specs)
+    expected=struct('V',tau*Q,'tau',tau,'SV',1/tau,'Q0',Q);
+    conflicts=strings(0,1);names=fieldnames(specs);
+    for i=1:numel(names)
+        name=names{i};if ~isfield(expected,name),continue,end
+        if abs(specs.(name).si-expected.(name))/max([abs(specs.(name).si) abs(expected.(name)) realmin])>1e-6
+            conflicts(end+1)=string(name); %#ok<AGROW>
+        end
     end
+    origins=struct('V','calculated','tau','external','SV','calculated','Q0','external');
+    states=origins;for i=1:numel(names),if isfield(states,names{i}),states.(names{i})='specified';end,end
+    messages=strings(0,1);status='complete';
+    if ~isempty(conflicts)
+        status='conflict';messages="Specified size conflicts with the measured RTD mean.";
+        for i=1:numel(conflicts),states.(char(conflicts(i)))='conflict';end
+    end
+    result=struct('values',expected,'origins',origins,'states',states,'producer',struct(), ...
+        'messages',messages,'status',status,'dof',0,'missingCount',0, ...
+        'missing',strings(0,1),'missingLabels',strings(0,1),'conflicts',conflicts);
+    if strcmp(status,'conflict')
+        error('nirp:units:nonIdealSizeConflict', ...
+            'Non-ideal Reactor "%s": %s',get_param(block,'Name'),messages);
+    end
+    % Preserve compatible entries so the core independently enforces the
+    % no-rescaling invariant for Data and Session RTDs.
+    if isfield(specs,'V'),rtd.V=specs.V.si;end
+    if isfield(specs,'tau'),rtd.tau=specs.tau.si;end
+    if isfield(specs,'SV') && ~isfield(specs,'tau'),rtd.tau=1/specs.SV.si;end
+    result.origin=char(origin);
+end
+
+function value=validatedInteger(value,name)
+    if ~(isfinite(value)&&value>=1&&abs(value-round(value))<=1e-9)
+        error('nirp:blocks:invalidParameter','%s must be an integer greater than or equal to one.',name);
+    end
+    value=round(value);
 end
 
 function code=modelCode(model)

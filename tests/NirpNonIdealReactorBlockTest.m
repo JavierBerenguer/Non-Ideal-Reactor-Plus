@@ -207,6 +207,29 @@ classdef NirpNonIdealReactorBlockTest < matlab.unittest.TestCase
             testCase.verifyEqual(row.RTD,"CSTR");
             testCase.verifyEqual(row.Tau,info.tau,'RelTol',1e-12);
         end
+
+        function adjustResidenceTimeConverges(testCase)
+            name='nonideal_adjust_tau';createModel(testCase,name,nirp.pkg.examples.firstOrderLiquid());
+            addStream(name,'F1','Feed',[20 100 100 150]);
+            addUnit(name,'Reactor','nirp.blocks.NonIdealReactor',[250 85 410 165], ...
+                'RTDOrigin','Model','Model','CSTR','SizeBasis','Residence time', ...
+                'SizeSource','Input port','Micromixing','Maximum mixedness');
+            addStream(name,'Product','Product',[480 100 590 150], ...
+                'ReferenceFeed','F1','KeyComponent','A');
+            addUnit(name,'Adjust','nirp.blocks.Adjust',[180 240 330 305], ...
+                'TargetVariable','Conversion','KeyComponent','A','ReferenceFeed','F1', ...
+                'TargetValue','0.5','InitialValue','50','MinValue','1', ...
+                'MaxValue','500','ParameterUnit','s','Damping','0.5', ...
+                'Tolerance','1e-8','Strategy','Simultaneous');
+            add_line(name,'F1/1','Reactor/1');add_line(name,'Adjust/1','Reactor/2');
+            add_line(name,'Reactor/1','Product/1');add_line(name,'Reactor/1','Adjust/1');
+            finishModel(name);sim(name);results=evalin('base','nirpResults');
+            testCase.verifyEqual(results.Streams.Product.conversion,0.5,'AbsTol',1e-7);
+            info=results.Diagnostics.nonideal_adjust_tau_Reactor.lastInfo;
+            testCase.verifyEqual(info.tau,100,'RelTol',1e-6);
+            target=nirp.flowsheet.adjustTarget([name '/Adjust']);
+            testCase.verifyEqual(target.Variable,"Tau");testCase.verifyEqual(target.Category,"Time");
+        end
     end
 end
 
