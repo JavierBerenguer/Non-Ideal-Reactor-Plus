@@ -47,6 +47,18 @@ classdef NirpTracerBlocksTest < matlab.unittest.TestCase
             m=nirp.tracerflowsheet.MixerDialog([name '/Mixer'],'Visible','off');m.setNumInputs(3);testCase.verifyTrue(m.apply());delete(m);m=nirp.tracerflowsheet.MixerDialog([name '/Mixer'],'Visible','off');testCase.verifyEqual(m.getValues(),3);delete(m);
             monitor=nirp.tracerflowsheet.MonitorDialog([name '/Monitor'],'Visible','off');monitor.WarningField.Value=2;testCase.verifyTrue(monitor.apply());delete(monitor);monitor=nirp.tracerflowsheet.MonitorDialog([name '/Monitor'],'Visible','off');testCase.verifyEqual(monitor.getValues(),0.02,'AbsTol',1e-14);delete(monitor);
         end
+        function tracerDialogsDoNotExposeReactiveOptions(testCase)
+            name='tracer_only_dialogs';nirp.tracerflowsheet.new(name,testCase.Folder,'OpenModel',false);load_system(fullfile(testCase.Folder,[name '.slx']));
+            addTracer(name,'Source','nirp.tracerblocks.Source',[40 150 170 210],{});addTracer(name,'Monitor','nirp.tracerblocks.Monitor',[430 150 560 210],{});
+            dialogs={nirp.tracerflowsheet.FlowsheetDialog([name '/Tracer Flowsheet'],'Visible','off'),nirp.tracerflowsheet.SourceDialog([name '/Source'],'Visible','off'),nirp.tracerflowsheet.MonitorDialog([name '/Monitor'],'Visible','off')};testCase.addTeardown(@()deleteDialogs(dialogs));
+            forbidden=["reaction" "micromix" "key component" "temperature" "feed concentrations"];
+            for k=1:numel(dialogs)
+                labels=findall(dialogs{k}.Figure,'Type','uilabel');buttons=findall(dialogs{k}.Figure,'Type','uibutton');dropDowns=findall(dialogs{k}.Figure,'Type','uidropdown');
+                text=lower([string({labels.Text}) string({buttons.Text})]);
+                for j=1:numel(dropDowns),text=[text lower(string(dropDowns(j).Items))];end %#ok<AGROW>
+                for term=forbidden,testCase.verifyFalse(any(contains(text,term)),sprintf('Visible tracer option contains "%s".',term));end
+            end
+        end
         function vesselDialogLayoutAndControlsFollowOrigin(testCase)
             name='tracer_vessel_layout';nirp.tracerflowsheet.new(name,testCase.Folder,'OpenModel',false);load_system(fullfile(testCase.Folder,[name '.slx']));
             addTracer(name,'Vessel','nirp.tracerblocks.Vessel',[230 150 370 210],{});dialog=nirp.tracerflowsheet.VesselDialog([name '/Vessel'],'Visible','off');testCase.addTeardown(@()deleteValid(dialog));drawnow;

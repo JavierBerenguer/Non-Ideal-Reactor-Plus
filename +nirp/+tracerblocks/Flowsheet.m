@@ -1,13 +1,17 @@
 classdef Flowsheet < matlab.System
-    % Flowsheet owns the fixed grid and optional reaction configuration.
+    % Flowsheet owns the fixed grid for a tracer-only network.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 22, 2026. Last update: October 25, 2026
+    % Created: October 22, 2026. Last update: November 3, 2026
     % =========================================================================
     properties (Nontunable)
         Dt = 0.1
         TFinal = 10
         TimeUnit = 's'
+    end
+    % Obsolete reactive settings (T-217): kept as block parameters so models
+    % saved with them still load; tracer blocks no longer use them.
+    properties (Nontunable)
         ReactionOrigin = 'Session'
         ReactionReference = ''
         KeyComponent = 1
@@ -20,7 +24,9 @@ classdef Flowsheet < matlab.System
             nirp.tracer.grid(obj.Dt,obj.TFinal) ;
             nirp.tracerflowsheet.validateSeparation(bdroot(gcb)) ;
             if ~strcmpi(obj.Micromixing,'None')
-                nirp.tracerflowsheet.reactionConfiguration(gcb) ;
+                warning('nirp:tracerblocks:ReactiveCalculationsMoved', ...
+                    ['Reactive calculations moved to the Non-ideal Reactor block of the flowsheet library; ' ...
+                    'this tracer flowsheet now computes tracer signals and RTDs only.']) ;
             end
         end
         function stepImpl(~)

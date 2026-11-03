@@ -2,12 +2,16 @@ classdef Source < matlab.System
     % Source creates a NirpTracer stream through the tracer core.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 22, 2026. Last update: October 25, 2026
+    % Created: October 22, 2026. Last update: November 3, 2026
     % =========================================================================
     properties (Nontunable)
         Dt=0.1; TFinal=10; Q=1; QUnit='m^3/s'; SourceId=uint32(1)
         SignalMode='Data'; DataTime=[0 10]; DataConcentration=[1 1]
         FunctionEdges=[0 10]; FunctionExpressions={'1'}
+    end
+    % Obsolete reactive settings (T-217): kept as block parameters so models
+    % saved with them still load; tracer blocks no longer use them.
+    properties (Nontunable)
         FeedConcentrations=0; ConcentrationUnit='mol/m^3'
     end
     properties (Access=private),Output;end
@@ -22,15 +26,9 @@ classdef Source < matlab.System
                     obj.Output=nirp.tracer.sourceFunction(grid,obj.Q,obj.FunctionEdges,functions,obj.SourceId);
                 otherwise,error('nirp:tracerblocks:InvalidSignalMode','SignalMode must be Data or Function.');
             end
-            config=nirp.tracerflowsheet.reactionConfiguration(gcb);
-            if config.enabled
-                concentrations=reshape(double(obj.FeedConcentrations),1,[]);
-                if numel(concentrations)~=config.RS.nComponents||any(~isfinite(concentrations))||any(concentrations<0)
-                    error('nirp:tracerblocks:InvalidFeedComposition','FeedConcentrations must contain one nonnegative finite value per component.');
-                end
-                obj.Output.C0=concentrations;obj.Output.Cseg=concentrations;obj.Output.Cmm=concentrations;
-                obj.Output.reactiveMode=config.mode;obj.Output.rtdTruncated=false;
-            end
+            nComp=nirp.tracerflowsheet.busComponentCount(gcb);compatibility=zeros(1,nComp);
+            obj.Output.C0=compatibility;obj.Output.Cseg=compatibility;obj.Output.Cmm=compatibility;
+            obj.Output.reactiveMode=uint8(0);obj.Output.rtdTruncated=false;
             obj.Output=toBus(obj.Output);
         end
         function out=stepImpl(obj),out=obj.Output;end

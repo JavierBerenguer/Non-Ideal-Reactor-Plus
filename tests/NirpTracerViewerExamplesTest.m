@@ -51,7 +51,7 @@ classdef NirpTracerViewerExamplesTest < matlab.unittest.TestCase
         function launcherHasIndependentTracerGroupAndCallbacks(testCase)
             calls=strings(0,1);launcher=NonIdealReactorPlus('Visible','off');
             launcher.TestActionOverrides.TracerOpenLibrary=@()record('library');launcher.TestActionOverrides.TracerOpenExample=@()record('example');launcher.TestActionOverrides.TracerNewFlowsheet=@()record('new');
-            panels=findall(launcher.UIFigure,'Type','uipanel');testCase.verifyTrue(any(string({panels.Title})=="Non-ideal flowsheet (tracer)"));
+            panels=findall(launcher.UIFigure,'Type','uipanel');tracerPanel=panels(string({panels.Title})=="Network RTD (tracer)");testCase.verifyNumElements(tracerPanel,1);testCase.verifySubstring(tracerPanel.Tooltip,'exact RTD for Tab 1');
             tags=["NirpTracerOpenLibrary" "NirpTracerOpenExample" "NirpTracerNewFlowsheet"];
             for tag=tags,b=findall(launcher.UIFigure,'Type','uibutton','Tag',tag);feval(b.ButtonPushedFcn,b,[]);end
             testCase.verifyEqual(calls,["library";"example";"new"]);
