@@ -2,7 +2,7 @@ classdef Adjust < matlab.System
     % Adjust drives a scalar SI parameter to a measured stream target.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 2, 2026. Last update: October 9, 2026
+    % Created: October 2, 2026. Last update: November 4, 2026
     % =========================================================================
     properties (Nontunable)
         TargetVariable = 'Conversion'
@@ -30,7 +30,8 @@ classdef Adjust < matlab.System
             UnitConverterHelper.getUnits('Time'), ...
             UnitConverterHelper.getUnits('Temperature'), ...
             UnitConverterHelper.getUnits('VolumetricFlow'), ...
-            UnitConverterHelper.getUnits('Area')])
+            UnitConverterHelper.getUnits('Area'), ...
+            UnitConverterHelper.getUnits('Power'), {'-' }])
         StrategySet = matlab.system.StringSet({'Select...','Simultaneous','Nested'})
     end
     properties (Access=private)
@@ -57,16 +58,16 @@ classdef Adjust < matlab.System
             missing=strings(0,1);if strcmp(obj.TargetVariable,'Select...'),missing(end+1)="TargetVariable";end;if strcmp(obj.TargetUnit,'Select...'),missing(end+1)="TargetUnit";end;if strcmp(obj.Strategy,'Select...'),missing(end+1)="Strategy";end;numeric={"TargetValue",obj.TargetValue;"InitialValue",obj.InitialValue;"MinValue",obj.MinValue;"MaxValue",obj.MaxValue;"Damping",obj.Damping;"Tolerance",obj.Tolerance};for i=1:size(numeric,1),if ~isfinite(numeric{i,2}),missing(end+1)=numeric{i,1};end,end
             nirp.blocks.internal.requireSpecifications('Adjust',obj.Block,missing);
             category = nirp.blocks.internal.unitCategory(obj.ParameterUnit, ...
-                {'Volume','Time','Temperature','VolumetricFlow','Area'}) ;
+                {'Volume','Time','Temperature','VolumetricFlow','Area','Power','Fraction'}) ;
             target = nirp.flowsheet.adjustTarget(gcb) ;
             if target.Label ~= "<not connected>" && target.Category ~= string(category)
                 error('nirp:blocks:invalidAdjustParameterUnit', ...
                     'Adjust "%s" moves %s (%s) but its parameter unit is %s (%s).', ...
                     obj.Block,target.Label,target.Category,obj.ParameterUnit,category) ;
             end
-            obj.Current = UnitConverterHelper.convertToSI(category,obj.InitialValue,char(obj.ParameterUnit)) ;
-            obj.Minimum = UnitConverterHelper.convertToSI(category,obj.MinValue,char(obj.ParameterUnit)) ;
-            obj.Maximum = UnitConverterHelper.convertToSI(category,obj.MaxValue,char(obj.ParameterUnit)) ;
+            obj.Current = parameterToSI(category,obj.InitialValue,char(obj.ParameterUnit)) ;
+            obj.Minimum = parameterToSI(category,obj.MinValue,char(obj.ParameterUnit)) ;
+            obj.Maximum = parameterToSI(category,obj.MaxValue,char(obj.ParameterUnit)) ;
             if obj.Minimum >= obj.Maximum || obj.Current < obj.Minimum || obj.Current > obj.Maximum
                 error('nirp:blocks:invalidAdjustBounds', ...
                     'Require MinValue <= InitialValue <= MaxValue in the selected unit.') ;
@@ -196,4 +197,7 @@ classdef Adjust < matlab.System
         function mode = getSimulateUsingImpl(), mode = 'Interpreted execution' ; end
         function flag = showSimulateUsingImpl(), flag = false ; end
     end
+end
+function value=parameterToSI(category,value,unit)
+    if strcmp(category,'Fraction'),value=double(value);else,value=UnitConverterHelper.convertToSI(category,value,unit);end
 end

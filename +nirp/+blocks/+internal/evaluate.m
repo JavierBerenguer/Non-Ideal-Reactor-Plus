@@ -8,7 +8,7 @@ function [outputs,info,details] = evaluate(blockPath,inputs,varargin)
 %   unit invocation with preview evaluation.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 15, 2026. Last update: October 15, 2026
+% Created: October 15, 2026. Last update: November 4, 2026
 % =========================================================================
 
     parser=inputParser;
@@ -32,7 +32,7 @@ function [outputs,info,details] = evaluate(blockPath,inputs,varargin)
             [out,info]=nirp.units.mixer([],inputs,rs);outputs={out};
         case "Splitter"
             requireInputs(inputs,1,type);
-            if isempty(prepared),[params,result]=splitterParameters(blockPath,inputs{1});details.Dof=result;
+            if isempty(prepared),[params,result]=splitterParameters(blockPath,inputs{1},signals);details.Dof=result;
             else,params=prepared;end
             [outputs,info]=nirp.units.splitter(params,inputs{1},rs);
         case "Separator"
@@ -42,7 +42,7 @@ function [outputs,info,details] = evaluate(blockPath,inputs,varargin)
             [outputs,info]=nirp.units.separator(params,inputs{1},rs);
         case "Heater"
             requireInputs(inputs,1,type);
-            if isempty(prepared),[params,result]=heaterParameters(blockPath,inputs{1},rs);details.Dof=result;
+            if isempty(prepared),[params,result]=heaterParameters(blockPath,inputs{1},signals,rs);details.Dof=result;
             else,params=prepared;end
             [out,info]=nirp.units.heater(params,inputs{1},rs);outputs={out};
         case {"CSTR","PFR"}
@@ -148,11 +148,20 @@ function value=requiredPositiveSignal(signals,index,label,unit)
     end
 end
 
-function [params,result]=splitterParameters(block,in)
+function [params,result]=splitterParameters(block,in,signals)
     fractions=str2num(get_param(block,'Fractions')); %#ok<ST2NM>
     specs=nirp.dof.readSpecs(get_param(block,'Specifications'));
     output=nirp.dof.connectedSpecifications(block);
-    if isempty(fieldnames(specs))&&isempty(strtrim(get_param(block,'Specifications')))
+    external=strcmp(get_param(block,'FractionSource'),'Input port');
+    if external
+        first=requiredFractionSignal(signals,1,'Splitter Fraction 1');
+        fractions=scaleFirstFraction(fractions,first);
+        model=nirp.dof.catalog.splitter(numel(fractions));values=struct('F_in',sum(in.F),'f1',first);origins=struct('F_in','external','f1','external');
+        for i=2:numel(fractions)-1,name=['f' num2str(i)];values.(name)=fractions(i);origins.(name)='specified';end
+        result=nirp.dof.solve(model,values,origins);result=checkSplitterOutputs(result,output,get_param(block,'Name'));requireComplete(get_param(block,'Name'),result);
+        values=zeros(1,numel(fractions));for i=1:numel(values),values(i)=result.values.(['f' num2str(i)]);end
+        params=struct('fractions',values);return
+    elseif isempty(fieldnames(specs))&&isempty(strtrim(get_param(block,'Specifications')))
         for i=1:max(0,numel(fractions)-1),specs.(['f' num2str(i)])=item(fractions(i),'1');end
     end
     model=nirp.dof.catalog.splitter(numel(fractions));
@@ -175,19 +184,25 @@ function [params,result]=separatorParameters(block,in,rs)
     params=struct('recovery',recovery);
 end
 
-function [params,result]=heaterParameters(block,in,rs)
+function [params,result]=heaterParameters(block,in,signals,rs)
     specs=nirp.dof.readSpecs(get_param(block,'Specifications'));text=get_param(block,'Specifications');
     output=nirp.dof.connectedSpecifications(block);
+    mode=get_param(block,'Mode');externalT=strcmp(mode,'Outlet T')&&strcmp(get_param(block,'ToutSource'),'Input port');externalQ=strcmp(mode,'Duty')&&strcmp(get_param(block,'DutySource'),'Input port');
     if isempty(fieldnames(specs))&&isempty(strtrim(text))
-        if strcmp(get_param(block,'Mode'),'Duty'),specs.Q=item(convert(block,'Duty','Power','DutyUnit'),'W');
-        else,specs.T_out=item(convert(block,'Tout','Temperature','ToutUnit'),'K');end
+        if strcmp(mode,'Duty')&&~externalQ,specs.Q=item(convert(block,'Duty','Power','DutyUnit'),'W');
+        elseif strcmp(mode,'Outlet T')&&~externalT,specs.T_out=item(convert(block,'Tout','Temperature','ToutUnit'),'K');end
         specs.dP=item(convert(block,'PressureDrop','Pressure','PressureDropUnit'),'Pa');
     end
     model=nirp.dof.catalog.heater(struct('inlet',in,'RS',rs));
     values=struct('T_in',in.T,'P_in',in.P);origins=struct('T_in','external','P_in','external');
+    if externalT
+        values.T_out=requiredPositiveSignal(signals,1,'Heater Tout','K');origins.T_out='external';if isfield(specs,'T_out'),specs=rmfield(specs,'T_out');end
+    elseif externalQ
+        values.Q=requiredFiniteSignal(signals,1,'Heater Duty','W');origins.Q='external';if isfield(specs,'Q'),specs=rmfield(specs,'Q');end
+    end
     result=nirp.dof.resolveProducer(model,'Heater',get_param(block,'Name'),specs,output,values,origins);requireComplete(get_param(block,'Name'),result);
     params=struct('dP',result.values.dP);
-    if isfield(specs,'Q')&&~isfield(output.values,'T_out'),params.mode='Duty';params.Q=result.values.Q;
+    if externalQ||(isfield(specs,'Q')&&~isfield(output.values,'T_out')),params.mode='Duty';params.Q=result.values.Q;
     else,params.mode='Outlet T';params.Tout=result.values.T_out;end
 end
 
@@ -493,20 +508,29 @@ function params=thermal(block)
 end
 
 function [signal,info,result]=jacketSignal(block,signals)
-    if ~isempty(signals),error('nirp:flowsheet:waitingFor','Jacket signal inputs are available only during Run.');end
     mode=get_param(block,'Mode');specs=nirp.dof.readSpecs(get_param(block,'Specifications'));result=[];
-    if strcmp(mode,'Specified T'),value=convert(block,'SpecifiedT','Temperature','SpecifiedTUnit');code=2;
-    elseif strcmp(mode,'Specified Q'),value=convert(block,'SpecifiedQ','Power','SpecifiedQUnit');code=3;
+    signalIndex=1;
+    if strcmp(mode,'Specified T')
+        external=strcmp(get_param(block,'SpecifiedTSource'),'Input port');if external,value=requiredPositiveSignal(signals,signalIndex,'Jacket T','K');else,value=convert(block,'SpecifiedT','Temperature','SpecifiedTUnit');end;code=2;
+    elseif strcmp(mode,'Specified Q')
+        external=strcmp(get_param(block,'SpecifiedQSource'),'Input port');if external,value=requiredFiniteSignal(signals,signalIndex,'Jacket Q','W');else,value=convert(block,'SpecifiedQ','Power','SpecifiedQUnit');end;code=3;
     else
-        values=[convert(block,'U','HeatTransferCoefficient','UUnit');convert(block,'A','Area','AUnit');convert(block,'UtilityTin','Temperature','UtilityTinUnit');NaN];
+        values=[convert(block,'U','HeatTransferCoefficient','UUnit');convert(block,'A','Area','AUnit');convert(block,'UtilityTin','Temperature','UtilityTinUnit');NaN];v=struct();o=struct();
+        if strcmp(get_param(block,'ASource'),'Input port'),values(2)=requiredPositiveSignal(signals,signalIndex,'Jacket A','m^2');v.A=values(2);o.A='external';signalIndex=signalIndex+1;end
+        if strcmp(get_param(block,'UtilityTinSource'),'Input port'),values(3)=requiredPositiveSignal(signals,signalIndex,'Jacket UtilityTin','K');v.T_in_s=values(3);o.T_in_s='external';end
         tout=str2double(get_param(block,'UtilityTout'));if isfinite(tout),values(4)=UnitConverterHelper.convertToSI('Temperature',tout,get_param(block,'UtilityToutUnit'));end
         if ~isempty(fieldnames(specs))
-            model=nirp.dof.catalog.jacket(struct('mode',mode,'condenses',on(get_param(block,'Condenses'))));[v,o]=specValues(specs);v.Q=NaN;o.Q='external';result=nirp.dof.solve(model,v,o);requireComplete(get_param(block,'Name'),result);
+            model=nirp.dof.catalog.jacket(struct('mode',mode,'condenses',on(get_param(block,'Condenses'))));[specified,specifiedOrigins]=specValues(specs);v=merge(v,specified);o=merge(o,specifiedOrigins);v.Q=NaN;o.Q='external';result=nirp.dof.solve(model,v,o);requireComplete(get_param(block,'Name'),result);
             values=[result.values.U;result.values.A;result.values.T_in_s;result.values.T_out_s];
         end
         signal=[1;values];info=struct('status',1,'message','','mode','Utility');return
     end
-    if ~isempty(fieldnames(specs)),model=nirp.dof.catalog.jacket(struct('mode',mode));[v,o]=specValues(specs);result=nirp.dof.solve(model,v,o);requireComplete(get_param(block,'Name'),result);if code==2,value=result.values.T_reactor;else,value=result.values.Q;end,end
+    if ~isempty(fieldnames(specs))||external
+        model=nirp.dof.catalog.jacket(struct('mode',mode));[v,o]=specValues(specs);
+        if code==2&&external,v=removeField(v,'T_reactor');o=removeField(o,'T_reactor');v.T_reactor=value;o.T_reactor='external';
+        elseif code==3&&external,v=removeField(v,'Q');o=removeField(o,'Q');v.Q=value;o.Q='external';end
+        result=nirp.dof.solve(model,v,o);requireComplete(get_param(block,'Name'),result);if code==2,value=result.values.T_reactor;else,value=result.values.Q;end
+    end
     signal=[code;value;NaN;NaN;NaN];info=struct('status',1,'message','','mode',mode);
 end
 
@@ -535,3 +559,22 @@ function result=merge(a,b),result=a;names=fieldnames(b);for i=1:numel(names),res
 function flag=on(value),flag=strcmpi(char(string(value)),'on')||isequal(value,true);end
 function value=phaseName(phase),if phase==1,value='G';else,value='L';end,end
 function validateTubeCount(value),if ~isnumeric(value)||~isscalar(value)||~isfinite(value)||value<1||abs(value-round(value))>1e-9,error('nirp:blocks:invalidGeometry','Number of tubes must be a positive integer.');end,end
+function value=requiredFiniteSignal(signals,index,label,unit)
+    if numel(signals)<index,error('nirp:flowsheet:waitingFor','%s is waiting for its signal input.',label);end
+    value=signals{index};if ~isnumeric(value)||~isreal(value)||~isscalar(value)||~isfinite(value),error('nirp:blocks:invalidParameterPort','%s input must be finite %s.',label,unit);end
+    value=double(value);
+end
+function value=requiredFractionSignal(signals,index,label)
+    value=requiredFiniteSignal(signals,index,label,'(-)');if value<0||value>1,error('nirp:blocks:invalidSplitterFraction','%s input must be in [0, 1].',label);end
+end
+function fractions=scaleFirstFraction(baseline,first)
+    baseline=reshape(double(baseline),1,[]);remaining=baseline(2:end);total=sum(remaining);
+    if any(~isfinite(remaining))||any(remaining<0)||~isfinite(total)||total<=0,remaining=ones(size(remaining));total=numel(remaining);end
+    fractions=[first (1-first)*remaining/total];
+end
+function result=checkSplitterOutputs(result,output,block)
+    names=fieldnames(output.values);conflicts=strings(0,1);
+    for i=1:numel(names),name=names{i};if ~isfield(result.values,name),continue,end;actual=result.values.(name);expected=output.values.(name);if ~(isfinite(actual)&&isfinite(expected))||abs(actual-expected)>1e-9*max([abs(actual) abs(expected) 1]),conflicts(end+1)=string(name);result.states.(name)='conflict';result.messages(end+1)=sprintf('Splitter "%s" conflicts with Stream "%s".',block,output.streams.(name));end,end %#ok<AGROW>
+    if ~isempty(conflicts),result.status='conflict';result.conflicts=unique([result.conflicts conflicts],'stable');result.messages=unique(result.messages,'stable');end;result.external=output;
+end
+function value=removeField(value,name),if isfield(value,name),value=rmfield(value,name);end,end

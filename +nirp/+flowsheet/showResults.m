@@ -737,9 +737,9 @@ function row = adjustValues(block,info,entries)
     if isempty(fieldnames(info)), return, end
     row{5} = string(info.parameterUnit) ;
     category = nirp.blocks.internal.unitCategory( ...
-        char(row{5}),{'Volume','Time','Temperature','VolumetricFlow','Area'}) ;
-    row{4} = UnitConverterHelper.convertFromSI( ...
-        category,info.value,char(row{5})) ;
+        char(row{5}),{'Volume','Time','Temperature','VolumetricFlow','Area','Power','Fraction'}) ;
+    if strcmp(category,'Fraction'),row{4}=info.value;else,row{4}=UnitConverterHelper.convertFromSI( ...
+        category,info.value,char(row{5}));end
     row{6} = string(info.targetVariable) ; row{8} = string(info.targetUnit) ;
     [row{7},row{9}] = displayTarget(info) ;
     row{10} = double(info.converged) ; row{11} = double(info.iteration) ;

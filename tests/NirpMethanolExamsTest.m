@@ -60,6 +60,10 @@ classdef (SharedTestFixtures={nirptest.ExamplesFixture}) ...
                 623.15,'AbsTol',0.01) ;
             testCase.verifyEqual(resultStream(results,'PFR 3 inlet').T, ...
                 673.15,'AbsTol',0.01) ;
+            testCase.verifyEqual(adjustParameter(results,"Adjust 2"), ...
+                633.50,'AbsTol',0.01) ;
+            testCase.verifyEqual(adjustParameter(results,"Adjust 3"), ...
+                777.41,'AbsTol',0.01) ;
             verifyAtomicBalance(testCase,[840 2400 0 400 0 360]', ...
                 resultStream(results,'Product').F,true) ;
             testCase.verifyEqual(resultStream(results,'Product').F(6),360, ...
@@ -129,6 +133,10 @@ end
 function info = diagnosticInfo(results,model,block)
     key = matlab.lang.makeValidName(model+"_"+block) ;
     info = results.Diagnostics.(key).lastInfo ;
+end
+function value = adjustParameter(results,block)
+    key=matlab.lang.makeValidName("ex55_methanol_exam_january2020_"+block) ;
+    value=results.Diagnostics.(key).lastInfo.value ;
 end
 
 function verifyState(testCase,actual,reference)

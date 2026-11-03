@@ -307,12 +307,10 @@ function buildEx54(model)
 end
 
 function buildEx55(model)
-    [heater2Temperature,heater3Temperature] = january2020HeaterTemperatures() ;
     description = ['Methanol January 2020 exam. The unspecified 0.09 feed ' ...
         'fraction is represented by inert N2 (Cp = 29.1 J/(mol*K)). ' ...
-        'Heater outlet temperatures are fixed from enthalpy-balance ' ...
-        'solutions for PFR 2 and PFR 3 inlet targets of 350 C and 400 C; ' ...
-        'the current Adjust parameter ports do not expose Heater Tout.'] ;
+        'Two Adjust blocks vary the Heater outlet temperatures so the ' ...
+        'PFR 2 and PFR 3 inlet targets are 350 C and 400 C.'] ;
     set_param(model,'Description',description) ;
 
     addSystem(model,'Feed','nirp.blocks.Stream',[20 230 140 285], ...
@@ -330,7 +328,7 @@ function buildEx55(model)
     addSystem(model,'PFR 1 outlet','nirp.blocks.Stream',[720 55 860 110], ...
         'Role','Intermediate') ;
     addSystem(model,'Heater 2','nirp.blocks.Heater',[530 210 680 285], ...
-        'Mode','Outlet T','Tout',num2str(heater2Temperature,17), ...
+        'Mode','Outlet T','ToutSource','Input port','Tout','633.5', ...
         'ToutUnit','K','PressureDrop','0','PressureDropUnit','Pa') ;
     addSystem(model,'Heater 2 outlet','nirp.blocks.Stream', ...
         [730 220 880 275],'Role','Intermediate') ;
@@ -344,7 +342,7 @@ function buildEx55(model)
     addSystem(model,'PFR 2 outlet','nirp.blocks.Stream',[1490 120 1630 175], ...
         'Role','Intermediate') ;
     addSystem(model,'Heater 3','nirp.blocks.Heater',[530 390 680 465], ...
-        'Mode','Outlet T','Tout',num2str(heater3Temperature,17), ...
+        'Mode','Outlet T','ToutSource','Input port','Tout','777.41', ...
         'ToutUnit','K','PressureDrop','0','PressureDropUnit','Pa') ;
     addSystem(model,'Heater 3 outlet','nirp.blocks.Stream', ...
         [730 400 880 455],'Role','Intermediate') ;
@@ -357,6 +355,16 @@ function buildEx55(model)
         'DUnit','m','NTubes','5000','HeatMode','Adiabatic') ;
     addSystem(model,'Product','nirp.blocks.Stream',[2240 230 2380 285], ...
         'Role','Product','ReferenceFeed','Feed','KeyComponent','CO') ;
+    addSystem(model,'Adjust 2','nirp.blocks.Adjust',[1040 20 1320 90], ...
+        'TargetVariable','Temperature','TargetValue','350', ...
+        'TargetUnit',[char(176) 'C'],'InitialValue','600','MinValue','500', ...
+        'MaxValue','900','ParameterUnit','K','Tolerance','1e-8', ...
+        'Damping','1','Strategy','Simultaneous') ;
+    addSystem(model,'Adjust 3','nirp.blocks.Adjust',[1790 350 2070 420], ...
+        'TargetVariable','Temperature','TargetValue','400', ...
+        'TargetUnit',[char(176) 'C'],'InitialValue','700','MinValue','500', ...
+        'MaxValue','1000','ParameterUnit','K','Tolerance','1e-8', ...
+        'Damping','1','Strategy','Simultaneous') ;
 
     add_line(model,'Feed/1','Splitter/1') ;
     add_line(model,'Splitter/1','Branch 1/1') ;
@@ -365,17 +373,21 @@ function buildEx55(model)
     add_line(model,'PFR 1 outlet/1','Mixer 2/1') ;
     add_line(model,'Splitter/2','Branch 2/1') ;
     add_line(model,'Branch 2/1','Heater 2/1') ;
+    add_line(model,'Adjust 2/1','Heater 2/2','autorouting','on') ;
     add_line(model,'Heater 2/1','Heater 2 outlet/1') ;
     add_line(model,'Heater 2 outlet/1','Mixer 2/2') ;
     add_line(model,'Mixer 2/1','PFR 2 inlet/1') ;
+    add_line(model,'PFR 2 inlet/1','Adjust 2/1','autorouting','on') ;
     add_line(model,'PFR 2 inlet/1','PFR 2/1') ;
     add_line(model,'PFR 2/1','PFR 2 outlet/1') ;
     add_line(model,'PFR 2 outlet/1','Mixer 3/1') ;
     add_line(model,'Splitter/3','Branch 3/1') ;
     add_line(model,'Branch 3/1','Heater 3/1') ;
+    add_line(model,'Adjust 3/1','Heater 3/2','autorouting','on') ;
     add_line(model,'Heater 3/1','Heater 3 outlet/1') ;
     add_line(model,'Heater 3 outlet/1','Mixer 3/2') ;
     add_line(model,'Mixer 3/1','PFR 3 inlet/1') ;
+    add_line(model,'PFR 3 inlet/1','Adjust 3/1','autorouting','on') ;
     add_line(model,'PFR 3 inlet/1','PFR 3/1') ;
     add_line(model,'PFR 3/1','Product/1') ;
 end
@@ -433,24 +445,6 @@ function buildEx56(model)
     add_line(model,'PFR 2/1','Product/1') ;
 end
 
-function [heater2Temperature,heater3Temperature] = january2020HeaterTemperatures()
-    pkg = nirp.pkg.examples.methanolJanuary2020() ;
-    rs = nirp.pkg.toReactionSys(pkg) ;
-    feed = nirp.pkg.feedStream(pkg,"Feed") ;
-    branches = nirp.units.splitter(struct('fractions',[1/3 1/3 1/3]), ...
-        feed,rs) ;
-    pfr = struct('L',1,'D',0.025,'nTubes',5000,'heatMode','Adiabatic') ;
-    first = nirp.units.pfr(pfr,branches{1},rs) ;
-    heater2Temperature = fzero(@(temperature) mixedTemperature( ...
-        first,branches{2},temperature,rs)-623.15,[500 900]) ;
-    heated2 = nirp.units.heater(struct('mode','Outlet T', ...
-        'Tout',heater2Temperature),branches{2},rs) ;
-    secondInlet = nirp.units.mixer([],{first,heated2},rs) ;
-    second = nirp.units.pfr(pfr,secondInlet,rs) ;
-    heater3Temperature = fzero(@(temperature) mixedTemperature( ...
-        second,branches{3},temperature,rs)-673.15,[500 1000]) ;
-end
-
 function heaterTemperature = january2022HeaterTemperature()
     pkg = nirp.pkg.examples.methanolJanuary2022() ;
     rs = nirp.pkg.toReactionSys(pkg) ;
@@ -459,13 +453,6 @@ function heaterTemperature = january2022HeaterTemperature()
     first = nirp.units.pfr(struct('L',0.8,'D',0.025,'nTubes',5000, ...
         'heatMode','Adiabatic'),branches{1},rs) ;
     heaterTemperature = first.T ;
-end
-
-function temperature = mixedTemperature(reactorOutlet,branch,heaterT,rs)
-    heated = nirp.units.heater(struct('mode','Outlet T','Tout',heaterT), ...
-        branch,rs) ;
-    mixed = nirp.units.mixer([],{reactorOutlet,heated},rs) ;
-    temperature = mixed.T ;
 end
 
 function addSecondOrderTrain(model,micromixing,y,code)

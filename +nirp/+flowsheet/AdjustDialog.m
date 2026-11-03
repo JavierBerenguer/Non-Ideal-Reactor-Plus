@@ -2,7 +2,7 @@ classdef AdjustDialog < handle
 %ADJUSTDIALOG Structured editor for Adjust Simulink blocks.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 9, 2026. Last update: October 9, 2026
+    % Created: October 9, 2026. Last update: November 4, 2026
 % =========================================================================
     properties (SetAccess=private)
         BlockPath;Figure;NameField;TargetLabel;TargetDropDown;ConnectButton
@@ -204,7 +204,7 @@ classdef AdjustDialog < handle
             end
         end
         function limitParameterUnits(obj,category)
-            items=UnitConverterHelper.getUnits(char(category));
+            items=parameterCategoryUnits(category);
             old=string(obj.ParameterUnitDropDown.Value);
             obj.ParameterUnitDropDown.Items=items;
             if any(string(items)==old),obj.ParameterUnitDropDown.Value=char(old);
@@ -277,7 +277,8 @@ function units=parameterUnits()
         {'s','min','h'}, ...
         UnitConverterHelper.getUnits('Temperature'), ...
         UnitConverterHelper.getUnits('VolumetricFlow'), ...
-        UnitConverterHelper.getUnits('Area')];
+        UnitConverterHelper.getUnits('Area'), ...
+        UnitConverterHelper.getUnits('Power'), {'-'}];
     units=unique(units,'stable');
 end
 function text=numberText(value),if isempty(value),text='NaN';else,text=num2str(value,17);end,end
@@ -319,13 +320,23 @@ function definitions=parameterDefinitions(block,className)
                     definitions(1)=definition(2,"Tau","Time");
                 end
             end
+        case "nirp.blocks.Heater"
+            if strcmp(get_param(block,'Mode'),'Outlet T')&&strcmp(get_param(block,'ToutSource'),'Input port')
+                definitions(1)=definition(2,"Tout","Temperature");
+            elseif strcmp(get_param(block,'Mode'),'Duty')&&strcmp(get_param(block,'DutySource'),'Input port')
+                definitions(1)=definition(2,"Duty","Power");
+            end
+        case "nirp.blocks.Splitter"
+            if strcmp(get_param(block,'FractionSource'),'Input port'),definitions(1)=definition(2,"Fraction 1","Fraction");end
         case "nirp.blocks.Jacket"
             index=0;
-            if strcmp(get_param(block,'ASource'),'Input port')
-                index=index+1;definitions(end+1)=definition(index,"A","Area"); %#ok<AGROW>
-            end
-            if strcmp(get_param(block,'UtilityTinSource'),'Input port')
-                index=index+1;definitions(end+1)=definition(index,"UtilityTin","Temperature"); %#ok<AGROW>
+            if strcmp(get_param(block,'Mode'),'Utility')
+                if strcmp(get_param(block,'ASource'),'Input port'),index=index+1;definitions(end+1)=definition(index,"A","Area");end %#ok<AGROW>
+                if strcmp(get_param(block,'UtilityTinSource'),'Input port'),index=index+1;definitions(end+1)=definition(index,"UtilityTin","Temperature");end %#ok<AGROW>
+            elseif strcmp(get_param(block,'Mode'),'Specified T')&&strcmp(get_param(block,'SpecifiedTSource'),'Input port')
+                definitions(1)=definition(1,"T","Temperature");
+            elseif strcmp(get_param(block,'Mode'),'Specified Q')&&strcmp(get_param(block,'SpecifiedQSource'),'Input port')
+                definitions(1)=definition(1,"Q","Power");
             end
         case "nirp.blocks.Stream"
             if nirp.flowsheet.streamRole(block)~="Feed",return,end
@@ -340,4 +351,7 @@ function definitions=parameterDefinitions(block,className)
 end
 function value=definition(port,variable,category)
     value=struct('Port',port,'Variable',string(variable),'Category',string(category));
+end
+function units=parameterCategoryUnits(category)
+    if string(category)=="Fraction",units={'-'};else,units=UnitConverterHelper.getUnits(char(category));end
 end

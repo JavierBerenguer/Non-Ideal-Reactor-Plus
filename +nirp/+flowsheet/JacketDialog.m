@@ -2,7 +2,7 @@ classdef JacketDialog < handle
 %JACKETDIALOG Structured editor for Jacket Simulink blocks.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 8, 2026. Last update: October 14, 2026
+% Created: October 8, 2026. Last update: November 4, 2026
 % =========================================================================
     properties (SetAccess=private)
         BlockPath; Figure; NameField; UField; UUnitDropDown; UAField
@@ -11,7 +11,8 @@ classdef JacketDialog < handle
         UtilityTinPortLabel; UtilityToutField; UtilityToutUnitDropDown
         UtilityCpField; CondensesCheckBox; LatentHeatField
         ConnectionTable; StatusLabel; DataModel
-        ModeDropDown; SpecifiedTField; SpecifiedTUnitDropDown; SpecifiedQField; SpecifiedQUnitDropDown
+        ModeDropDown; SpecifiedTField; SpecifiedTUnitDropDown; SpecifiedTSourceDropDown; SpecifiedTPortLabel
+        SpecifiedQField; SpecifiedQUnitDropDown; SpecifiedQSourceDropDown; SpecifiedQPortLabel
         ServiceFlowField; ReactorDutyField
     end
     properties (Access=private),Origins,end
@@ -33,7 +34,8 @@ classdef JacketDialog < handle
                 map=struct('u','UField','a','AField','utilitytin','UtilityTinField', ...
                     'utilitytout','UtilityToutField','utilitycp','UtilityCpField', ...
                     'latentheat','LatentHeatField','ua','UAField','specifiedt','SpecifiedTField','specifiedq','SpecifiedQField','asource','ASourceDropDown', ...
-                    'utilitytinsource','UtilityTinSourceDropDown','condenses','CondensesCheckBox');
+                    'utilitytinsource','UtilityTinSourceDropDown','specifiedtsource','SpecifiedTSourceDropDown', ...
+                    'specifiedqsource','SpecifiedQSourceDropDown','condenses','CondensesCheckBox');
                 if ~isfield(map,key),error('nirp:flowsheet:unknownParameter','Unknown jacket parameter "%s".',key);end
                 field=obj.(map.(key));
                 if isprop(field,'AllowEmpty')&&(isempty(value)||(isnumeric(value)&&isscalar(value)&&isnan(value))),field.Value=[];elseif isa(field,'matlab.ui.control.EditField'),field.Value=char(string(value));elseif isa(field,'matlab.ui.control.CheckBox'),field.Value=ison(value);else,field.Value=value;end
@@ -48,8 +50,8 @@ classdef JacketDialog < handle
                 name=strtrim(obj.NameField.Value);if isempty(name),error('nirp:flowsheet:invalidName','Name cannot be empty.');end
                 result=obj.closeDof();if strcmp(result.status,'conflict'),return,end
                 set_param(obj.BlockPath,'Mode',obj.ModeDropDown.Value, ...
-                    'SpecifiedT',n(obj.SpecifiedTField.Value),'SpecifiedTUnit',obj.SpecifiedTUnitDropDown.Value, ...
-                    'SpecifiedQ',n(obj.SpecifiedQField.Value),'SpecifiedQUnit',obj.SpecifiedQUnitDropDown.Value);
+                    'SpecifiedTSource',obj.SpecifiedTSourceDropDown.Value,'SpecifiedT',n(obj.SpecifiedTField.Value),'SpecifiedTUnit',obj.SpecifiedTUnitDropDown.Value, ...
+                    'SpecifiedQSource',obj.SpecifiedQSourceDropDown.Value,'SpecifiedQ',n(obj.SpecifiedQField.Value),'SpecifiedQUnit',obj.SpecifiedQUnitDropDown.Value);
                 set_param(obj.BlockPath,'U',n(obj.UField.Value),'UUnit',obj.UUnitDropDown.Value, ...
                     'ASource',obj.ASourceDropDown.Value,'A',n(obj.AField.Value),'AUnit',obj.AUnitDropDown.Value, ...
                     'UtilityTinSource',obj.UtilityTinSourceDropDown.Value, ...
@@ -83,6 +85,7 @@ classdef JacketDialog < handle
             [obj.UField,obj.UUnitDropDown]=qty(grid,1,'U','HeatTransferCoefficient');
             [obj.SpecifiedTField,obj.SpecifiedTUnitDropDown]=qty(grid,1,'Reactor temperature','Temperature');obj.SpecifiedTUnitDropDown.Items={'K',[char(176) 'C']};
             [obj.SpecifiedQField,obj.SpecifiedQUnitDropDown]=qty(grid,1,'Heat duty (Q > 0 heats)','Power');
+            obj.SpecifiedTPortLabel=portLabel(grid,1);obj.SpecifiedQPortLabel=portLabel(grid,1);
             [obj.AField,obj.AUnitDropDown]=qty(grid,2,'Area','Area');obj.APortLabel=portLabel(grid,2);
             [obj.UtilityTinField,obj.UtilityTinUnitDropDown]=qty(grid,3,'Utility inlet T','Temperature');obj.UtilityTinPortLabel=portLabel(grid,3);
             [obj.UtilityToutField,obj.UtilityToutUnitDropDown]=textqty(grid,4,'Utility outlet T (optional)','Temperature');
@@ -93,6 +96,7 @@ classdef JacketDialog < handle
             dutyLabel=uilabel(grid,'Text','Reactor duty Q (W)','HorizontalAlignment','right');dutyLabel.Layout.Row=8;dutyLabel.Layout.Column=4;obj.ReactorDutyField=uieditfield(grid,'text','Editable','off');obj.ReactorDutyField.Layout.Row=8;obj.ReactorDutyField.Layout.Column=[5 6];
             obj.ServiceFlowField=textfield(grid,9,'Service flow (kg/s)');obj.ServiceFlowField.Editable='off';
             obj.ASourceDropDown=drop(grid,1,'Area source',{'Dialog','Input port'});obj.UtilityTinSourceDropDown=drop(grid,2,'Utility inlet T source',{'Dialog','Input port'});obj.ASourceDropDown.ValueChangedFcn=@(~,~) obj.configurationChanged();obj.UtilityTinSourceDropDown.ValueChangedFcn=@(~,~) obj.configurationChanged();
+            obj.SpecifiedTSourceDropDown=drop(grid,3,'Reactor T source',{'Dialog','Input port'});obj.SpecifiedQSourceDropDown=drop(grid,4,'Heat duty source',{'Dialog','Input port'});obj.SpecifiedTSourceDropDown.ValueChangedFcn=@(~,~)obj.configurationChanged();obj.SpecifiedQSourceDropDown.ValueChangedFcn=@(~,~)obj.configurationChanged();
             fields={obj.UField,'U';obj.AField,'A';obj.UtilityTinField,'T_in_s';obj.UtilityToutField,'T_out_s';obj.UtilityCpField,'Cp_s';obj.LatentHeatField,'lambda';obj.UAField,'UA';obj.SpecifiedTField,'T_reactor';obj.SpecifiedQField,'Q'};for i=1:size(fields,1),fields{i,1}.ValueChangedFcn=@(~,event)obj.fieldEdited(fields{i,2},event);end
             cgrid=uigridlayout(connections,[2 1],'RowHeight',{30,'1x'});uilabel(cgrid,'Text','Connected signals (read only)','FontWeight','bold');obj.ConnectionTable=uitable(cgrid,'ColumnName',{'Direction','Port','Signal'},'ColumnEditable',[false false false]);
             obj.StatusLabel=uilabel(main,'Text','Ready.','FontAngle','italic');buttons=uigridlayout(main,[1 5],'ColumnWidth',{'1x',70,90,90,90});uilabel(buttons,'Text','');uibutton(buttons,'Text','Help','ButtonPushedFcn',@(~,~) openNirpGuide('guides/flowsheet-reactors.html#jacket'));uibutton(buttons,'Text','OK','ButtonPushedFcn',@(~,~) obj.accept());uibutton(buttons,'Text','Cancel','ButtonPushedFcn',@(~,~) obj.cancel());uibutton(buttons,'Text','Apply','ButtonPushedFcn',@(~,~) obj.apply());
@@ -102,7 +106,7 @@ classdef JacketDialog < handle
             obj.NameField.Value=get_param(obj.BlockPath,'Name');
             numeric={'U',obj.UField;'A',obj.AField;'UtilityTin',obj.UtilityTinField};for i=1:size(numeric,1),value=str2double(get_param(obj.BlockPath,numeric{i,1}));if isfinite(value),numeric{i,2}.Value=value;else,numeric{i,2}.Value=[];end,end
             text={'UtilityTout',obj.UtilityToutField;'UtilityCp',obj.UtilityCpField;'LatentHeat',obj.LatentHeatField};for i=1:size(text,1),text{i,2}.Value=get_param(obj.BlockPath,text{i,1});end
-            values={'UUnit',obj.UUnitDropDown;'AUnit',obj.AUnitDropDown;'ASource',obj.ASourceDropDown;'UtilityTinUnit',obj.UtilityTinUnitDropDown;'UtilityTinSource',obj.UtilityTinSourceDropDown;'UtilityToutUnit',obj.UtilityToutUnitDropDown};for i=1:size(values,1),values{i,2}.Value=get_param(obj.BlockPath,values{i,1});end
+            values={'UUnit',obj.UUnitDropDown;'AUnit',obj.AUnitDropDown;'ASource',obj.ASourceDropDown;'UtilityTinUnit',obj.UtilityTinUnitDropDown;'UtilityTinSource',obj.UtilityTinSourceDropDown;'UtilityToutUnit',obj.UtilityToutUnitDropDown;'SpecifiedTSource',obj.SpecifiedTSourceDropDown;'SpecifiedQSource',obj.SpecifiedQSourceDropDown};for i=1:size(values,1),values{i,2}.Value=get_param(obj.BlockPath,values{i,1});end
             obj.ModeDropDown.Value=get_param(obj.BlockPath,'Mode');value=str2double(get_param(obj.BlockPath,'SpecifiedT'));if isfinite(value),obj.SpecifiedTField.Value=value;else,obj.SpecifiedTField.Value=[];end;value=str2double(get_param(obj.BlockPath,'SpecifiedQ'));if isfinite(value),obj.SpecifiedQField.Value=value;else,obj.SpecifiedQField.Value=[];end
             obj.SpecifiedTUnitDropDown.Value=get_param(obj.BlockPath,'SpecifiedTUnit');obj.SpecifiedQUnitDropDown.Value=get_param(obj.BlockPath,'SpecifiedQUnit');
             obj.CondensesCheckBox.Value=ison(get_param(obj.BlockPath,'Condenses'));obj.updateVisibility();obj.captureModel();
@@ -117,6 +121,9 @@ classdef JacketDialog < handle
             for i=1:numel(labels),if strcmp(labels(i).Text,specT{1}),labels(i).Visible=onoff(strcmp(mode,'Specified T'));elseif strcmp(labels(i).Text,specQ{1}),labels(i).Visible=onoff(strcmp(mode,'Specified Q'));end,end
             set([obj.SpecifiedTField obj.SpecifiedTUnitDropDown],'Visible',onoff(strcmp(mode,'Specified T')));
             set([obj.SpecifiedQField obj.SpecifiedQUnitDropDown],'Visible',onoff(strcmp(mode,'Specified Q')));
+            obj.SpecifiedTSourceDropDown.Visible=onoff(strcmp(mode,'Specified T'));obj.SpecifiedQSourceDropDown.Visible=onoff(strcmp(mode,'Specified Q'));
+            inputT=strcmp(mode,'Specified T')&&strcmp(obj.SpecifiedTSourceDropDown.Value,'Input port');obj.SpecifiedTField.Visible=onoff(strcmp(mode,'Specified T')&&~inputT);obj.SpecifiedTUnitDropDown.Visible=obj.SpecifiedTField.Visible;obj.SpecifiedTPortLabel.Visible=onoff(inputT);if inputT,obj.SpecifiedTPortLabel.Text=nirp.flowsheet.receivedValue(obj.BlockPath,'specifiedT','Temperature',obj.SpecifiedTUnitDropDown.Value,1);end
+            inputQ=strcmp(mode,'Specified Q')&&strcmp(obj.SpecifiedQSourceDropDown.Value,'Input port');obj.SpecifiedQField.Visible=onoff(strcmp(mode,'Specified Q')&&~inputQ);obj.SpecifiedQUnitDropDown.Visible=obj.SpecifiedQField.Visible;obj.SpecifiedQPortLabel.Visible=onoff(inputQ);if inputQ,obj.SpecifiedQPortLabel.Text=nirp.flowsheet.receivedValue(obj.BlockPath,'specifiedQ','Power',obj.SpecifiedQUnitDropDown.Value,1);end
             if ~utility,return,end
             inputA=strcmp(obj.ASourceDropDown.Value,'Input port');obj.AField.Visible=onoff(~inputA);obj.AField.Editable=onoff(~inputA);obj.APortLabel.Visible=onoff(inputA);if inputA,obj.APortLabel.Text=nirp.flowsheet.receivedValue(obj.BlockPath,'A','Area',obj.AUnitDropDown.Value,1);end
             inputTin=strcmp(obj.UtilityTinSourceDropDown.Value,'Input port');obj.UtilityTinField.Visible=onoff(~inputTin);obj.UtilityTinField.Editable=onoff(~inputTin);obj.UtilityTinPortLabel.Visible=onoff(inputTin);if inputTin,obj.UtilityTinPortLabel.Text=nirp.flowsheet.receivedValue(obj.BlockPath,'utilityTin','Temperature',obj.UtilityTinUnitDropDown.Value,1+inputA);end
@@ -145,12 +152,12 @@ classdef JacketDialog < handle
         function fieldEdited(obj,name,event),value=changedValue(event);if isempty(value)||(isnumeric(value)&&isscalar(value)&&isnan(value))||((ischar(value)||isstring(value))&&~isfinite(str2double(value))),obj.Origins.(name)="empty";else,obj.Origins.(name)="specified";end;obj.closeDof();end
         function configurationChanged(obj),obj.updateVisibility();if ~isempty(obj.Origins),obj.closeDof();end,end
         function loadLegacyOrigins(obj)
-            mode=obj.ModeDropDown.Value;if strcmp(mode,'Specified T'),obj.Origins.T_reactor="specified";elseif strcmp(mode,'Specified Q'),obj.Origins.Q="specified";elseif strcmp(mode,'Utility'),obj.Origins.U="specified";if strcmp(obj.ASourceDropDown.Value,'Input port'),obj.Origins.A="external";else,obj.Origins.A="specified";end;if strcmp(obj.UtilityTinSourceDropDown.Value,'Input port'),obj.Origins.T_in_s="external";else,obj.Origins.T_in_s="specified";end;if isfinite(str2double(obj.UtilityToutField.Value)),obj.Origins.T_out_s="specified";end;if isfinite(str2double(obj.UtilityCpField.Value)),obj.Origins.Cp_s="specified";end;if isfinite(str2double(obj.LatentHeatField.Value)),obj.Origins.lambda="specified";end;end
+            mode=obj.ModeDropDown.Value;if strcmp(mode,'Specified T'),if strcmp(obj.SpecifiedTSourceDropDown.Value,'Input port'),obj.Origins.T_reactor="external";else,obj.Origins.T_reactor="specified";end;elseif strcmp(mode,'Specified Q'),if strcmp(obj.SpecifiedQSourceDropDown.Value,'Input port'),obj.Origins.Q="external";else,obj.Origins.Q="specified";end;elseif strcmp(mode,'Utility'),obj.Origins.U="specified";if strcmp(obj.ASourceDropDown.Value,'Input port'),obj.Origins.A="external";else,obj.Origins.A="specified";end;if strcmp(obj.UtilityTinSourceDropDown.Value,'Input port'),obj.Origins.T_in_s="external";else,obj.Origins.T_in_s="specified";end;if isfinite(str2double(obj.UtilityToutField.Value)),obj.Origins.T_out_s="specified";end;if isfinite(str2double(obj.UtilityCpField.Value)),obj.Origins.Cp_s="specified";end;if isfinite(str2double(obj.LatentHeatField.Value)),obj.Origins.lambda="specified";end;end
         end
         function loadSpecs(obj,specs),names=fieldnames(specs);for i=1:numel(names),name=names{i};if ~isfield(obj.Origins,name),continue,end;obj.setFromSI(name,specs.(name).si);obj.Origins.(name)="specified";end,end
         function result=closeDof(obj)
             if strcmp(obj.ModeDropDown.Value,'Select...'),result=emptyResult();nirp.flowsheet.internal.paintDofStatus(obj.StatusLabel,'missing','1 specification missing: mode.');return,end
-            model=nirp.dof.catalog.jacket(struct('mode',obj.ModeDropDown.Value,'condenses',obj.CondensesCheckBox.Value));values=struct();origins=struct();if strcmp(obj.ModeDropDown.Value,'Utility'),values.Q=obj.lastDuty();origins.Q='external';if strcmp(obj.ASourceDropDown.Value,'Input port'),values.A=NaN;origins.A='external';end;if strcmp(obj.UtilityTinSourceDropDown.Value,'Input port'),values.T_in_s=NaN;origins.T_in_s='external';end;end
+            model=nirp.dof.catalog.jacket(struct('mode',obj.ModeDropDown.Value,'condenses',obj.CondensesCheckBox.Value));values=struct();origins=struct();if strcmp(obj.ModeDropDown.Value,'Utility'),values.Q=obj.lastDuty();origins.Q='external';if strcmp(obj.ASourceDropDown.Value,'Input port'),values.A=NaN;origins.A='external';end;if strcmp(obj.UtilityTinSourceDropDown.Value,'Input port'),values.T_in_s=NaN;origins.T_in_s='external';end;elseif strcmp(obj.ModeDropDown.Value,'Specified T')&&strcmp(obj.SpecifiedTSourceDropDown.Value,'Input port'),values.T_reactor=NaN;origins.T_reactor='external';obj.Origins.T_reactor="external";elseif strcmp(obj.ModeDropDown.Value,'Specified Q')&&strcmp(obj.SpecifiedQSourceDropDown.Value,'Input port'),values.Q=NaN;origins.Q='external';obj.Origins.Q="external";end
             names={model.variables.name};for i=1:numel(names),name=names{i};if isfield(obj.Origins,name)&&obj.Origins.(name)=="specified",values.(name)=obj.toSI(name);origins.(name)='specified';end,end
             result=nirp.dof.solve(model,values,origins);for i=1:numel(names),name=names{i};if isfield(obj.Origins,name),obj.Origins.(name)=string(result.origins.(name));obj.setCalculated(name,result.values.(name),result.origins.(name));end,end
             if isfield(result.values,'Q')&&isfinite(result.values.Q),obj.ReactorDutyField.Value=num2str(result.values.Q,8);else,obj.ReactorDutyField.Value='';end;if isfield(result.values,'mdot_s')&&isfinite(result.values.mdot_s),obj.ServiceFlowField.Value=num2str(result.values.mdot_s,8);else,obj.ServiceFlowField.Value='';end

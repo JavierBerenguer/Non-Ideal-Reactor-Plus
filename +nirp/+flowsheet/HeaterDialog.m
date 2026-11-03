@@ -2,12 +2,14 @@ classdef HeaterDialog < handle
 %HEATERDIALOG Degree-of-freedom editor for Heater/Cooler blocks.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 2, 2026. Last update: October 14, 2026
+% Created: October 2, 2026. Last update: November 4, 2026
 % =========================================================================
     properties (SetAccess=private)
         BlockPath;Figure;NameField;ModeGroup;ToutField;ToutUnitDropDown
+        ToutSourceDropDown;ToutPortLabel
         TemperatureChangeField;TemperatureChangeUnitDropDown
         DutyField;DutyUnitDropDown;PressureDropField;PressureDropUnitDropDown
+        DutySourceDropDown;DutyPortLabel
         OutletPressureField;OutletPressureUnitDropDown
         HeatPortCheckBox;ConnectionTable;StatusLabel;DataModel
     end
@@ -37,6 +39,8 @@ classdef HeaterDialog < handle
                     case {'tout','temperature','t_out'},field=obj.ToutField;name='T_out';
                     case {'temperaturechange','dt'},field=obj.TemperatureChangeField;name='dT';
                     case {'duty','q'},field=obj.DutyField;name='Q';
+                    case 'toutsource',obj.ToutSourceDropDown.Value=char(string(value));obj.sourceChanged('T_out');continue
+                    case 'dutysource',obj.DutySourceDropDown.Value=char(string(value));obj.sourceChanged('Q');continue
                     case {'pressuredrop','dp'},field=obj.PressureDropField;name='dP';
                     case {'outletpressure','pout','p_out'},field=obj.OutletPressureField;name='P_out';
                     case 'mode',obj.setMode(value);continue
@@ -54,9 +58,10 @@ classdef HeaterDialog < handle
                 name=strtrim(obj.NameField.Value);if isempty(name),error('nirp:flowsheet:invalidName','Name cannot be empty.');end
                 specs=obj.specifications(result);writeProducerSpecs(obj.BlockPath,specs);
                 legacyMode='Outlet T';if isfield(specs,'Q'),legacyMode='Duty';end
-                set_param(obj.BlockPath,'Mode',legacyMode,'Tout',number(obj.ToutField.Value), ...
+                if ~isempty(obj.CompatibilityMode),legacyMode=obj.CompatibilityMode;end
+                set_param(obj.BlockPath,'Mode',legacyMode,'ToutSource',obj.ToutSourceDropDown.Value,'Tout',number(obj.ToutField.Value), ...
                     'ToutUnit',obj.ToutUnitDropDown.Value,'Duty',number(obj.DutyField.Value), ...
-                    'DutyUnit',obj.DutyUnitDropDown.Value,'PressureDrop',number(obj.PressureDropField.Value), ...
+                    'DutySource',obj.DutySourceDropDown.Value,'DutyUnit',obj.DutyUnitDropDown.Value,'PressureDrop',number(obj.PressureDropField.Value), ...
                     'PressureDropUnit',obj.PressureDropUnitDropDown.Value,'ShowHeatPort',onoff(obj.HeatPortCheckBox.Value));
                 if ~strcmp(name,get_param(obj.BlockPath,'Name')),set_param(obj.BlockPath,'Name',name);obj.BlockPath=getfullname([bdroot(obj.BlockPath) '/' name]);end
                 obj.refreshConnections();nirp.flowsheet.afterApply(bdroot(obj.BlockPath),obj.StatusLabel);applied=true;
@@ -75,11 +80,13 @@ classdef HeaterDialog < handle
         function build(obj,visible)
             obj.Figure=uifigure('Name','Heater / Cooler','Tag','NirpHeaterDialog','Visible',visible,'Position',[120 100 760 500],'WindowStyle','alwaysontop');main=uigridlayout(obj.Figure,[4 1],'RowHeight',{40,'1x',25,38},'Padding',[12 10 12 10]);
             head=uigridlayout(main,[1 4],'ColumnWidth',{160,60,'1x',180});uibutton(head,'Text','Unit conversion helper','ButtonPushedFcn',@(~,~)UnitConverterHelper.launch());uilabel(head,'Text','Name','HorizontalAlignment','right');obj.NameField=uieditfield(head,'text');
-            tabs=uitabgroup(main);general=uitab(tabs,'Title','Heater / Cooler');connections=uitab(tabs,'Title','Connections');g=uigridlayout(general,[8 3],'ColumnWidth',{230,170,130},'RowHeight',{25,32,32,32,32,32,32,'1x'});
+            tabs=uitabgroup(main);general=uitab(tabs,'Title','Heater / Cooler');connections=uitab(tabs,'Title','Connections');g=uigridlayout(general,[8 5],'ColumnWidth',{180,130,100,110,'1x'},'RowHeight',{25,32,32,32,32,32,32,'1x'});
             tip=uilabel(g,'Text','Specify one thermal variable and one pressure variable.','FontAngle','italic');tip.Layout.Row=1;tip.Layout.Column=[1 3];
             [obj.ToutField,obj.ToutUnitDropDown]=qrow(g,2,'Outlet T','Temperature');
+            obj.ToutSourceDropDown=uidropdown(g,'Items',{'Dialog','Input port'},'Tooltip','Outlet T source','ValueChangedFcn',@(~,~)obj.sourceChanged('T_out'));obj.ToutSourceDropDown.Layout.Row=2;obj.ToutSourceDropDown.Layout.Column=4;obj.ToutPortLabel=portLabel(g,2);
             [obj.TemperatureChangeField,obj.TemperatureChangeUnitDropDown]=simpleRow(g,3,'Temperature change',{'K',[char(176) 'C']});
             [obj.DutyField,obj.DutyUnitDropDown]=qrow(g,4,'Duty','Power');
+            obj.DutySourceDropDown=uidropdown(g,'Items',{'Dialog','Input port'},'Tooltip','Duty source','ValueChangedFcn',@(~,~)obj.sourceChanged('Q'));obj.DutySourceDropDown.Layout.Row=4;obj.DutySourceDropDown.Layout.Column=4;obj.DutyPortLabel=portLabel(g,4);
             [obj.PressureDropField,obj.PressureDropUnitDropDown]=qrow(g,5,'Pressure drop','Pressure');
             [obj.OutletPressureField,obj.OutletPressureUnitDropDown]=qrow(g,6,'Outlet pressure','Pressure');
             obj.HeatPortCheckBox=uicheckbox(g,'Text','Show heat port');obj.HeatPortCheckBox.Layout.Row=7;obj.HeatPortCheckBox.Layout.Column=[2 3];
@@ -89,22 +96,34 @@ classdef HeaterDialog < handle
             obj.StatusLabel=uilabel(main,'Text','Ready.','FontAngle','italic');buttons=uigridlayout(main,[1 5],'ColumnWidth',{'1x',70,90,90,90});uilabel(buttons,'Text','');uibutton(buttons,'Text','Help','ButtonPushedFcn',@(~,~)openNirpGuide('guides/flowsheet-units.html#heater'));uibutton(buttons,'Text','OK','ButtonPushedFcn',@(~,~)obj.accept());uibutton(buttons,'Text','Cancel','ButtonPushedFcn',@(~,~)obj.cancel());uibutton(buttons,'Text','Apply','ButtonPushedFcn',@(~,~)obj.apply());
         end
         function load(obj)
-            obj.NameField.Value=get_param(obj.BlockPath,'Name');obj.ToutUnitDropDown.Value=get_param(obj.BlockPath,'ToutUnit');obj.DutyUnitDropDown.Value=get_param(obj.BlockPath,'DutyUnit');obj.PressureDropUnitDropDown.Value=get_param(obj.BlockPath,'PressureDropUnit');obj.OutletPressureUnitDropDown.Value=get_param(obj.BlockPath,'PressureDropUnit');obj.HeatPortCheckBox.Value=strcmp(get_param(obj.BlockPath,'ShowHeatPort'),'on');
+            obj.NameField.Value=get_param(obj.BlockPath,'Name');obj.ToutSourceDropDown.Value=get_param(obj.BlockPath,'ToutSource');obj.DutySourceDropDown.Value=get_param(obj.BlockPath,'DutySource');obj.ToutUnitDropDown.Value=get_param(obj.BlockPath,'ToutUnit');obj.DutyUnitDropDown.Value=get_param(obj.BlockPath,'DutyUnit');obj.PressureDropUnitDropDown.Value=get_param(obj.BlockPath,'PressureDropUnit');obj.OutletPressureUnitDropDown.Value=get_param(obj.BlockPath,'PressureDropUnit');obj.HeatPortCheckBox.Value=strcmp(get_param(obj.BlockPath,'ShowHeatPort'),'on');
             obj.Origins=struct('T_out',"empty",'dT',"empty",'Q',"empty",'dP',"empty",'P_out',"empty");specText=get_param(obj.BlockPath,'Specifications');
             if isempty(strtrim(specText))
                 mode=get_param(obj.BlockPath,'Mode');
-                if strcmp(mode,'Duty')&&isfinite(str2double(get_param(obj.BlockPath,'Duty'))),setNumeric(obj.DutyField,get_param(obj.BlockPath,'Duty'));obj.Origins.Q="specified";
+                if strcmp(mode,'Duty')&&strcmp(obj.DutySourceDropDown.Value,'Input port'),obj.Origins.Q="external";
+                elseif strcmp(mode,'Duty')&&isfinite(str2double(get_param(obj.BlockPath,'Duty'))),setNumeric(obj.DutyField,get_param(obj.BlockPath,'Duty'));obj.Origins.Q="specified";
+                elseif strcmp(mode,'Outlet T')&&strcmp(obj.ToutSourceDropDown.Value,'Input port'),obj.Origins.T_out="external";
                 elseif strcmp(mode,'Outlet T')&&isfinite(str2double(get_param(obj.BlockPath,'Tout'))),setNumeric(obj.ToutField,get_param(obj.BlockPath,'Tout'));obj.Origins.T_out="specified";end
                 if isfinite(str2double(get_param(obj.BlockPath,'PressureDrop'))),setNumeric(obj.PressureDropField,get_param(obj.BlockPath,'PressureDrop'));obj.Origins.dP="specified";end
                 obj.CompatibilityMode=mode;obj.CompatibilityModeExplicit=false;selectMode(obj.ModeGroup,mode);
             else
                 specs=nirp.dof.readSpecs(specText);names=fieldnames(specs);for i=1:numel(names),obj.setFromSI(names{i},specs.(names{i}).si,specs.(names{i}).unit);obj.Origins.(names{i})="specified";end
+                mode=get_param(obj.BlockPath,'Mode');obj.CompatibilityMode=mode;selectMode(obj.ModeGroup,mode);
+                if strcmp(mode,'Outlet T')&&strcmp(obj.ToutSourceDropDown.Value,'Input port'),obj.Origins.T_out="external";end
+                if strcmp(mode,'Duty')&&strcmp(obj.DutySourceDropDown.Value,'Input port'),obj.Origins.Q="external";end
             end
             obj.updateCompatibilityVisibility();obj.closeDof();
         end
         function edited(obj,name,event)
             value=changedValue(event);if isempty(value)||(isnumeric(value)&&isscalar(value)&&isnan(value)),obj.Origins.(name)="empty";else,obj.Origins.(name)="specified";end
             obj.CompatibilityMode='';obj.CompatibilityModeExplicit=false;obj.updateCompatibilityVisibility();obj.closeDof();
+        end
+        function sourceChanged(obj,name)
+            if strcmp(name,'T_out'),source=obj.ToutSourceDropDown.Value;mode='Outlet T';field=obj.ToutField;other='Q';obj.DutySourceDropDown.Value='Dialog';
+            else,source=obj.DutySourceDropDown.Value;mode='Duty';field=obj.DutyField;other='T_out';obj.ToutSourceDropDown.Value='Dialog';end
+            if strcmp(source,'Input port'),obj.CompatibilityMode=mode;obj.CompatibilityModeExplicit=true;selectMode(obj.ModeGroup,mode);obj.Origins.(name)="external";if obj.Origins.(other)=="external",obj.Origins.(other)="empty";end
+            elseif isempty(field.Value),obj.Origins.(name)="empty";else,obj.Origins.(name)="specified";end
+            obj.updateCompatibilityVisibility();obj.closeDof();
         end
         function result=closeDof(obj)
             names={'T_out','dT','Q','dP','P_out'};specs=struct();for i=1:numel(names),if obj.Origins.(names{i})=="specified",specs.(names{i})=struct('si',obj.toSI(names{i}),'unit',char(obj.unitField(names{i}).Value));end,end
@@ -126,12 +145,17 @@ classdef HeaterDialog < handle
         function setFromSI(obj,name,value,unit),dropdown=obj.unitField(name);if ~isempty(unit)&&any(string(dropdown.Items)==string(unit)),dropdown.Value=unit;end;obj.setCalculated(name,value,'calculated');end
         function value=field(obj,name),map=struct('T_out','ToutField','dT','TemperatureChangeField','Q','DutyField','dP','PressureDropField','P_out','OutletPressureField');value=obj.(map.(name));end
         function value=unitField(obj,name),map=struct('T_out','ToutUnitDropDown','dT','TemperatureChangeUnitDropDown','Q','DutyUnitDropDown','dP','PressureDropUnitDropDown','P_out','OutletPressureUnitDropDown');value=obj.(map.(name));end
-        function updateCompatibilityVisibility(obj),obj.ToutField.Visible='on';obj.ToutUnitDropDown.Visible='on';obj.DutyField.Visible='on';obj.DutyUnitDropDown.Visible='on';end
+        function updateCompatibilityVisibility(obj)
+            inputT=strcmp(obj.CompatibilityMode,'Outlet T')&&strcmp(obj.ToutSourceDropDown.Value,'Input port');inputQ=strcmp(obj.CompatibilityMode,'Duty')&&strcmp(obj.DutySourceDropDown.Value,'Input port');
+            obj.ToutField.Visible=onoff(~inputT);obj.ToutUnitDropDown.Visible=onoff(~inputT);obj.ToutPortLabel.Visible=onoff(inputT);if inputT,obj.ToutPortLabel.Text=nirp.flowsheet.receivedValue(obj.BlockPath,'Tout','Temperature',obj.ToutUnitDropDown.Value,2);end
+            obj.DutyField.Visible=onoff(~inputQ);obj.DutyUnitDropDown.Visible=onoff(~inputQ);obj.DutyPortLabel.Visible=onoff(inputQ);if inputQ,obj.DutyPortLabel.Text=nirp.flowsheet.receivedValue(obj.BlockPath,'Duty','Power',obj.DutyUnitDropDown.Value,2);end
+        end
         function refreshConnections(obj),graph=nirp.flowsheet.topology(bdroot(obj.BlockPath));key=matlab.lang.makeValidName(get_param(obj.BlockPath,'Name'));data=cell(0,3);if isfield(graph.Units,key),x=graph.Units.(key);for i=1:numel(x.Inputs),data(end+1,:)={'Input',i,label(x.Inputs{i})};end;for i=1:numel(x.Outputs),data(end+1,:)={'Output',i,label(x.Outputs{i})};end;end;obj.ConnectionTable.Data=data;end
     end
 end
 function [f,u]=qrow(g,row,labelText,category),t=uilabel(g,'Text',labelText,'HorizontalAlignment','right');t.Layout.Row=row;t.Layout.Column=1;f=uieditfield(g,'numeric','AllowEmpty','on','Value',[]);f.Layout.Row=row;f.Layout.Column=2;u=uidropdown(g,'Items',UnitConverterHelper.getUnits(category));u.Layout.Row=row;u.Layout.Column=3;end
 function [f,u]=simpleRow(g,row,labelText,items),t=uilabel(g,'Text',labelText,'HorizontalAlignment','right');t.Layout.Row=row;t.Layout.Column=1;f=uieditfield(g,'numeric','AllowEmpty','on','Value',[]);f.Layout.Row=row;f.Layout.Column=2;u=uidropdown(g,'Items',items);u.Layout.Row=row;u.Layout.Column=3;end
+function label=portLabel(grid,row),label=uilabel(grid,'Text','From input port','FontAngle','italic','Visible','off');label.Layout.Row=row;label.Layout.Column=5;end
 function setNumeric(field,text),value=str2double(text);if isfinite(value),field.Value=value;else,field.Value=[];end,end
 function value=changedValue(event),if (isstruct(event)&&isfield(event,'NewData'))||(~isstruct(event)&&isprop(event,'NewData')),value=event.NewData;else,value=event.Value;end,end
 function selectMode(group,value),buttons=group.Children;index=find(strcmp({buttons.Text},value),1);if ~isempty(index),group.SelectedObject=buttons(index);end,end
