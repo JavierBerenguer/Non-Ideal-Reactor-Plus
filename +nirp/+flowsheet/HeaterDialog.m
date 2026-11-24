@@ -2,7 +2,7 @@ classdef HeaterDialog < handle
 %HEATERDIALOG Degree-of-freedom editor for Heater/Cooler blocks.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 2, 2026. Last update: November 4, 2026
+% Created: October 2, 2026. Last update: November 24, 2026
 % =========================================================================
     properties (SetAccess=private)
         BlockPath;Figure;NameField;ModeGroup;ToutField;ToutUnitDropDown
@@ -97,6 +97,7 @@ classdef HeaterDialog < handle
         end
         function load(obj)
             obj.NameField.Value=get_param(obj.BlockPath,'Name');obj.ToutSourceDropDown.Value=get_param(obj.BlockPath,'ToutSource');obj.DutySourceDropDown.Value=get_param(obj.BlockPath,'DutySource');obj.ToutUnitDropDown.Value=get_param(obj.BlockPath,'ToutUnit');obj.DutyUnitDropDown.Value=get_param(obj.BlockPath,'DutyUnit');obj.PressureDropUnitDropDown.Value=get_param(obj.BlockPath,'PressureDropUnit');obj.OutletPressureUnitDropDown.Value=get_param(obj.BlockPath,'PressureDropUnit');obj.HeatPortCheckBox.Value=strcmp(get_param(obj.BlockPath,'ShowHeatPort'),'on');
+            setNumeric(obj.ToutField,get_param(obj.BlockPath,'Tout'));setNumeric(obj.DutyField,get_param(obj.BlockPath,'Duty'));
             obj.Origins=struct('T_out',"empty",'dT',"empty",'Q',"empty",'dP',"empty",'P_out',"empty");specText=get_param(obj.BlockPath,'Specifications');
             if isempty(strtrim(specText))
                 mode=get_param(obj.BlockPath,'Mode');
@@ -127,7 +128,7 @@ classdef HeaterDialog < handle
         end
         function result=closeDof(obj)
             names={'T_out','dT','Q','dP','P_out'};specs=struct();for i=1:numel(names),if obj.Origins.(names{i})=="specified",specs.(names{i})=struct('si',obj.toSI(names{i}),'unit',char(obj.unitField(names{i}).Value));end,end
-            try,state=nirp.dof.producerState(obj.BlockPath,'InternalSpecifications',specs);result=state.Result;source=state.InletSource;catch exception,result=failure(names,exception.message);source="";state=struct('Output',struct('sources',struct()));end
+            try,state=previewState(obj.BlockPath,specs,obj.ToutSourceDropDown.Value,obj.DutySourceDropDown.Value);result=state.Result;source=state.InletSource;catch exception,result=failure(names,exception.message);source="";state=struct('Output',struct('sources',struct()));end
             waiting=~isfield(state,'Inlet')||isempty(state.Inlet);for i=1:numel(names),name=names{i};if isfield(result.values,name),obj.setCalculated(name,result.values.(name),result.origins.(name));tip=strjoin(result.messages,' ');if isfield(state.Output.sources,name),tip=string(state.Output.sources.(name))+". "+tip;end;fieldState=result.states.(name);if waiting&&strcmp(result.status,'complete')&&strcmp(fieldState,'empty'),fieldState='external';tip='needs a run or a defined feed';end;styleField(obj.field(name),fieldState,tip);end,end
             obj.DataModel=struct();for i=1:numel(names),name=names{i};obj.DataModel.(name)=struct('value',obj.field(name).Value,'unit',string(obj.unitField(name).Value),'origin',string(result.origins.(name)));end;obj.DataModel.Tout=obj.DataModel.T_out;obj.DataModel.Duty=obj.DataModel.Q;obj.DataModel.PressureDrop=obj.DataModel.dP;obj.DataModel.Result=result;
             if strcmp(result.status,'complete'),message="Fully specified";if strlength(source)>0,message=message+" - "+source;end;elseif strcmp(result.status,'conflict'),message="Conflict: "+strjoin(result.messages,' ');else,message=result.messages(end);end
@@ -165,3 +166,17 @@ function value=number(x),if isempty(x),value='NaN';else,value=num2str(x,17);end,
 function value=onoff(flag),if flag,value='on';else,value='off';end,end
 function value=label(names),if isempty(names),value='<missing>';else,value=char(strjoin(string(names),', '));end,end
 function writeProducerSpecs(block,specs),if isempty(fieldnames(specs)),set_param(block,'Specifications','{}');else,nirp.dof.writeSpecs(block,specs);end,end
+function state=previewState(block,specs,toutSource,dutySource)
+    state=nirp.dof.producerState(block,'InternalSpecifications',specs);
+    if strcmp(toutSource,get_param(block,'ToutSource'))&&strcmp(dutySource,get_param(block,'DutySource')),return,end
+    inlet=state.Inlet;values=struct();origins=struct();
+    if isempty(inlet),values.T_in=NaN;values.P_in=NaN;else,values.T_in=inlet.T;values.P_in=inlet.P;end
+    origins.T_in='external';origins.P_in='external';internal=specs;
+    if strcmp(toutSource,'Input port')
+        values.T_out=NaN;origins.T_out='external';if isfield(internal,'T_out'),internal=rmfield(internal,'T_out');end
+    elseif strcmp(dutySource,'Input port')
+        values.Q=NaN;origins.Q='external';if isfield(internal,'Q'),internal=rmfield(internal,'Q');end
+    end
+    state.Result=nirp.dof.resolveProducer(state.Model,'Heater',get_param(block,'Name'),internal,state.Output,values,origins);
+    state.Internal=internal;
+end

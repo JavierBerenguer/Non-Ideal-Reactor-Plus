@@ -2,7 +2,7 @@ classdef NirpAdjustNewTargetsTest < matlab.unittest.TestCase
     % NirpAdjustNewTargetsTest verifies the new scalar Adjust destinations.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: November 4, 2026. Last update: November 4, 2026
+    % Created: November 4, 2026. Last update: November 24, 2026
     % =========================================================================
 
     properties
@@ -118,6 +118,60 @@ classdef NirpAdjustNewTargetsTest < matlab.unittest.TestCase
             ports=get_param([name '/Jacket'],'PortHandles');testCase.verifyNumElements(ports.Inport,1);
         end
 
+        function heaterToutReturnsFromPortToDialogWithSetValues(testCase)
+            [name,~,~]=modelWithFeed(testCase,'heater_tout_dialog_setvalues');
+            addSystem(name,'Heater','nirp.blocks.Heater',[200 60 340 130], ...
+                'Mode','Outlet T','ToutSource','Input port','Tout','633.5','PressureDrop','0');
+            dialog=nirp.flowsheet.HeaterDialog([name '/Heater'],'Visible','off');
+            testCase.addTeardown(@()deleteValid(dialog));dialog.setValues('ToutSource','Dialog');
+            verifyRestoredField(testCase,dialog.ToutField,633.5,dialog.getValues().Tout.origin);
+            dialog.setValues('Tout',650);testCase.verifyTrue(dialog.apply());
+            testCase.verifyEqual(get_param([name '/Heater'],'Mode'),'Outlet T');
+            testCase.verifyEqual(get_param([name '/Heater'],'ToutSource'),'Dialog');
+            testCase.verifyEqual(str2double(get_param([name '/Heater'],'Tout')),650,'AbsTol',1e-12);
+        end
+
+        function heaterDutyReturnsFromPortToDialogWithSetValues(testCase)
+            [name,~,~]=modelWithFeed(testCase,'heater_duty_dialog_setvalues');
+            addSystem(name,'Heater','nirp.blocks.Heater',[200 60 340 130], ...
+                'Mode','Duty','DutySource','Input port','Duty','1250','PressureDrop','0');
+            dialog=nirp.flowsheet.HeaterDialog([name '/Heater'],'Visible','off');
+            testCase.addTeardown(@()deleteValid(dialog));dialog.setValues('DutySource','Dialog');
+            verifyRestoredField(testCase,dialog.DutyField,1250,dialog.getValues().Duty.origin);
+            dialog.setValues('Duty',1750);testCase.verifyTrue(dialog.apply());
+            testCase.verifyEqual(get_param([name '/Heater'],'Mode'),'Duty');
+            testCase.verifyEqual(get_param([name '/Heater'],'DutySource'),'Dialog');
+            testCase.verifyEqual(str2double(get_param([name '/Heater'],'Duty')),1750,'AbsTol',1e-12);
+        end
+
+        function heaterToutReturnsFromPortToDialogWithCallbacks(testCase)
+            [name,~,~]=modelWithFeed(testCase,'heater_tout_dialog_callback');
+            addSystem(name,'Heater','nirp.blocks.Heater',[200 60 340 130], ...
+                'Mode','Outlet T','ToutSource','Input port','Tout','633.5','PressureDrop','0');
+            dialog=nirp.flowsheet.HeaterDialog([name '/Heater'],'Visible','off');
+            testCase.addTeardown(@()deleteValid(dialog));dialog.ToutSourceDropDown.Value='Dialog';
+            feval(dialog.ToutSourceDropDown.ValueChangedFcn,dialog.ToutSourceDropDown,[]);
+            verifyRestoredField(testCase,dialog.ToutField,633.5,dialog.getValues().Tout.origin);
+            dialog.ToutField.Value=675;feval(dialog.ToutField.ValueChangedFcn,dialog.ToutField,struct('Value',675));
+            testCase.verifyTrue(dialog.apply());testCase.verifyEqual(get_param([name '/Heater'],'Mode'),'Outlet T');
+            testCase.verifyEqual(get_param([name '/Heater'],'ToutSource'),'Dialog');
+            testCase.verifyEqual(str2double(get_param([name '/Heater'],'Tout')),675,'AbsTol',1e-12);
+        end
+
+        function heaterDutyReturnsFromPortToDialogWithCallbacks(testCase)
+            [name,~,~]=modelWithFeed(testCase,'heater_duty_dialog_callback');
+            addSystem(name,'Heater','nirp.blocks.Heater',[200 60 340 130], ...
+                'Mode','Duty','DutySource','Input port','Duty','1250','PressureDrop','0');
+            dialog=nirp.flowsheet.HeaterDialog([name '/Heater'],'Visible','off');
+            testCase.addTeardown(@()deleteValid(dialog));dialog.DutySourceDropDown.Value='Dialog';
+            feval(dialog.DutySourceDropDown.ValueChangedFcn,dialog.DutySourceDropDown,[]);
+            verifyRestoredField(testCase,dialog.DutyField,1250,dialog.getValues().Duty.origin);
+            dialog.DutyField.Value=1800;feval(dialog.DutyField.ValueChangedFcn,dialog.DutyField,struct('Value',1800));
+            testCase.verifyTrue(dialog.apply());testCase.verifyEqual(get_param([name '/Heater'],'Mode'),'Duty');
+            testCase.verifyEqual(get_param([name '/Heater'],'DutySource'),'Dialog');
+            testCase.verifyEqual(str2double(get_param([name '/Heater'],'Duty')),1800,'AbsTol',1e-12);
+        end
+
         function dialogSourcesPreserveLegacyResults(testCase)
             [name,pkg,feed]=modelWithFeed(testCase,'new_target_legacy');rs=nirp.pkg.toReactionSys(pkg);
             addSystem(name,'Heater','nirp.blocks.Heater',[220 80 360 150], ...
@@ -162,3 +216,9 @@ function verifyStream(testCase,actual,expected)
     testCase.verifyEqual(actual.P,expected.P,'RelTol',1e-12);
 end
 function deleteValid(value),try,if isvalid(value),delete(value);end,catch,end,end
+function verifyRestoredField(testCase,field,value,origin)
+    testCase.verifyEqual(field.Value,value,'AbsTol',1e-12);testCase.verifyEqual(string(field.Visible),"on");
+    testCase.verifyEqual(string(field.Editable),"on");
+    testCase.verifyEqual(field.BackgroundColor,[1 1 1],'AbsTol',1e-12);testCase.verifyEqual(string(field.FontAngle),"normal");
+    testCase.verifyEqual(origin,"specified");
+end
