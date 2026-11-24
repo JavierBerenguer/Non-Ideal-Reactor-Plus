@@ -1,6 +1,7 @@
 classdef ReactorApp < matlab.apps.AppBase
     % Original application by Isabela Fons.
     % Modified by Javier Berenguer Sabater, October 17, 2026: Help access.
+    % Modified by Javier Berenguer Sabater, November 24, 2026: Window name.
 
     % Properties that correspond to app components
     properties (Access = public)
@@ -378,7 +379,7 @@ classdef ReactorApp < matlab.apps.AppBase
             % Create UIFigure and hide until all components are created
             app.UIFigure = uifigure('Visible', 'off');
             app.UIFigure.Position = [400 50 625 612];
-            app.UIFigure.Name = 'UI Figure';
+            app.UIFigure.Name = 'Ideal Reactor Design';
 
             % Create MainWindowLabel
             app.MainWindowLabel = uilabel(app.UIFigure);

@@ -2,7 +2,7 @@ classdef NirpTracerViewerExamplesTest < matlab.unittest.TestCase
     % Headless tests for the tracer viewer, launcher, and examples.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 22, 2026. Last update: October 22, 2026
+    % Created: October 22, 2026. Last update: November 24, 2026
     % =========================================================================
     properties,Folder;end
     methods (TestMethodSetup)
@@ -29,7 +29,7 @@ classdef NirpTracerViewerExamplesTest < matlab.unittest.TestCase
             testCase.verifyEqual(viewer.ResultsPanel.Title,'Results');
             testCase.verifySubstring(viewer.Description.Text,'equivalent tanks-in-series');
             feval(viewer.UseButton.ButtonPushedFcn,viewer.UseButton,[]);
-            appFigure=findall(groot,'Type','Figure','Name','Non-Ideal Reactor Analysis');app=getappdata(appFigure(1),'NirpNonIdealReactorApp');
+            appFigure=findall(groot,'Type','Figure','Name','RTD Analysis');app=getappdata(appFigure(1),'NirpNonIdealReactorApp');
             file=fullfile(testCase.Folder,'received.mat');app.saveSessionToFile(file,'received');loaded=load(file,'sessionData');rtd=loaded.sessionData.shared.rtd;
             received=RTD(rtd.t,rtd.Et);testCase.verifyEqual(rtd.source,'tracer_flowsheet');testCase.verifyEqual(trapz(received.t,received.Et),1,'AbsTol',1e-12);testCase.verifyEqual(received.tau,4,'RelTol',1e-3);testCase.verifyEqual(received.sigma2,8,'RelTol',1e-2);
         end

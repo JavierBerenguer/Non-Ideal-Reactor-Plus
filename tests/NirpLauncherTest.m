@@ -2,7 +2,7 @@ classdef NirpLauncherTest < matlab.uitest.TestCase
     % NirpLauncherTest verifies the main launcher and startup feedback.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 16, 2026. Last update: October 22, 2026
+    % Created: October 16, 2026. Last update: November 24, 2026
     % =========================================================================
 
     methods (TestMethodSetup)
@@ -19,11 +19,25 @@ classdef NirpLauncherTest < matlab.uitest.TestCase
             figureHandle = launcher.UIFigure ;
             buttons = findall(figureHandle, 'Type', 'uibutton') ;
             testCase.verifyEqual(sort(string({buttons.Text})), sort([ ...
-                "Ideal Reactor App", "Non-Ideal Reactor App", ...
+                "Ideal Reactor Design", "RTD Analysis", ...
                 "Open block library", "Open example...", ...
                 "New flowsheet...", ...
                 "Open block library", "Open example...", ...
                 "New flowsheet..."])) ; % ideal and tracer flowsheet groups (T-191)
+            idealButton = findall(figureHandle, 'Type', 'uibutton', ...
+                'Tag', 'NirpLaunchIdeal') ;
+            rtdButton = findall(figureHandle, 'Type', 'uibutton', ...
+                'Tag', 'NirpLaunchNonIdeal') ;
+            testCase.verifyEqual(idealButton.Text, 'Ideal Reactor Design') ;
+            testCase.verifyEqual(idealButton.Tooltip, ...
+                ['Design and optimize ideal reactors (CSTR, PFR, batch), ' ...
+                'including associations and recycle, with kinetics, energy ' ...
+                'balances and utilities']) ;
+            testCase.verifyEqual(rtdButton.Text, 'RTD Analysis') ;
+            testCase.verifyEqual(rtdButton.Tooltip, ...
+                ['Residence-time distribution, segregation and ' ...
+                'maximum-mixedness predictions, tanks-in-series and ' ...
+                'dispersion models, design, convolution and deconvolution']) ;
             panels = findall(figureHandle, 'Type', 'uipanel') ;
             testCase.verifyFalse(any(string({panels.Title}) == "Guides")) ;
             labels = findall(figureHandle, 'Type', 'uilabel') ;
@@ -40,10 +54,10 @@ classdef NirpLauncherTest < matlab.uitest.TestCase
         function nonIdealButtonKeepsLauncherIndependent(testCase)
             launcher = NonIdealReactorPlus() ;
             testCase.addTeardown(@() deleteIfValid(launcher)) ;
-            testCase.press(button(launcher.UIFigure, 'Non-Ideal Reactor App')) ;
+            testCase.press(button(launcher.UIFigure, 'RTD Analysis')) ;
             drawnow ;
             mainFigure = findall(groot, 'Type', 'Figure', ...
-                'Name', 'Non-Ideal Reactor Analysis') ;
+                'Name', 'RTD Analysis') ;
             testCase.verifyNumElements(mainFigure, 1) ;
             testCase.verifyTrue(isvalid(launcher.UIFigure)) ;
             testCase.verifyTrue(all(string({findall(launcher.UIFigure, ...
@@ -75,14 +89,14 @@ classdef NirpLauncherTest < matlab.uitest.TestCase
                 testCase.verifySubstring(messages(i), expectedSteps(i)) ;
             end
             figureHandle = findall(groot, 'Type', 'Figure', ...
-                'Name', 'Non-Ideal Reactor Analysis') ;
+                'Name', 'RTD Analysis') ;
             testCase.verifyEqual(string(figureHandle.Visible), "on") ;
 
             function recordAndFail(fraction, message)
                 fractions(end + 1, 1) = fraction ;
                 messages(end + 1, 1) = string(message) ;
                 figureHandle = findall(groot, 'Type', 'Figure', ...
-                    'Name', 'Non-Ideal Reactor Analysis') ;
+                    'Name', 'RTD Analysis') ;
                 figureExists(end + 1, 1) = ~isempty(figureHandle) ;
                 if isempty(figureHandle)
                     figureVisibility(end + 1, 1) = "missing" ;
@@ -110,7 +124,7 @@ classdef NirpLauncherTest < matlab.uitest.TestCase
                 'Visible','off') ;
             testCase.addTeardown(@() deleteIfValid(app)) ;
             figureHandle = findall(groot, 'Type', 'Figure', ...
-                'Name', 'Non-Ideal Reactor Analysis') ;
+                'Name', 'RTD Analysis') ;
             tabGroup = findall(figureHandle, 'Type', 'uitabgroup') ;
             statusBar = findall(figureHandle, 'Type', 'uilabel', ...
                 'Text', '  Ready') ;
@@ -135,9 +149,10 @@ classdef NirpLauncherTest < matlab.uitest.TestCase
         function idealButtonOpensOriginalApp(testCase)
             launcher = NonIdealReactorPlus() ;
             testCase.addTeardown(@() deleteIfValid(launcher)) ;
-            testCase.press(button(launcher.UIFigure, 'Ideal Reactor App')) ;
+            testCase.press(button(launcher.UIFigure, 'Ideal Reactor Design')) ;
             drawnow ;
-            idealFigure = findall(groot, 'Type', 'Figure', 'Name', 'UI Figure') ;
+            idealFigure = findall(groot, 'Type', 'Figure', ...
+                'Name', 'Ideal Reactor Design') ;
             testCase.verifyNumElements(idealFigure, 1) ;
         end
 
@@ -166,7 +181,7 @@ classdef NirpLauncherTest < matlab.uitest.TestCase
                 'Visible','off') ;
             testCase.addTeardown(@() deleteIfValid(app)) ;
             figureHandle = findall(groot, 'Type', 'Figure', ...
-                'Name', 'Non-Ideal Reactor Analysis') ;
+                'Name', 'RTD Analysis') ;
             userGuide = findall(figureHandle, 'Type', 'uimenu', ...
                 'Text', 'User Guide') ;
             feval(userGuide.MenuSelectedFcn, userGuide, []) ;
@@ -226,7 +241,7 @@ classdef NirpLauncherTest < matlab.uitest.TestCase
             launcher = NonIdealReactorPlus() ;
             testCase.addTeardown(@() deleteIfValid(launcher)) ;
             launcher.TestActionOverrides.Ideal = @failAction ;
-            testCase.press(button(launcher.UIFigure, 'Ideal Reactor App')) ;
+            testCase.press(button(launcher.UIFigure, 'Ideal Reactor Design')) ;
             drawnow ;
             testCase.dismissAlertDialog(launcher.UIFigure) ;
             buttons = findall(launcher.UIFigure, 'Type', 'uibutton') ;

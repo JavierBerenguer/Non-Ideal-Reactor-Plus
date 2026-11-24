@@ -1151,7 +1151,10 @@ classdef ConvolutionTabHelper < handle
             visibleText = strrep(visibleText, '\', '') ;
             visibleText = strrep(visibleText, '{', '') ;
             visibleText = strrep(visibleText, '}', '') ;
+            % Vectors always take their own line: even nine values
+            % overflow the label column of a compact pair.
             wide = contains(value, '\ldots') || ...
+                startsWith(strtrim(visibleText), '[') || ...
                 strlength(string(visibleText)) > 40 ;
         end
 

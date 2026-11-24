@@ -2,7 +2,7 @@ classdef NirpConvolutionSessionsTest < matlab.unittest.TestCase
     % NirpConvolutionSessionsTest verifies the saved convolution examples.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 21, 2026. Last update: October 22, 2026
+    % Created: October 21, 2026. Last update: November 24, 2026
     % =========================================================================
 
     properties
@@ -17,7 +17,7 @@ classdef NirpConvolutionSessionsTest < matlab.unittest.TestCase
             testCase.App = NonIdealReactorApp('ProgressFcn',@(~,~) [], ...
                 'Visible','off') ;
             figures = findall(groot, 'Type', 'Figure', ...
-                'Name', 'Non-Ideal Reactor Analysis') ;
+                'Name', 'RTD Analysis') ;
             testCase.Figure = figures(1) ;
             testCase.Figure.Visible = 'off' ;
             testCase.addTeardown(@() closeFigures()) ;

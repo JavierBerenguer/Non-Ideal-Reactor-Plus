@@ -2,7 +2,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
     % NirpConvolutionTabTest verifies the app integration of nirp.conv.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 9, 2026. Last update: November 3, 2026
+    % Created: October 9, 2026. Last update: November 24, 2026
     % =========================================================================
 
     properties
@@ -21,7 +21,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             testCase.App = NonIdealReactorApp('ProgressFcn',@(~,~) [], ...
                 'Visible','off') ;
             figures = findall(groot, 'Type', 'Figure', ...
-                'Name', 'Non-Ideal Reactor Analysis') ;
+                'Name', 'RTD Analysis') ;
             testCase.Figure = figures(1) ;
             testCase.Figure.Visible = 'off' ;
             testCase.addTeardown(@() closeFigures()) ;
@@ -675,11 +675,10 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             testCase.verifyFalse(contains(shortText, '\ldots')) ;
             testCase.verifySubstring(shortText, ...
                 '[0,\;0,\;0.4,\;4.2,\;5.1,\;4.4,\;2.1,\;0,\;0]') ;
-            testCase.verifyEqual(outputLabel.Layout.Row, ...
+            testCase.verifyNotEqual(outputLabel.Layout.Row, ...
                 balanceLabel.Layout.Row) ;
-            testCase.verifyEqual(outputValue.Layout.Column, 2) ;
-            testCase.verifyEqual(balanceLabel.Layout.Column, 3) ;
-            testCase.verifyEqual(resultsGrid.RowHeight(2:4), {20, 0, 0}) ;
+            testCase.verifyEqual(outputValue.Layout.Column, [2 6]) ;
+            testCase.verifyEqual(resultsGrid.RowHeight(2:4), {20, 20, 0}) ;
         end
 
         function suggestedSupportUsesCurrentGridAndComputes(testCase)

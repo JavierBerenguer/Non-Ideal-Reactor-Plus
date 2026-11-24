@@ -3,13 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Non-Ideal Reactor Analysis - User Guide</title>
+  <title>RTD Analysis Guide</title>
   <link rel="stylesheet" href="assets/guide.css">
 </head>
 <body>
   <div class="page">
     <div class="topbar">
-      <div class="brand">Non-Ideal Reactor Analysis Documentation</div>
+      <div class="brand">RTD Analysis Guide</div>
       <nav class="topnav">
         <a href="UserGuide.html">User Guide Home</a>
         <a href="TechnicalChapter.html">Complete Manual</a>
@@ -29,6 +29,7 @@
         <aside class="toc">
           <h2>Quick Access</h2>
           <ol>
+            <li><a href="#launcher">Choose a tool</a></li>
             <li><a href="#workflow">Recommended workflow</a></li>
             <li><a href="#dependencies">Tab dependency map</a></li>
             <li><a href="#choose-tab">Which tab should I use?</a></li>
@@ -37,6 +38,14 @@
           </ol>
         </aside>
       </div>
+    </section>
+
+    <section class="section" id="launcher">
+      <h2>Choose the Tool by Function</h2>
+      <figure class="figure-card">
+        <img src="assets/launcher.png" alt="Non-Ideal Reactor Plus launcher with Ideal Reactor Design, RTD Analysis, Flowsheet, and Network RTD actions">
+        <figcaption>The launcher separates ideal-reactor design, RTD analysis, steady process flowsheets, and tracer-only network RTD studies.</figcaption>
+      </figure>
     </section>
 
     <section class="section" id="workflow">
@@ -61,7 +70,7 @@
         </div>
         <div class="flow-step">
           <strong>5. Use Tab 6 for tracer-signal calculations</strong>
-          Use <a href="guides/tab-6-convolution.html">Convolution</a> to predict an outlet tracer signal or recover an RTD by deconvolution. A recovered RTD can be sent back to Tab 1 and reused by Tabs 2-5; vessel networks belong in the non-ideal tracer flowsheet.
+          Use <a href="guides/tab-6-convolution.html">Convolution</a> to predict an outlet tracer signal or recover an RTD by deconvolution. A recovered RTD can be sent back to Tab 1 and reused by Tabs 2-5; vessel networks belong in <strong>Network RTD (tracer)</strong> on the main screen.
         </div>
       </div>
       <div class="callout info">

@@ -2,7 +2,7 @@ function viewer = showResults(result,varargin)
 %SHOWRESULTS Display tracer concentration, source signal, and moments.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 22, 2026. Last update: November 3, 2026
+% Created: October 22, 2026. Last update: November 24, 2026
 % =========================================================================
     p = inputParser ;
     addParameter(p,'Visible','on') ;
@@ -175,7 +175,7 @@ function viewer = showResults(result,varargin)
         signal = nirp.conv.signal(result.grid.t+correction,E) ;
         app = [] ;
         figures = findall(groot,'Type','Figure', ...
-            'Name','Non-Ideal Reactor Analysis') ;
+            'Name','RTD Analysis') ;
         for i = 1:numel(figures)
             if isappdata(figures(i),'NirpNonIdealReactorApp')
                 app = getappdata(figures(i),'NirpNonIdealReactorApp') ;
