@@ -1,7 +1,7 @@
 % run_validation - Validate collection-problem flowsheets against scripts.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 3, 2026. Last update: October 9, 2026
+% Created: October 3, 2026. Last update: November 4, 2026
 % =========================================================================
 
 repoRoot = fileparts(fileparts(mfilename('fullpath'))) ; addpath(repoRoot) ;
@@ -710,6 +710,157 @@ assert(height(validation)+height(validation124)+height(validation125)+ ...
     height(validation128)+height(validation135)+height(validation149)==110, ...
     'nirp:validation:rowCount149','The validation table must contain 110 rows.') ;
 
+% T-216: non-ideal examples.  These rows are intentionally appended after
+% the established 110-row golden master so all previous output is unchanged.
+diagram51 = simulateValidationExample(files(51), ...
+    "ex51_nonideal_exam_january2024") ;
+diagram52 = simulateValidationExample(files(52), ...
+    "ex52_nonideal_second_order_series") ;
+diagram53 = simulateValidationExample(files(53), ...
+    "ex53_nonideal_parallel_second_order") ;
+diagram54 = simulateValidationExample(files(54), ...
+    "ex54_ideal_nonideal_side_by_side") ;
+
+[examSegregation,examMaximumMixedness] = january2024Reference() ;
+examDiagram = [streamConcentrations(diagram51,'Segregation product',5); ...
+    streamConcentrations(diagram51,'Maximum mixedness product',5)] ;
+examScript = [examSegregation(:);examMaximumMixedness(:)] ;
+examOfficial = [0.0688;0.0533;0.112;0.287;0.287; ...
+    0.0458;0.0389;0.181;0.244;0.244] ;
+
+kSecondOrder = 0.05 ; tauSecondOrder = 2 ; initialSecondOrder = 10 ;
+firstSegregation = cstrRtdBatchReference( ...
+    initialSecondOrder,kSecondOrder,tauSecondOrder) ;
+secondSegregation = cstrRtdBatchReference( ...
+    firstSegregation,kSecondOrder,tauSecondOrder) ;
+firstMaximumMixedness = algebraicCstrReference( ...
+    initialSecondOrder,kSecondOrder,tauSecondOrder) ;
+secondMaximumMixedness = algebraicCstrReference( ...
+    firstMaximumMixedness,kSecondOrder,tauSecondOrder) ;
+seriesDiagram = [streamConcentrations(diagram52,'Segregation product',1); ...
+    streamConcentrations(diagram52,'Maximum mixedness product',1)] ;
+seriesScript = [secondSegregation;secondMaximumMixedness] ;
+
+pfrParallel = initialSecondOrder/(1+kSecondOrder*initialSecondOrder*3) ;
+cstrParallel = algebraicCstrReference(initialSecondOrder,kSecondOrder,3) ;
+parallelScript = 0.25*pfrParallel+0.75*cstrParallel ;
+parallelDiagram = streamConcentrations(diagram53,'Product',1) ;
+
+pkg54 = nirp.pkg.examples.nonIdealSecondOrder() ;
+rs54 = nirp.pkg.toReactionSys(pkg54) ;
+feed54 = nirp.pkg.feedStream(pkg54,"Ideal feed") ;
+ideal54 = nirp.units.cstr(struct('V',2*feed54.Q, ...
+    'heatMode','Isothermal'),feed54,rs54) ;
+sideBySideScript = nirp.stream.concentration(ideal54) ;
+sideBySideScript = sideBySideScript(1) ;
+sideBySideDiagram = streamConcentrations(diagram54,'Non-ideal product',1) ;
+
+problem216 = [repmat("ex51_nonideal_exam_january2024",10,1); ...
+    repmat("ex52_nonideal_second_order_series",2,1); ...
+    "ex53_nonideal_parallel_second_order"; ...
+    "ex54_ideal_nonideal_side_by_side"] ;
+species = ["A";"B";"C";"D";"E"] ;
+magnitude216 = ["SEG C_"+species+" (mol/L)"; ...
+    "MM C_"+species+" (mol/L)"; ...
+    "SEG C_A (mol/m^3)";"MM C_A (mol/m^3)"; ...
+    "Mixed C_A (mol/m^3)";"Non-ideal C_A (mol/m^3)"] ;
+diagram216 = [examDiagram;seriesDiagram;parallelDiagram;sideBySideDiagram] ;
+script216 = [examScript;seriesScript;parallelScript;sideBySideScript] ;
+official216 = [examOfficial;nan(4,1)] ;
+difference216 = abs(diagram216-official216) ;
+note216 = strings(size(problem216)) ;
+note216(1:5) = "Published R2 SEG uses R1 RTD (professor script error); corrected script = diagram" ;
+note216(6:10) = "Professor solution" ;
+note216(11:12) = "Independent analytical RTD reference" ;
+note216(13) = "Analytical PFR/CSTR branches mixed by flow" ;
+note216(14) = "Ideal CSTR calculated with nirp.units.cstr" ;
+validation216 = table(problem216,magnitude216,diagram216,script216, ...
+    official216,difference216,note216, ...
+    'VariableNames',{'Problem','Magnitude','Diagram','Script','Official', ...
+    'Difference','Note'}) ;
+disp(validation216) ;
+
+relative216 = abs(diagram216-script216)./max(abs(script216),1e-15) ;
+assert(all(relative216(1:13) <= 5e-3), ...
+    'nirp:validation:nonIdealExamples216', ...
+    'A non-ideal example differs from its independent reference by more than 5e-3 relative.') ;
+assert(relative216(14) <= 1e-4, ...
+    'nirp:validation:idealEquivalence216', ...
+    'The RTD-based CSTR differs from the ideal CSTR by more than 1e-4 relative.') ;
+
+% T-220: methanol exam examples, compared with an independent ode15s
+% reference that does not call nirp.* or ReactionSys.
+diagram55 = simulateValidationExample(files(55), ...
+    "ex55_methanol_exam_january2020") ;
+diagram56 = simulateValidationExample(files(56), ...
+    "ex56_methanol_exam_january2022") ;
+reference55 = methanolJanuary2020Reference() ;
+reference56 = methanolJanuary2022Reference() ;
+
+outletNames55 = {'PFR 1 outlet','PFR 2 outlet','Product'} ;
+outletNames56 = {'PFR 1 outlet','Product'} ;
+diagramRows55 = methanolOutletRows(diagram55,outletNames55) ;
+referenceRows55 = [methanolStateRows(reference55.pfr1); ...
+    methanolStateRows(reference55.pfr2); ...
+    methanolStateRows(reference55.pfr3)] ;
+diagramRows55 = [diagramRows55; ...
+    resultStream(diagram55,'Heater 2 outlet').T; ...
+    resultStream(diagram55,'Heater 3 outlet').T; ...
+    resultStream(diagram55,'PFR 2 inlet').T; ...
+    resultStream(diagram55,'PFR 3 inlet').T] ;
+referenceRows55 = [referenceRows55;reference55.heater2T; ...
+    reference55.heater3T;623.15;673.15] ;
+
+diagramRows56 = methanolOutletRows(diagram56,outletNames56) ;
+referenceRows56 = [methanolStateRows(reference56.pfr1); ...
+    methanolStateRows(reference56.pfr2)] ;
+diagramRows56 = [diagramRows56; ...
+    resultStream(diagram56,'Heater outlet').T; ...
+    resultStream(diagram56,'PFR 2 inlet').T; ...
+    diagnosticHeat(diagram56,"ex56_methanol_exam_january2022","PFR 2")] ;
+referenceRows56 = [referenceRows56;reference56.heaterT; ...
+    reference56.heaterT;-1.8e7] ;
+
+outletMagnitudes = ["F_CH3OH (mol/s)";"F_CO (mol/s)"; ...
+    "F_CO2 (mol/s)";"T_out (K)"] ;
+magnitude220 = ["PFR 1 "+outletMagnitudes; ...
+    "PFR 2 "+outletMagnitudes;"PFR 3 "+outletMagnitudes; ...
+    "Heater 2 T_out (K)";"Heater 3 T_out (K)"; ...
+    "PFR 2 T_in (K)";"PFR 3 T_in (K)"; ...
+    "PFR 1 "+outletMagnitudes;"PFR 2 "+outletMagnitudes; ...
+    "Heater T_out (K)";"PFR 2 T_in (K)";"PFR 2 Q (W)"] ;
+problem220 = [repmat("ex55_methanol_exam_january2020",16,1); ...
+    repmat("ex56_methanol_exam_january2022",11,1)] ;
+diagram220 = [diagramRows55;diagramRows56] ;
+script220 = [referenceRows55;referenceRows56] ;
+officialRows56 = [137.871845;330.711565;231.416591;561.769131; ...
+    450.508810;445.268826;504.222364;568.547613; ...
+    561.769131;561.769131;-1.8e7] ;
+official220 = [nan(size(diagramRows55));officialRows56] ;
+difference220 = abs(diagram220-script220) ;
+hasOfficial220 = ~isnan(official220) ;
+difference220(hasOfficial220) = ...
+    abs(diagram220(hasOfficial220)-official220(hasOfficial220)) ;
+note220 = repmat("Independent ODE reference (no professor solution)", ...
+    size(problem220)) ;
+note220(17:27) = ...
+    "Professor script (k0 with more digits: 4.101e17, 2.797e11)" ;
+validation220 = table(problem220,magnitude220,diagram220,script220, ...
+    official220,difference220,note220, ...
+    'VariableNames',{'Problem','Magnitude','Diagram','Script','Official', ...
+    'Difference','Note'}) ;
+disp(validation220) ;
+
+relative220 = abs(diagram220-script220)./max(abs(script220),1e-12) ;
+assert(all(relative220 <= 1e-4), ...
+    'nirp:validation:methanolExams220', ...
+    'A methanol exam row differs from the independent ODE reference by more than 1e-4 relative.') ;
+relativeOfficial56 = abs(diagramRows56-officialRows56)./ ...
+    max(abs(officialRows56),1e-12) ;
+assert(all(relativeOfficial56 <= 1e-3), ...
+    'nirp:validation:methanolJanuary2022Official220', ...
+    'An ex56 row differs from the professor script by more than 1e-3 relative.') ;
+
 function results = simulateValidationExample(file,name)
     evalin('base','clear nirpResults') ;
     load_system(char(file)) ; sim(char(name)) ;
@@ -720,6 +871,159 @@ end
 function value = concentrationInMolPerL(stream,index)
     concentrations = nirp.stream.concentration(stream) ;
     value = concentrations(index)/1000 ;
+end
+
+function values = streamConcentrations(results,name,count)
+    key = matlab.lang.makeValidName(name) ;
+    stream = results.Streams.(key).streamSI ;
+    values = stream.F(1:count)./stream.Q ;
+    if count > 1, values = values(:)/1000 ; end
+end
+
+function rows = methanolOutletRows(results,names)
+    rows = zeros(4*numel(names),1) ;
+    for index = 1:numel(names)
+        stream = resultStream(results,names{index}) ;
+        range = (4*index-3):(4*index) ;
+        rows(range) = [stream.F([3 1 4]);stream.T] ;
+    end
+end
+
+function rows = methanolStateRows(state)
+    rows = [state.F([3 1 4]);state.T] ;
+end
+
+function stream = resultStream(results,name)
+    key = matlab.lang.makeValidName(name) ;
+    stream = results.Streams.(key).streamSI ;
+end
+
+function reference = methanolJanuary2020Reference()
+    cp = [31.75 29.21 195.7 53.10 112.6 29.1] ;
+    stoichiometry = [-1 -2 1 0 0 0;1 2 -1 0 0 0; ...
+        0 -3 1 -1 1 0;0 3 -1 1 -1 0] ;
+    branch = [840 2400 0 400 0 360]'/3 ;
+    reference.pfr1 = methanolPfrReference(branch,558.15,1,0, ...
+        cp,stoichiometry) ;
+    reference.heater2T = fzero(@(temperature) methanolMixTemperature( ...
+        reference.pfr1.F,reference.pfr1.T,branch,temperature,cp)-623.15, ...
+        [500 900]) ;
+    secondFeed = reference.pfr1.F+branch ;
+    reference.pfr2 = methanolPfrReference(secondFeed,623.15,1,0, ...
+        cp,stoichiometry) ;
+    reference.heater3T = fzero(@(temperature) methanolMixTemperature( ...
+        reference.pfr2.F,reference.pfr2.T,branch,temperature,cp)-673.15, ...
+        [500 1000]) ;
+    thirdFeed = reference.pfr2.F+branch ;
+    reference.pfr3 = methanolPfrReference(thirdFeed,673.15,1,0, ...
+        cp,stoichiometry) ;
+end
+
+function reference = methanolJanuary2022Reference()
+    cp = [31.75 29.21 195.7 53.10 112.6] ;
+    stoichiometry = [-1 -2 1 0 0;1 2 -1 0 0; ...
+        0 -3 1 -1 1;0 3 -1 1 -1] ;
+    branch = [840 2600 0 560 0]'/2 ;
+    reference.pfr1 = methanolPfrReference(branch,473.15,0.8,0, ...
+        cp,stoichiometry) ;
+    reference.heaterT = reference.pfr1.T ;
+    secondFeed = reference.pfr1.F+branch ;
+    reference.pfr2 = methanolPfrReference(secondFeed,reference.heaterT, ...
+        4,-1.8e7,cp,stoichiometry) ;
+end
+
+function outlet = methanolPfrReference(feed,temperature,length,Q,cp,stoichiometry)
+    initial = [feed(:);temperature] ;
+    tolerance = [max(1e-11*abs(feed(:)),1e-12);1e-9] ;
+    options = odeset('RelTol',1e-10,'AbsTol',tolerance) ;
+    [~,states] = ode15s(@(~,state) methanolPfrDerivative( ...
+        state,length,Q,cp,stoichiometry),[0 length],initial,options) ;
+    outlet = struct('F',states(end,1:numel(feed))', ...
+        'T',states(end,numel(feed)+1)) ;
+end
+
+function derivative = methanolPfrDerivative(state,length,Q,cp,stoichiometry)
+    gasConstant = 8.314 ; pressure = 150e5 ;
+    totalArea = 5000*pi*(0.025/2)^2 ;
+    flows = state(1:numel(cp))' ; temperature = state(end) ;
+    concentration = flows/sum(flows)*pressure/(gasConstant*temperature) ;
+    rateConstants = [165 4.1e17 0.012 2.80e11].*exp( ...
+        -[66200 164588 25800 84505]/(gasConstant*temperature)) ;
+    rates = [rateConstants(1)*concentration(1)*concentration(2), ...
+        rateConstants(2)*concentration(3)/concentration(2), ...
+        rateConstants(3)*concentration(2)*concentration(4), ...
+        rateConstants(4)*concentration(3)*concentration(5)/ ...
+        concentration(2)^2] ;
+    baseCp = cp(1:5) ;
+    reactionEnthalpy = [-90.7e3 90.7e3 -49.32e3 49.32e3]+ ...
+        (temperature-298)*(stoichiometry(:,1:5)*baseCp')' ;
+    flowDerivative = totalArea*(rates*stoichiometry) ;
+    temperatureDerivative = (Q/length-totalArea* ...
+        sum(rates.*reactionEnthalpy))/(flows*cp') ;
+    derivative = [flowDerivative';temperatureDerivative] ;
+end
+
+function temperature = methanolMixTemperature(flow1,T1,flow2,T2,cp)
+    temperature = (flow1'*cp'*T1+flow2'*cp'*T2)/ ...
+        ((flow1+flow2)'*cp') ;
+end
+
+function value = cstrRtdBatchReference(initial,k,tau)
+    z = 1/(k*tau*initial) ;
+    value = exp(z)*expint(z)/(k*tau) ;
+end
+
+function value = algebraicCstrReference(initial,k,tau)
+    value = (sqrt(1+4*k*tau*initial)-1)/(2*k*tau) ;
+end
+
+function [segregationOut,maximumMixednessOut] = january2024Reference()
+    options = odeset('RelTol',1e-11,'AbsTol',1e-13) ;
+    rate = @(concentration) january2024Rates(concentration) ;
+    segregationFirst = january2024Segregation( ...
+        [1 0 0 0 0],1,1,rate,options) ;
+    segregationOut = january2024Segregation( ...
+        segregationFirst,100,2,rate,options) ;
+    maximumMixednessFirst = fsolve(@(concentration) ...
+        [1 0 0 0 0]-concentration+rate(concentration)', ...
+        [0.2 0.07 0.07 0.3 0.3],optimoptions('fsolve', ...
+        'Display','off','FunctionTolerance',1e-14,'StepTolerance',1e-14)) ;
+    maximumMixednessOut = january2024MaximumMixedness( ...
+        maximumMixednessFirst,100,2,rate,options) ;
+end
+
+function concentration = january2024Segregation(initial,n,tau,rate,options)
+    maximumTime = tau*(1+12/sqrt(n))*1.5+30*(n==1) ;
+    solution = ode15s(@(~,state) rate(state),[0 maximumTime],initial,options) ;
+    time = linspace(0,maximumTime,200001)' ;
+    states = deval(solution,time)' ;
+    tankTime = tau/n ;
+    if n > 20
+        distribution = exp((n-1)*log(max(time,realmin))-time/tankTime- ...
+            n*log(tankTime)-gammaln(n)) ;
+    else
+        distribution = time.^(n-1).*exp(-time/tankTime)./ ...
+            (tankTime^n*factorial(n-1)) ;
+    end
+    concentration = trapz(time,states.*distribution) ;
+end
+
+function concentration = january2024MaximumMixedness(initial,n,tau,rate,options)
+    tankTime = tau/n ; maximumAge = tau*(1+12/sqrt(n))*1.5 ;
+    hazard = @(age) exp((n-1)*log(max(age,realmin))-age/tankTime- ...
+        n*log(tankTime)-gammaln(n))./ ...
+        max(gammainc(age/tankTime,n,'upper'),realmin) ;
+    equation = @(age,state) -rate(state)+ ...
+        hazard(age)*(state(:)-initial(:)) ;
+    [~,states] = ode15s(equation,[maximumAge 0],initial(:),options) ;
+    concentration = states(end,:) ;
+end
+
+function derivative = january2024Rates(concentration)
+    A = concentration(1) ; B = concentration(2) ;
+    D = concentration(4) ; E = concentration(5) ;
+    r1 = A-2*B ; r2 = B ; r3 = 10*A^2 ; r4 = D*E ;
+    derivative = [-r1-2*r3;r1-r2+r4;r2;r3-r4;r3-r4] ;
 end
 
 function value = conversion(feed,product,index)

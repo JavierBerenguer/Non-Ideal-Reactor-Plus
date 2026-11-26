@@ -4,7 +4,7 @@ function target = adjustTarget(adjustBlock)
 %   the full destination block path and Port is its one-based input index.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 9, 2026. Last update: October 9, 2026
+    % Created: October 9, 2026. Last update: November 4, 2026
 % =========================================================================
 
     adjustBlock = getfullname(adjustBlock) ;
@@ -52,13 +52,35 @@ function [variable,category] = parameterAtPort(block,port)
             if strcmp(get_param(block,'VSource'),'Input port') && port == 2
                 variable = "V" ; category = "Volume" ;
             end
+        case "nirp.blocks.NonIdealReactor"
+            if strcmp(get_param(block,'RTDOrigin'),'Model') && ...
+                    strcmp(get_param(block,'SizeSource'),'Input port') && port == 2
+                if strcmp(get_param(block,'SizeBasis'),'Volume')
+                    variable = "V" ; category = "Volume" ;
+                else
+                    variable = "Tau" ; category = "Time" ;
+                end
+            end
+        case "nirp.blocks.Heater"
+            if port~=2,return,end
+            if strcmp(get_param(block,'Mode'),'Outlet T')&&strcmp(get_param(block,'ToutSource'),'Input port')
+                variable="Tout";category="Temperature";
+            elseif strcmp(get_param(block,'Mode'),'Duty')&&strcmp(get_param(block,'DutySource'),'Input port')
+                variable="Duty";category="Power";
+            end
+        case "nirp.blocks.Splitter"
+            if port==2&&strcmp(get_param(block,'FractionSource'),'Input port')
+                variable="Fraction 1";category="Fraction";
+            end
         case "nirp.blocks.Jacket"
             index = 0 ;
-            [variable,category,index] = activeParameter( ...
-                block,port,index,'A','Area') ;
-            if strlength(variable) == 0
-                [variable,category] = activeParameter( ...
-                    block,port,index,'UtilityTin','Temperature') ;
+            if strcmp(get_param(block,'Mode'),'Utility')
+                [variable,category,index] = activeParameter(block,port,index,'A','Area') ;
+                if strlength(variable)==0,[variable,category]=activeParameter(block,port,index,'UtilityTin','Temperature');end
+            elseif strcmp(get_param(block,'Mode'),'Specified T')
+                [variable,category]=activeParameter(block,port,index,'SpecifiedT','Temperature');if strlength(variable)>0,variable="T";end
+            elseif strcmp(get_param(block,'Mode'),'Specified Q')
+                [variable,category]=activeParameter(block,port,index,'SpecifiedQ','Power');if strlength(variable)>0,variable="Q";end
             end
         case "nirp.blocks.Stream"
             if nirp.flowsheet.streamRole(block) ~= "Feed", return, end

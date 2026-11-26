@@ -8,7 +8,7 @@ function [outputs,info,details] = evaluate(blockPath,inputs,varargin)
 %   unit invocation with preview evaluation.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 15, 2026. Last update: October 15, 2026
+% Created: October 15, 2026. Last update: November 4, 2026
 % =========================================================================
 
     parser=inputParser;
@@ -32,7 +32,7 @@ function [outputs,info,details] = evaluate(blockPath,inputs,varargin)
             [out,info]=nirp.units.mixer([],inputs,rs);outputs={out};
         case "Splitter"
             requireInputs(inputs,1,type);
-            if isempty(prepared),[params,result]=splitterParameters(blockPath,inputs{1});details.Dof=result;
+            if isempty(prepared),[params,result]=splitterParameters(blockPath,inputs{1},signals);details.Dof=result;
             else,params=prepared;end
             [outputs,info]=nirp.units.splitter(params,inputs{1},rs);
         case "Separator"
@@ -42,7 +42,7 @@ function [outputs,info,details] = evaluate(blockPath,inputs,varargin)
             [outputs,info]=nirp.units.separator(params,inputs{1},rs);
         case "Heater"
             requireInputs(inputs,1,type);
-            if isempty(prepared),[params,result]=heaterParameters(blockPath,inputs{1},rs);details.Dof=result;
+            if isempty(prepared),[params,result]=heaterParameters(blockPath,inputs{1},signals,rs);details.Dof=result;
             else,params=prepared;end
             [out,info]=nirp.units.heater(params,inputs{1},rs);outputs={out};
         case {"CSTR","PFR"}
@@ -51,6 +51,24 @@ function [outputs,info,details] = evaluate(blockPath,inputs,varargin)
             else,params=prepared;end
             if type=="CSTR",[out,info]=nirp.units.cstr(params,inputs{1},rs);
             else,[out,info]=nirp.units.pfr(params,inputs{1},rs);end
+            outputs={out};
+        case "NonIdealReactor"
+            requireInputs(inputs,1,type);
+            if isempty(prepared)
+                [params,rs,result]=nonIdealReactorParameters( ...
+                    blockPath,inputs{1},signals,pkg,rs);
+                details.Dof=result;
+            else
+                params=prepared;
+            end
+            [out,info]=nirp.units.nonIdealReactor(params,inputs{1},rs);
+            info.meanResidenceTime=info.tau;
+            if isfield(info,'V')&&isfinite(info.V)&&inputs{1}.Q>0
+                info.tau=info.V/inputs{1}.Q;
+            else
+                info.tau=NaN;
+            end
+            info.rtd=params.rtdLabel;
             outputs={out};
         case "Jacket"
             if ~isempty(inputs),error('nirp:flowsheet:waitingFor','Jacket material inputs are not supported.');end
@@ -130,11 +148,20 @@ function value=requiredPositiveSignal(signals,index,label,unit)
     end
 end
 
-function [params,result]=splitterParameters(block,in)
+function [params,result]=splitterParameters(block,in,signals)
     fractions=str2num(get_param(block,'Fractions')); %#ok<ST2NM>
     specs=nirp.dof.readSpecs(get_param(block,'Specifications'));
     output=nirp.dof.connectedSpecifications(block);
-    if isempty(fieldnames(specs))&&isempty(strtrim(get_param(block,'Specifications')))
+    external=strcmp(get_param(block,'FractionSource'),'Input port');
+    if external
+        first=requiredFractionSignal(signals,1,'Splitter Fraction 1');
+        fractions=scaleFirstFraction(fractions,first);
+        model=nirp.dof.catalog.splitter(numel(fractions));values=struct('F_in',sum(in.F),'f1',first);origins=struct('F_in','external','f1','external');
+        for i=2:numel(fractions)-1,name=['f' num2str(i)];values.(name)=fractions(i);origins.(name)='specified';end
+        result=nirp.dof.solve(model,values,origins);result=checkSplitterOutputs(result,output,get_param(block,'Name'));requireComplete(get_param(block,'Name'),result);
+        values=zeros(1,numel(fractions));for i=1:numel(values),values(i)=result.values.(['f' num2str(i)]);end
+        params=struct('fractions',values);return
+    elseif isempty(fieldnames(specs))&&isempty(strtrim(get_param(block,'Specifications')))
         for i=1:max(0,numel(fractions)-1),specs.(['f' num2str(i)])=item(fractions(i),'1');end
     end
     model=nirp.dof.catalog.splitter(numel(fractions));
@@ -157,19 +184,25 @@ function [params,result]=separatorParameters(block,in,rs)
     params=struct('recovery',recovery);
 end
 
-function [params,result]=heaterParameters(block,in,rs)
+function [params,result]=heaterParameters(block,in,signals,rs)
     specs=nirp.dof.readSpecs(get_param(block,'Specifications'));text=get_param(block,'Specifications');
     output=nirp.dof.connectedSpecifications(block);
+    mode=get_param(block,'Mode');externalT=strcmp(mode,'Outlet T')&&strcmp(get_param(block,'ToutSource'),'Input port');externalQ=strcmp(mode,'Duty')&&strcmp(get_param(block,'DutySource'),'Input port');
     if isempty(fieldnames(specs))&&isempty(strtrim(text))
-        if strcmp(get_param(block,'Mode'),'Duty'),specs.Q=item(convert(block,'Duty','Power','DutyUnit'),'W');
-        else,specs.T_out=item(convert(block,'Tout','Temperature','ToutUnit'),'K');end
+        if strcmp(mode,'Duty')&&~externalQ,specs.Q=item(convert(block,'Duty','Power','DutyUnit'),'W');
+        elseif strcmp(mode,'Outlet T')&&~externalT,specs.T_out=item(convert(block,'Tout','Temperature','ToutUnit'),'K');end
         specs.dP=item(convert(block,'PressureDrop','Pressure','PressureDropUnit'),'Pa');
     end
     model=nirp.dof.catalog.heater(struct('inlet',in,'RS',rs));
     values=struct('T_in',in.T,'P_in',in.P);origins=struct('T_in','external','P_in','external');
+    if externalT
+        values.T_out=requiredPositiveSignal(signals,1,'Heater Tout','K');origins.T_out='external';if isfield(specs,'T_out'),specs=rmfield(specs,'T_out');end
+    elseif externalQ
+        values.Q=requiredFiniteSignal(signals,1,'Heater Duty','W');origins.Q='external';if isfield(specs,'Q'),specs=rmfield(specs,'Q');end
+    end
     result=nirp.dof.resolveProducer(model,'Heater',get_param(block,'Name'),specs,output,values,origins);requireComplete(get_param(block,'Name'),result);
     params=struct('dP',result.values.dP);
-    if isfield(specs,'Q')&&~isfield(output.values,'T_out'),params.mode='Duty';params.Q=result.values.Q;
+    if externalQ||(isfield(specs,'Q')&&~isfield(output.values,'T_out')),params.mode='Duty';params.Q=result.values.Q;
     else,params.mode='Outlet T';params.Tout=result.values.T_out;end
 end
 
@@ -218,6 +251,247 @@ function [params,result,rs]=reactorParameters(block,in,signals,pkg,rs,type)
     end
 end
 
+function [params,rs,result]=nonIdealReactorParameters(block,in,signals,pkg,rs)
+    selected=get_param(block,'Reactions');
+    if ~isempty(strtrim(selected))
+        rs=nirp.pkg.toReactionSys(nirp.pkg.selectReactions(pkg,selected));
+    end
+    origin=string(get_param(block,'RTDOrigin'));
+    model=string(get_param(block,'Model'));
+    basis=string(get_param(block,'SizeBasis'));
+    source=string(get_param(block,'SizeSource'));
+    micromixing=string(get_param(block,'Micromixing'));
+    temperatureMode=string(get_param(block,'TemperatureMode'));
+    specs=nirp.dof.readSpecs(get_param(block,'Specifications'));
+    hasSize=any(isfield(specs,{'V','tau','SV'}));
+    missing=strings(0,1);
+    if origin=="Select...",missing(end+1)="RTDOrigin";end
+    if origin=="Model"
+        if model=="Select...",missing(end+1)="Model";end
+        if source=="Dialog"
+            if ~hasSize&&basis=="Volume"&&~isfinite(str2double(get_param(block,'V'))),missing(end+1)="V";end
+            if ~hasSize&&basis=="Residence time"&&~isfinite(str2double(get_param(block,'Tau'))),missing(end+1)="Tau";end
+        end
+        if model=="Tanks in series"&&~isfield(specs,'N')&&~isfinite(str2double(get_param(block,'N'))),missing(end+1)="N";end
+        if model=="Dispersion"&&~isfield(specs,'Pe')&&~isfinite(str2double(get_param(block,'Pe'))),missing(end+1)="Pe";end
+    elseif origin=="Data"
+        if isempty(numericBlockParameter(block,'DataTime'))||all(isnan(numericBlockParameter(block,'DataTime'))),missing(end+1)="DataTime";end
+        if isempty(numericBlockParameter(block,'DataE'))||all(isnan(numericBlockParameter(block,'DataE'))),missing(end+1)="DataE";end
+    elseif origin=="Session"&&isempty(strtrim(get_param(block,'SessionFile')))
+        missing(end+1)="SessionFile";
+    end
+    if micromixing=="Select...",missing(end+1)="Micromixing";end
+    if temperatureMode=="Specified"&&~isfinite(str2double(get_param(block,'SpecifiedT')))
+        missing(end+1)="SpecifiedT";
+    end
+    nirp.blocks.internal.requireSpecifications( ...
+        'Non-ideal Reactor',get_param(block,'Name'),missing);
+
+    signalIndex=1;result=[];
+    rtd=struct('origin',lower(char(origin)));
+    switch origin
+        case "Model"
+            rtd.model=modelCode(model);
+            if source=="Input port"
+                if numel(signals)<signalIndex
+                    error('nirp:flowsheet:waitingFor', ...
+                        'Non-ideal Reactor is waiting for its %s signal input.',basis);
+                end
+                sizeValue=signals{signalIndex};signalIndex=signalIndex+1;
+                if ~isnumeric(sizeValue)||~isscalar(sizeValue)||~isfinite(sizeValue)||sizeValue<=0
+                    error('nirp:blocks:invalidParameterPort', ...
+                        'Non-ideal Reactor size input must be a positive SI scalar.');
+                end
+            elseif hasSize
+                sizeValue=NaN;
+            elseif basis=="Volume"
+                sizeValue=convert(block,'V','Volume','VUnit');
+            else
+                sizeValue=timeToSI(str2double(get_param(block,'Tau')),get_param(block,'TauUnit'));
+            end
+            if basis=="Volume",rtd.V=sizeValue;else,rtd.tau=sizeValue;end
+            if model=="Tanks in series",rtd.N=str2double(get_param(block,'N'));end
+            if model=="Dispersion"
+                rtd.Pe=str2double(get_param(block,'Pe'));
+                rtd.boundary=lower(get_param(block,'Boundary'));
+            end
+        case "Data"
+            factor=timeFactor(get_param(block,'DataTimeUnit'));
+            rtd.t=numericBlockParameter(block,'DataTime')*factor;
+            rtd.E=numericBlockParameter(block,'DataE')/factor;
+        case "Session"
+            rtd.file=resolveSessionFile(block,get_param(block,'SessionFile'));
+    end
+    if ~isempty(fieldnames(specs))
+        [specified,specifiedOrigins]=specValues(specs);
+        if origin=="Model"
+            context=struct('origin','model','model',char(model));
+            values=merge(struct('Q0',in.Q),specified);
+            origins=merge(struct('Q0','external'),specifiedOrigins);
+            if source=="Input port"
+                if basis=="Volume",values.V=sizeValue;origins.V='external';
+                else,values.tau=sizeValue;origins.tau='external';end
+            end
+            if model=="Tanks in series" && ~isfield(values,'N')
+                values.N=str2double(get_param(block,'N'));origins.N='specified';
+            elseif model=="Dispersion" && ~isfield(values,'Pe')
+                values.Pe=str2double(get_param(block,'Pe'));origins.Pe='specified';
+            end
+            result=nirp.dof.solve(nirp.dof.catalog.nonIdealReactor(context),values,origins);
+            requireComplete(get_param(block,'Name'),result);
+            rtd.V=result.values.V;rtd.tau=result.values.tau;
+            if model=="Tanks in series",rtd.N=validatedInteger(result.values.N,'N');end
+            if model=="Dispersion",rtd.Pe=result.values.Pe;end
+        else
+            descriptor=nirp.tracer.rtdDescriptor(rtd,in.Q);
+            [result,rtd]=resolveMeasuredSize(block,origin,rtd,descriptor.tau,in.Q,specs);
+        end
+    end
+    if numel(signals)>=signalIndex
+        error('nirp:blocks:invalidParameterPort', ...
+            'Non-ideal Reactor received too many signal inputs.');
+    end
+    if micromixing=="Segregation",mixing='segregation';else,mixing='maxmixedness';end
+    params=struct('rtd',rtd,'micromixing',mixing, ...
+        'temperatureMode',lower(char(temperatureMode)), ...
+        'computeHeat',logical(packageHasThermodynamics(pkg)), ...
+        'rtdLabel',rtdLabel(origin,model,rtd));
+    if temperatureMode=="Specified"
+        params.T=convert(block,'SpecifiedT','Temperature','SpecifiedTUnit');
+    end
+    if on(get_param(block,'ShowHeatPort'))
+        nirp.blocks.internal.requireThermodynamics(pkg, ...
+            sprintf('Non-ideal Reactor "%s"',get_param(block,'Name')));
+        params.computeHeat=true;
+    end
+    keyIndex=flowsheetKeyIndex(block,pkg);
+    if ~isempty(keyIndex),params.keyIndex=keyIndex;end
+    if isfield(rtd,'V'),params.rtd.V=rtd.V;end
+end
+
+function [result,rtd]=resolveMeasuredSize(block,origin,rtd,tau,Q,specs)
+    expected=struct('V',tau*Q,'tau',tau,'SV',1/tau,'Q0',Q);
+    conflicts=strings(0,1);names=fieldnames(specs);
+    for i=1:numel(names)
+        name=names{i};if ~isfield(expected,name),continue,end
+        if abs(specs.(name).si-expected.(name))/max([abs(specs.(name).si) abs(expected.(name)) realmin])>1e-6
+            conflicts(end+1)=string(name); %#ok<AGROW>
+        end
+    end
+    origins=struct('V','calculated','tau','external','SV','calculated','Q0','external');
+    states=origins;for i=1:numel(names),if isfield(states,names{i}),states.(names{i})='specified';end,end
+    messages=strings(0,1);status='complete';
+    if ~isempty(conflicts)
+        status='conflict';messages="Specified size conflicts with the measured RTD mean.";
+        for i=1:numel(conflicts),states.(char(conflicts(i)))='conflict';end
+    end
+    result=struct('values',expected,'origins',origins,'states',states,'producer',struct(), ...
+        'messages',messages,'status',status,'dof',0,'missingCount',0, ...
+        'missing',strings(0,1),'missingLabels',strings(0,1),'conflicts',conflicts);
+    if strcmp(status,'conflict')
+        error('nirp:units:nonIdealSizeConflict', ...
+            'Non-ideal Reactor "%s": %s',get_param(block,'Name'),messages);
+    end
+    % Preserve compatible entries so the core independently enforces the
+    % no-rescaling invariant for Data and Session RTDs.
+    if isfield(specs,'V'),rtd.V=specs.V.si;end
+    if isfield(specs,'tau'),rtd.tau=specs.tau.si;end
+    if isfield(specs,'SV') && ~isfield(specs,'tau'),rtd.tau=1/specs.SV.si;end
+    result.origin=char(origin);
+end
+
+function value=validatedInteger(value,name)
+    if ~(isfinite(value)&&value>=1&&abs(value-round(value))<=1e-9)
+        error('nirp:blocks:invalidParameter','%s must be an integer greater than or equal to one.',name);
+    end
+    value=round(value);
+end
+
+function code=modelCode(model)
+    switch model
+        case "CSTR",code='cstr';
+        case "PFR",code='pfr';
+        case "Tanks in series",code='tanks';
+        otherwise,code='dispersion';
+    end
+end
+
+function label=rtdLabel(origin,model,rtd)
+    switch origin
+        case "Model"
+            if model=="Tanks in series",label=sprintf('Tanks N=%g',rtd.N);
+            elseif model=="Dispersion",label=sprintf('Dispersion Pe=%g (%s)',rtd.Pe,rtd.boundary);
+            else,label=char(model);end
+        case "Data",label='Data';
+        case "Session",label='Session';
+        otherwise,label='';
+    end
+end
+
+function value=numericBlockParameter(block,name)
+    raw=get_param(block,name);
+    if isnumeric(raw),value=raw;return,end
+    value=str2num(raw); %#ok<ST2NM>
+    if isempty(value)&&~any(strcmp(strtrim(raw),{'','[]'}))
+        error('nirp:blocks:invalidParameter','%s must be a numeric vector.',name);
+    end
+end
+
+function value=timeToSI(value,unit),value=value*timeFactor(unit);end
+function factor=timeFactor(unit)
+    switch char(string(unit))
+        case 's',factor=1;
+        case 'min',factor=60;
+        case 'h',factor=3600;
+        otherwise,error('nirp:blocks:invalidUnit','Unknown time unit "%s".',unit);
+    end
+end
+
+function flag=packageHasThermodynamics(pkg)
+    flag=~(isfield(pkg,'meta')&&isstruct(pkg.meta)&& ...
+        isfield(pkg.meta,'thermodynamics')&&isequal(pkg.meta.thermodynamics,false));
+end
+
+function file=resolveSessionFile(block,file)
+    file=char(string(file));
+    if isfile(file),return,end
+    modelFile=get_param(bdroot(block),'FileName');
+    if ~isempty(modelFile)
+        candidate=fullfile(fileparts(modelFile),file);
+        if isfile(candidate),file=candidate;end
+    end
+end
+
+function index=flowsheetKeyIndex(block,pkg)
+    index=[];candidate="";
+    if isfield(pkg,'keyIndex'),index=pkg.keyIndex;return,end
+    if isfield(pkg,'keyComponent'),candidate=string(pkg.keyComponent);end
+    if isfield(pkg,'meta')&&isstruct(pkg.meta)
+        if isfield(pkg.meta,'keyIndex'),index=pkg.meta.keyIndex;return,end
+        if strlength(candidate)==0&&isfield(pkg.meta,'keyComponent')
+            candidate=string(pkg.meta.keyComponent);
+        end
+    end
+    if strlength(candidate)==0
+        streams=find_system(bdroot(block),'LookUnderMasks','all','SearchDepth',1, ...
+            'BlockType','MATLABSystem','System','nirp.blocks.Stream');
+        for i=1:numel(streams)
+            value=strtrim(string(get_param(streams{i},'KeyComponent')));
+            if strlength(value)>0,candidate=value;break,end
+        end
+    end
+    if strlength(candidate)>0
+        names=nirp.pkg.componentNames(pkg);
+        index=find(names==candidate,1);
+    end
+end
+
+function value=rmfieldIfPresent(value,names)
+    for i=1:numel(names)
+        if isfield(value,names{i}),value=rmfield(value,names{i});end
+    end
+end
+
 function params=thermal(block)
     catalystDensity=str2double(get_param(block,'CatalystDensity'));if ~isfinite(catalystDensity),catalystDensity=1;end
     catalystPorosity=str2double(get_param(block,'CatalystPorosity'));if ~isfinite(catalystPorosity),catalystPorosity=0;end
@@ -234,20 +508,29 @@ function params=thermal(block)
 end
 
 function [signal,info,result]=jacketSignal(block,signals)
-    if ~isempty(signals),error('nirp:flowsheet:waitingFor','Jacket signal inputs are available only during Run.');end
     mode=get_param(block,'Mode');specs=nirp.dof.readSpecs(get_param(block,'Specifications'));result=[];
-    if strcmp(mode,'Specified T'),value=convert(block,'SpecifiedT','Temperature','SpecifiedTUnit');code=2;
-    elseif strcmp(mode,'Specified Q'),value=convert(block,'SpecifiedQ','Power','SpecifiedQUnit');code=3;
+    signalIndex=1;
+    if strcmp(mode,'Specified T')
+        external=strcmp(get_param(block,'SpecifiedTSource'),'Input port');if external,value=requiredPositiveSignal(signals,signalIndex,'Jacket T','K');else,value=convert(block,'SpecifiedT','Temperature','SpecifiedTUnit');end;code=2;
+    elseif strcmp(mode,'Specified Q')
+        external=strcmp(get_param(block,'SpecifiedQSource'),'Input port');if external,value=requiredFiniteSignal(signals,signalIndex,'Jacket Q','W');else,value=convert(block,'SpecifiedQ','Power','SpecifiedQUnit');end;code=3;
     else
-        values=[convert(block,'U','HeatTransferCoefficient','UUnit');convert(block,'A','Area','AUnit');convert(block,'UtilityTin','Temperature','UtilityTinUnit');NaN];
+        values=[convert(block,'U','HeatTransferCoefficient','UUnit');convert(block,'A','Area','AUnit');convert(block,'UtilityTin','Temperature','UtilityTinUnit');NaN];v=struct();o=struct();
+        if strcmp(get_param(block,'ASource'),'Input port'),values(2)=requiredPositiveSignal(signals,signalIndex,'Jacket A','m^2');v.A=values(2);o.A='external';signalIndex=signalIndex+1;end
+        if strcmp(get_param(block,'UtilityTinSource'),'Input port'),values(3)=requiredPositiveSignal(signals,signalIndex,'Jacket UtilityTin','K');v.T_in_s=values(3);o.T_in_s='external';end
         tout=str2double(get_param(block,'UtilityTout'));if isfinite(tout),values(4)=UnitConverterHelper.convertToSI('Temperature',tout,get_param(block,'UtilityToutUnit'));end
         if ~isempty(fieldnames(specs))
-            model=nirp.dof.catalog.jacket(struct('mode',mode,'condenses',on(get_param(block,'Condenses'))));[v,o]=specValues(specs);v.Q=NaN;o.Q='external';result=nirp.dof.solve(model,v,o);requireComplete(get_param(block,'Name'),result);
+            model=nirp.dof.catalog.jacket(struct('mode',mode,'condenses',on(get_param(block,'Condenses'))));[specified,specifiedOrigins]=specValues(specs);v=merge(v,specified);o=merge(o,specifiedOrigins);v.Q=NaN;o.Q='external';result=nirp.dof.solve(model,v,o);requireComplete(get_param(block,'Name'),result);
             values=[result.values.U;result.values.A;result.values.T_in_s;result.values.T_out_s];
         end
         signal=[1;values];info=struct('status',1,'message','','mode','Utility');return
     end
-    if ~isempty(fieldnames(specs)),model=nirp.dof.catalog.jacket(struct('mode',mode));[v,o]=specValues(specs);result=nirp.dof.solve(model,v,o);requireComplete(get_param(block,'Name'),result);if code==2,value=result.values.T_reactor;else,value=result.values.Q;end,end
+    if ~isempty(fieldnames(specs))||external
+        model=nirp.dof.catalog.jacket(struct('mode',mode));[v,o]=specValues(specs);
+        if code==2&&external,v=removeField(v,'T_reactor');o=removeField(o,'T_reactor');v.T_reactor=value;o.T_reactor='external';
+        elseif code==3&&external,v=removeField(v,'Q');o=removeField(o,'Q');v.Q=value;o.Q='external';end
+        result=nirp.dof.solve(model,v,o);requireComplete(get_param(block,'Name'),result);if code==2,value=result.values.T_reactor;else,value=result.values.Q;end
+    end
     signal=[code;value;NaN;NaN;NaN];info=struct('status',1,'message','','mode',mode);
 end
 
@@ -276,3 +559,22 @@ function result=merge(a,b),result=a;names=fieldnames(b);for i=1:numel(names),res
 function flag=on(value),flag=strcmpi(char(string(value)),'on')||isequal(value,true);end
 function value=phaseName(phase),if phase==1,value='G';else,value='L';end,end
 function validateTubeCount(value),if ~isnumeric(value)||~isscalar(value)||~isfinite(value)||value<1||abs(value-round(value))>1e-9,error('nirp:blocks:invalidGeometry','Number of tubes must be a positive integer.');end,end
+function value=requiredFiniteSignal(signals,index,label,unit)
+    if numel(signals)<index,error('nirp:flowsheet:waitingFor','%s is waiting for its signal input.',label);end
+    value=signals{index};if ~isnumeric(value)||~isreal(value)||~isscalar(value)||~isfinite(value),error('nirp:blocks:invalidParameterPort','%s input must be finite %s.',label,unit);end
+    value=double(value);
+end
+function value=requiredFractionSignal(signals,index,label)
+    value=requiredFiniteSignal(signals,index,label,'(-)');if value<0||value>1,error('nirp:blocks:invalidSplitterFraction','%s input must be in [0, 1].',label);end
+end
+function fractions=scaleFirstFraction(baseline,first)
+    baseline=reshape(double(baseline),1,[]);remaining=baseline(2:end);total=sum(remaining);
+    if any(~isfinite(remaining))||any(remaining<0)||~isfinite(total)||total<=0,remaining=ones(size(remaining));total=numel(remaining);end
+    fractions=[first (1-first)*remaining/total];
+end
+function result=checkSplitterOutputs(result,output,block)
+    names=fieldnames(output.values);conflicts=strings(0,1);
+    for i=1:numel(names),name=names{i};if ~isfield(result.values,name),continue,end;actual=result.values.(name);expected=output.values.(name);if ~(isfinite(actual)&&isfinite(expected))||abs(actual-expected)>1e-9*max([abs(actual) abs(expected) 1]),conflicts(end+1)=string(name);result.states.(name)='conflict';result.messages(end+1)=sprintf('Splitter "%s" conflicts with Stream "%s".',block,output.streams.(name));end,end %#ok<AGROW>
+    if ~isempty(conflicts),result.status='conflict';result.conflicts=unique([result.conflicts conflicts],'stable');result.messages=unique(result.messages,'stable');end;result.external=output;
+end
+function value=removeField(value,name),if isfield(value,name),value=rmfield(value,name);end,end

@@ -4,7 +4,7 @@ function state = producerState(producerBlock,varargin)
 %   Inlet=[] explicitly keeps inlet externals unknown, as setupImpl does.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 14, 2026. Last update: October 14, 2026
+    % Created: October 14, 2026. Last update: November 4, 2026
 % =========================================================================
 
     parser=inputParser ;
@@ -30,6 +30,9 @@ function state = producerState(producerBlock,varargin)
         case "Splitter"
             fractions=str2num(get_param(producerBlock,'Fractions')); %#ok<ST2NM>
             model=nirp.dof.catalog.splitter(numel(fractions));values.F_in=scalarFlow(inlet);origins.F_in='external';
+            if strcmp(get_param(producerBlock,'FractionSource'),'Input port')
+                values.f1=NaN;origins.f1='external';if isfield(internal,'f1'),internal=rmfield(internal,'f1');end
+            end
         case "Separator"
             pkg=nirp.pkg.readDictionary(nirp.flowsheet.modelDictionary(bdroot(producerBlock)));rs=nirp.pkg.toReactionSys(pkg);
             model=nirp.dof.catalog.separator(rs.nComponents);
@@ -39,6 +42,12 @@ function state = producerState(producerBlock,varargin)
             context=struct('inlet',inlet,'RS',rs);model=nirp.dof.catalog.heater(context);
             if isempty(inlet),values.T_in=NaN;values.P_in=NaN;else,values.T_in=inlet.T;values.P_in=inlet.P;end
             origins.T_in='external';origins.P_in='external';
+            mode=get_param(producerBlock,'Mode');
+            if strcmp(mode,'Outlet T')&&strcmp(get_param(producerBlock,'ToutSource'),'Input port')
+                values.T_out=NaN;origins.T_out='external';if isfield(internal,'T_out'),internal=rmfield(internal,'T_out');end
+            elseif strcmp(mode,'Duty')&&strcmp(get_param(producerBlock,'DutySource'),'Input port')
+                values.Q=NaN;origins.Q='external';if isfield(internal,'Q'),internal=rmfield(internal,'Q');end
+            end
     end
     name=get_param(producerBlock,'Name') ;
     result=nirp.dof.resolveProducer(model,char(type),name,internal,output,values,origins) ;

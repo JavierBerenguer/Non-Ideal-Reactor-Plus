@@ -2,7 +2,7 @@ classdef NirpTracerViewerExamplesTest < matlab.unittest.TestCase
     % Headless tests for the tracer viewer, launcher, and examples.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 22, 2026. Last update: October 22, 2026
+    % Created: October 22, 2026. Last update: November 24, 2026
     % =========================================================================
     properties,Folder;end
     methods (TestMethodSetup)
@@ -29,7 +29,7 @@ classdef NirpTracerViewerExamplesTest < matlab.unittest.TestCase
             testCase.verifyEqual(viewer.ResultsPanel.Title,'Results');
             testCase.verifySubstring(viewer.Description.Text,'equivalent tanks-in-series');
             feval(viewer.UseButton.ButtonPushedFcn,viewer.UseButton,[]);
-            appFigure=findall(groot,'Type','Figure','Name','Non-Ideal Reactor Analysis');app=getappdata(appFigure(1),'NirpNonIdealReactorApp');
+            appFigure=findall(groot,'Type','Figure','Name','RTD Analysis');app=getappdata(appFigure(1),'NirpNonIdealReactorApp');
             file=fullfile(testCase.Folder,'received.mat');app.saveSessionToFile(file,'received');loaded=load(file,'sessionData');rtd=loaded.sessionData.shared.rtd;
             received=RTD(rtd.t,rtd.Et);testCase.verifyEqual(rtd.source,'tracer_flowsheet');testCase.verifyEqual(trapz(received.t,received.Et),1,'AbsTol',1e-12);testCase.verifyEqual(received.tau,4,'RelTol',1e-3);testCase.verifyEqual(received.sigma2,8,'RelTol',1e-2);
         end
@@ -51,7 +51,7 @@ classdef NirpTracerViewerExamplesTest < matlab.unittest.TestCase
         function launcherHasIndependentTracerGroupAndCallbacks(testCase)
             calls=strings(0,1);launcher=NonIdealReactorPlus('Visible','off');
             launcher.TestActionOverrides.TracerOpenLibrary=@()record('library');launcher.TestActionOverrides.TracerOpenExample=@()record('example');launcher.TestActionOverrides.TracerNewFlowsheet=@()record('new');
-            panels=findall(launcher.UIFigure,'Type','uipanel');testCase.verifyTrue(any(string({panels.Title})=="Non-ideal flowsheet (tracer)"));
+            panels=findall(launcher.UIFigure,'Type','uipanel');tracerPanel=panels(string({panels.Title})=="Network RTD (tracer)");testCase.verifyNumElements(tracerPanel,1);testCase.verifySubstring(tracerPanel.Tooltip,'exact RTD for Tab 1');
             tags=["NirpTracerOpenLibrary" "NirpTracerOpenExample" "NirpTracerNewFlowsheet"];
             for tag=tags,b=findall(launcher.UIFigure,'Type','uibutton','Tag',tag);feval(b.ButtonPushedFcn,b,[]);end
             testCase.verifyEqual(calls,["library";"example";"new"]);

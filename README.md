@@ -6,7 +6,7 @@ First public release: **v1.0 (October 2026)**. NIRP is under active development 
 
 ## Overview
 
-Non-Ideal Reactor Plus is a MATLAB application for teaching and studying ideal and non-ideal chemical reactors. Run `NonIdealReactorPlus` to open the main launcher and choose between the Ideal Reactor App, the Non-Ideal Reactor App, and the Simulink flowsheet tools.
+Non-Ideal Reactor Plus is a MATLAB application for teaching and studying ideal and non-ideal chemical reactors. Run `NonIdealReactorPlus` to open the main launcher and choose **Ideal Reactor Design**, **RTD Analysis**, the steady Simulink flowsheet, or **Network RTD (tracer)**.
 
 The current release includes:
 
@@ -18,7 +18,8 @@ The current release includes:
   4. **Dispersion Model**.
   5. **Design & Optimization**, including diagnosis and fitting, reactive-performance comparisons, and optimization.
   6. **Convolution**, with convolution and deconvolution workflows.
-- A Simulink library for steady-state flowsheets built from continuous ideal units. Its blocks are **Stream**, **CSTR**, **PFR**, **Mixer**, **Splitter**, **Separator**, **Heater**, **Jacket**, **Recycle**, **Adjust**, and the **Flowsheet** controller.
+- A Simulink library for steady-state flowsheets built from ideal and RTD-based reactors. Its blocks are **Stream**, **CSTR**, **PFR**, **Non-ideal Reactor**, **Mixer**, **Splitter**, **Separator**, **Heater**, **Jacket**, **Recycle**, **Adjust**, and the **Flowsheet** controller.
+- A separate **Network RTD (tracer)** library for linear series/parallel vessel networks and transfer of their exact RTD to the analysis app.
 - Generatable Simulink example flowsheets and solved application sessions in `saves/`, including the convolution examples `SECT01`-`SECT03` and `SEC02`-`SEC09`.
 
 ## Requirements
@@ -44,7 +45,7 @@ Launch the complete application from the repository root:
 NonIdealReactorPlus
 ```
 
-The launcher provides **Ideal Reactor App**, **Non-Ideal Reactor App**, and **Flowsheet (Simulink)** actions for opening the block library, choosing an example, or creating a new flowsheet.
+The launcher provides **Ideal Reactor Design**, **RTD Analysis**, **Flowsheet (Simulink)**, and **Network RTD (tracer)** actions. Each flowsheet group can open its block library, restore an example, or create a new model.
 
 The reactor applications can also be launched directly:
 
@@ -55,7 +56,7 @@ NonIdealReactorApp
 
 ## Documentation and Help
 
-User documentation is stored in `docs/`. In the Non-Ideal Reactor App, open **Help > User Guide** or **Help > Technical Guide**. In the Ideal Reactor App, select **Help**. The flowsheet guide and its focused topics are also included under `docs/` and are linked from the Simulink workflow.
+User documentation is stored in `docs/`. In **RTD Analysis**, open **Help > User Guide** or **Help > Technical Guide**. In **Ideal Reactor Design**, select **Help**. The process-flowsheet and Network RTD guides are also included under `docs/` and linked from their Simulink workflows.
 
 ## Verification Scripts
 

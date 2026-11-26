@@ -8,6 +8,8 @@ function setupUnitBlock(block)
     switch className
         case {"nirp.blocks.CSTR","nirp.blocks.PFR"}
             callback='nirp.flowsheet.ReactorDialog.open(gcb);';
+        case "nirp.blocks.NonIdealReactor"
+            callback='nirp.flowsheet.NonIdealReactorDialog.open(gcb);';
         case "nirp.blocks.Heater"
             callback='nirp.flowsheet.HeaterDialog.open(gcb);';
         case "nirp.blocks.Jacket"

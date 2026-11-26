@@ -9,7 +9,7 @@
 <body>
   <div class="page">
     <div class="topbar">
-      <div class="brand">Non-Ideal Reactor Analysis Documentation</div>
+      <div class="brand">RTD Analysis Guide</div>
       <nav class="topnav">
         <a href="../UserGuide.html">User Guide Home</a>
         <a href="../TechnicalChapter.html">Complete Manual</a>
@@ -34,6 +34,7 @@
             <li><a href="#signals">Signals, units, and time step</a></li>
             <li><a href="#convolution">Convolution and SECT01</a></li>
             <li><a href="#deconvolution">Deconvolution and SECT02</a></li>
+            <li><a href="#sessions">Solved sessions</a></li>
             <li><a href="#results">How to use every result</a></li>
             <li><a href="#reuse">Reuse the result in Tab 1</a></li>
           </ol>
@@ -61,7 +62,7 @@
           </ul>
         </div>
       </div>
-      <div class="callout info"><strong>One vessel at a time:</strong> this tab estimates or applies one RTD. Vessel networks and series arrangements belong in the non-ideal tracer flowsheet; they are not a third mode here.</div>
+      <div class="callout info"><strong>One vessel at a time:</strong> this tab estimates or applies one RTD. Vessel networks and series arrangements belong in <strong>Network RTD (tracer)</strong>; they are not a third mode here.</div>
     </section>
 
     <section class="section" id="signals">
@@ -101,10 +102,15 @@
       </figure>
       <ol>
         <li>Select <strong>Deconvolution</strong> and enter <em>C</em><sub>in</sub>(t) and measured <em>C</em><sub>out</sub>(t).</li>
-        <li>Set &tau;<sub>min</sub>, &tau;<sub>max</sub>, and their unit from physical timing knowledge. The default is the widest support compatible with the signal windows.</li>
+        <li>Set &tau;<sub>min</sub>, &tau;<sub>max</sub>, and their unit from physical timing knowledge. Press <strong>Suggest</strong> to fill the widest support compatible with the current complete signals, then narrow it when equipment timing gives a better physical range. Suggested values remain editable.</li>
         <li>Select <strong>Compute</strong> to estimate E(t) by nonnegative least squares.</li>
         <li>Use the lower <strong>Reconvolution check</strong> to compare measured points, the fitted outlet, and residual bars. Then inspect the relative residual and the E-area warning.</li>
       </ol>
+    </section>
+
+    <section class="section" id="sessions">
+      <h2>Solved Sessions</h2>
+      <p>The File menu can load the worked sessions supplied with the app. <strong>SECT01</strong>, <strong>SECT02</strong>, and <strong>SECT03</strong> cover the teaching workflows, while <strong>SEC02</strong> through <strong>SEC09</strong> cover the solved convolution and deconvolution exercises. After loading a session, select <strong>Compute</strong> to rebuild its current results.</p>
     </section>
 
     <section class="section" id="results">
@@ -118,6 +124,7 @@
         <tr><td>Relative residual</td><td>The reconvolution error relative to the measured outlet magnitude over the measured window.</td><td>Read the displayed rating as a fit screen: below 5% is good, 5&ndash;15% is acceptable, and above 15% asks you to check data or E support. A small value does not by itself validate the RTD physically.</td></tr>
         <tr><td>Warning A<sub>E</sub> &ne; 1</td><td>The estimated E does not have unit area within the chosen support.</td><td>Check tracer recovery, baselines, tails, units, and support before accepting it. Sending it to Tab 1 normalizes it, but normalization does not repair poor data or a wrong support.</td></tr>
       </table>
+      <p><strong>Long vectors:</strong> the Results panel prints a vector with up to nine values in full. Longer vectors are abbreviated with three leading values, three trailing values, and the point count, on a separate line below the explanatory text so the summary remains readable.</p>
     </section>
 
     <section class="section" id="reuse">

@@ -4,7 +4,7 @@ function applyGrid(coordinator,dt,tFinal,nComp)
 % Javier Berenguer Sabater
 % Created: October 22, 2026. Last update: October 25, 2026
 % =========================================================================
-    if nargin < 4, nComp = 1 ; end
+    if nargin < 4, nComp = nirp.tracerflowsheet.busComponentCount(coordinator) ; end
     grid=nirp.tracer.grid(dt,tFinal) ; root=bdroot(coordinator) ;
     blocks=find_system(root,'SearchDepth',1,'BlockType','MATLABSystem') ;
     for k=1:numel(blocks)

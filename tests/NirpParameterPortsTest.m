@@ -97,7 +97,7 @@ classdef (SharedTestFixtures={nirptest.ExamplesFixture}) ...
                 end
             end
             properties=meta.class.fromName('nirp.blocks.Jacket').PropertyList;
-            for name=["ASource","UtilityTinSource"]
+            for name=["ASource","UtilityTinSource","SpecifiedTSource","SpecifiedQSource"]
                 testCase.verifyFalse(properties(strcmp({properties.Name},name)).Hidden);
             end
         end

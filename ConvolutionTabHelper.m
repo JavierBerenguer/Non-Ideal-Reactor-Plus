@@ -3,7 +3,7 @@ classdef ConvolutionTabHelper < handle
 % All times passed to nirp.conv are expressed in seconds.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 9, 2026. Last update: November 2, 2026
+% Created: October 9, 2026. Last update: November 3, 2026
 % =========================================================================
 
     properties (SetAccess = private)
@@ -827,7 +827,7 @@ classdef ConvolutionTabHelper < handle
                     {'Cᵢₙ', 'E', 'Cₒᵤₜ'}, ...
                     {obj.LastSignals.Cin, obj.LastSignals.E, result}, ...
                     [false true false], timeScale, concentrationScale) ;
-                displayedResult = strrep(mat2str(resultValues, 6), ' ', ',\;') ;
+                displayedResult = obj.displayVector(resultValues) ;
                 obj.setResultRows({ ...
                     '$C_{\mathrm{out}}(t)$', ...
                     '$m_{\mathrm{out}}/(m_{\mathrm{in}}A_E)$'}, { ...
@@ -1095,7 +1095,9 @@ classdef ConvolutionTabHelper < handle
         function setResultRows(obj, labels, values, warningText)
             if nargin < 4, warningText = '' ; end
             grid = obj.ResultLabels{1}.Parent ;
-            pairRows = max(1, ceil(numel(labels) / 3)) ;
+            pairRow = 1 ;
+            pairColumn = 1 ;
+            pairRows = 1 ;
             for k = 1:numel(obj.ResultLabels)
                 visible = k <= numel(labels) ;
                 obj.ResultLabels{k}.Visible = obj.onOff(visible) ;
@@ -1104,12 +1106,30 @@ classdef ConvolutionTabHelper < handle
                     obj.ResultLabels{k}.Text = labels{k} ;
                     obj.ResultValues{k}.Interpreter = 'latex' ;
                     obj.ResultValues{k}.Text = ['$=\;' values{k}(2:end)] ;
-                    pairRow = 1 + ceil(k / 3) ;
-                    pairColumn = 1 + 2 * mod(k - 1, 3) ;
-                    obj.ResultLabels{k}.Layout.Row = pairRow ;
-                    obj.ResultLabels{k}.Layout.Column = pairColumn ;
-                    obj.ResultValues{k}.Layout.Row = pairRow ;
-                    obj.ResultValues{k}.Layout.Column = pairColumn + 1 ;
+                    wideValue = obj.isWideResultValue(values{k}) ;
+                    if wideValue && pairColumn > 1
+                        pairRow = pairRow + 1 ;
+                        pairColumn = 1 ;
+                    end
+                    obj.ResultLabels{k}.Layout.Row = 1 + pairRow ;
+                    obj.ResultValues{k}.Layout.Row = 1 + pairRow ;
+                    if wideValue
+                        obj.ResultLabels{k}.Layout.Column = 1 ;
+                        obj.ResultValues{k}.Layout.Column = [2 6] ;
+                        pairRows = max(pairRows, pairRow) ;
+                        pairRow = pairRow + 1 ;
+                        pairColumn = 1 ;
+                    else
+                        labelColumn = 1 + 2 * (pairColumn - 1) ;
+                        obj.ResultLabels{k}.Layout.Column = labelColumn ;
+                        obj.ResultValues{k}.Layout.Column = labelColumn + 1 ;
+                        pairRows = max(pairRows, pairRow) ;
+                        pairColumn = pairColumn + 1 ;
+                        if pairColumn > 3
+                            pairRow = pairRow + 1 ;
+                            pairColumn = 1 ;
+                        end
+                    end
                 else
                     obj.ResultLabels{k}.Text = '' ;
                     obj.ResultValues{k}.Text = '' ;
@@ -1121,6 +1141,37 @@ classdef ConvolutionTabHelper < handle
             grid.RowHeight = [{34}, repmat({20}, 1, pairRows), ...
                 repmat({0}, 1, 3 - pairRows), {0}] ;
             if hasWarning, grid.RowHeight{5} = 44 ; end
+        end
+
+        function wide = isWideResultValue(~, value)
+            visibleText = strrep(value, '\mathrm{', '') ;
+            visibleText = strrep(visibleText, '\;', '') ;
+            visibleText = strrep(visibleText, '\ldots', '...') ;
+            visibleText = strrep(visibleText, '$', '') ;
+            visibleText = strrep(visibleText, '\', '') ;
+            visibleText = strrep(visibleText, '{', '') ;
+            visibleText = strrep(visibleText, '}', '') ;
+            % Vectors always take their own line: even nine values
+            % overflow the label column of a compact pair.
+            wide = contains(value, '\ldots') || ...
+                startsWith(strtrim(visibleText), '[') || ...
+                strlength(string(visibleText)) > 40 ;
+        end
+
+        function text = displayVector(~, values)
+            values = reshape(values, 1, []) ;
+            if numel(values) <= 9
+                text = strrep(mat2str(values, 6), ' ', ',\;') ;
+                return
+            end
+
+            edgeCount = 3 ;
+            leading = mat2str(values(1:edgeCount), 6) ;
+            trailing = mat2str(values(end-edgeCount+1:end), 6) ;
+            leading = strrep(leading(2:end-1), ' ', ',\;') ;
+            trailing = strrep(trailing(2:end-1), ' ', ',\;') ;
+            text = sprintf('[%s,\\;\\ldots,\\;%s]\\;\\mathrm{(%d\\ points)}', ...
+                leading, trailing, numel(values)) ;
         end
 
         function text = resultDescription(~, mode)

@@ -2,7 +2,7 @@ classdef NirpDialogInvariantsTest < matlab.unittest.TestCase
 %NIRPDIALOGINVARIANTSTEST Common presentation and editing invariants.
 % =========================================================================
 % Javier Berenguer Sabater
-% Created: October 15, 2026. Last update: October 22, 2026
+% Created: October 15, 2026. Last update: November 3, 2026
 % =========================================================================
     properties
         Folder
@@ -94,6 +94,27 @@ classdef NirpDialogInvariantsTest < matlab.unittest.TestCase
                 end
             end
             testCase.verifyGreaterThan(checked,20);
+        end
+
+        function jacketSpecifiedSourcesShareTheirVariableRow(testCase)
+            createDialogModel(testCase,'jacket_source_layout');
+            dialog=nirp.flowsheet.JacketDialog( ...
+                'jacket_source_layout/Jacket','Visible','off');
+            testCase.addTeardown(@()deleteValid(dialog));
+
+            dialog.ModeDropDown.Value='Specified T';
+            feval(dialog.ModeDropDown.ValueChangedFcn,dialog.ModeDropDown,[]);
+            dialog.setValues('SpecifiedTSource','Input port');
+            verifySourceBesideVariable(testCase,dialog.SpecifiedTField, ...
+                dialog.SpecifiedTUnitDropDown,dialog.SpecifiedTSourceLabel, ...
+                dialog.SpecifiedTSourceDropDown);
+
+            dialog.ModeDropDown.Value='Specified Q';
+            feval(dialog.ModeDropDown.ValueChangedFcn,dialog.ModeDropDown,[]);
+            dialog.setValues('SpecifiedQSource','Input port');
+            verifySourceBesideVariable(testCase,dialog.SpecifiedQField, ...
+                dialog.SpecifiedQUnitDropDown,dialog.SpecifiedQSourceLabel, ...
+                dialog.SpecifiedQSourceDropDown);
         end
 
         function fullySpecifiedDialogsApplyAndReopen(testCase)
@@ -285,6 +306,14 @@ function flag=hasVisibleControlBeside(label)
         otherRow=layoutExtent(candidate.Layout.Row);otherColumn=layoutExtent(candidate.Layout.Column);
         if rangesOverlap(row,otherRow)&&otherColumn(1)>column(2),flag=true;return,end
     end
+end
+
+function verifySourceBesideVariable(testCase,field,unit,label,source)
+    testCase.verifyEqual(label.Layout.Row,field.Layout.Row);
+    testCase.verifyEqual(source.Layout.Row,field.Layout.Row);
+    testCase.verifyGreaterThan(label.Layout.Column(1),unit.Layout.Column(end));
+    testCase.verifyEqual(string(label.Visible),"on");
+    testCase.verifyEqual(string(source.Visible),"on");
 end
 
 function extent=layoutExtent(value)

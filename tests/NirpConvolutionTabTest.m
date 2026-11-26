@@ -2,7 +2,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
     % NirpConvolutionTabTest verifies the app integration of nirp.conv.
     % =========================================================================
     % Javier Berenguer Sabater
-    % Created: October 9, 2026. Last update: November 2, 2026
+    % Created: October 9, 2026. Last update: November 24, 2026
     % =========================================================================
 
     properties
@@ -21,7 +21,7 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
             testCase.App = NonIdealReactorApp('ProgressFcn',@(~,~) [], ...
                 'Visible','off') ;
             figures = findall(groot, 'Type', 'Figure', ...
-                'Name', 'Non-Ideal Reactor Analysis') ;
+                'Name', 'RTD Analysis') ;
             testCase.Figure = figures(1) ;
             testCase.Figure.Visible = 'off' ;
             testCase.addTeardown(@() closeFigures()) ;
@@ -638,6 +638,49 @@ classdef NirpConvolutionTabTest < matlab.uitest.TestCase
     end
 
     methods (Test)
+        function resultTextCompactsOnlyLongVectors(testCase)
+            testCase.control('ConvTableCin').Data = ...
+                [(0:10).' ones(11, 1)] ;
+            testCase.control('ConvTableE').Data = ...
+                [(0:10).' [0 1 zeros(1, 9)].'] ;
+            compute = testCase.control('ConvCompute') ;
+            feval(compute.ButtonPushedFcn, compute, []) ;
+
+            result = testCase.control('ConvResultTable').Data ;
+            longText = testCase.resultValue('$C_{\mathrm{out}}(t)$') ;
+            testCase.verifySize(result, [21 2]) ;
+            testCase.verifySubstring(longText, '\ldots') ;
+            testCase.verifySubstring(longText, '21\ points') ;
+            testCase.verifyLessThanOrEqual(strlength(string(longText)), 140) ;
+            outputLabel = testCase.control('ConvResultLabel1') ;
+            outputValue = testCase.control('ConvResultValue1') ;
+            balanceLabel = testCase.control('ConvResultLabel2') ;
+            resultsGrid = testCase.control('ConvResultsRows') ;
+            testCase.verifyNotEqual(outputLabel.Layout.Row, ...
+                balanceLabel.Layout.Row) ;
+            testCase.verifyEqual(outputValue.Layout.Column, [2 6]) ;
+            testCase.verifyEqual(resultsGrid.RowHeight(2:4), {20, 20, 0}) ;
+            exportButton = testCase.control('ConvExport') ;
+            feval(exportButton.ButtonPushedFcn, exportButton, []) ;
+            exported = evalin('base', 'convolutionResult') ;
+            testCase.verifyNumElements(exported.result.C, 21) ;
+
+            testCase.control('ConvTableCin').Data = ...
+                [(0:4).' [0 8 4 6 0].'] ;
+            testCase.control('ConvTableE').Data = ...
+                [(0:4).' [0 .05 .5 .35 0].'] ;
+            feval(compute.ButtonPushedFcn, compute, []) ;
+
+            shortText = testCase.resultValue('$C_{\mathrm{out}}(t)$') ;
+            testCase.verifyFalse(contains(shortText, '\ldots')) ;
+            testCase.verifySubstring(shortText, ...
+                '[0,\;0,\;0.4,\;4.2,\;5.1,\;4.4,\;2.1,\;0,\;0]') ;
+            testCase.verifyNotEqual(outputLabel.Layout.Row, ...
+                balanceLabel.Layout.Row) ;
+            testCase.verifyEqual(outputValue.Layout.Column, [2 6]) ;
+            testCase.verifyEqual(resultsGrid.RowHeight(2:4), {20, 20, 0}) ;
+        end
+
         function suggestedSupportUsesCurrentGridAndComputes(testCase)
             testCase.App.loadSessionFromFile(fullfile(testCase.Root, ...
                 'saves', 'SECT02.mat')) ;
