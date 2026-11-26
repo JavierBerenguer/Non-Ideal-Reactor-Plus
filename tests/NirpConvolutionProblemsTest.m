@@ -127,10 +127,9 @@ classdef NirpConvolutionProblemsTest < matlab.unittest.TestCase
             testCase.verifyEqual(recoveredExact.C, exactValues, ...
                 'AbsTol', 1e-8) ;
 
-            % The printed data are rounded down (5.15 -> 5.1, 4.15 -> 4.1,
-            % and so on). The value 5.63 at t = 8 is inconsistent with the
-            % E distribution from problem 3, which would give 5.3.
-            printedValues = [0 0 0 .4 4.3 6 5.1 4.8 5.63 4.1 ...
+            % The printed data are the exact convolution rounded down to
+            % one decimal place.
+            printedValues = [0 0 0 .4 4.3 6 5.1 4.8 5.3 4.1 ...
                 2.1 .6 .1 0 0 0] ;
             printedOutlet = nirp.conv.signal(0:15, printedValues) ;
             recoveredPrinted = nirp.conv.deconvolve( ...
@@ -146,13 +145,14 @@ classdef NirpConvolutionProblemsTest < matlab.unittest.TestCase
                 end
             end
             unconstrained = convolutionMatrix \ printedValues.' ;
-            expectedUnconstrained = [-0.00310847 0.04790625 0.51309322 ...
-                0.35134118 0.08656060 0.01085816] ;
+            expectedUnconstrained = [-0.00058582 0.05153798 0.50145949 ...
+                0.34899104 0.09291341 0.00077821] ;
 
             testCase.verifyEqual(unconstrained.', expectedUnconstrained, ...
                 'AbsTol', 5e-7) ;
             testCase.verifyEqual(recoveredPrinted.C, ...
-                [0 .048 .513 .351 .087 .011], 'AbsTol', 0.01) ;
+                [0 0.05108158 0.50152422 0.34885794 0.09286532 ...
+                0.00093581], 'AbsTol', 1e-3) ;
             testCase.verifyEqual(recoveredPrinted.C(1), 0, 'AbsTol', 1e-12) ;
         end
 
@@ -173,10 +173,10 @@ classdef NirpConvolutionProblemsTest < matlab.unittest.TestCase
             shifted = interp1(0:11, inletValues, sec05(:, 1) - 5, 'linear', 0) ;
             testCase.verifyEqual(sec05(:, 2), shifted, 'AbsTol', 1e-9) ;
 
-            % SEC06 stores the printed, rounded C_out (5.6 at t = 8 s; the
-            % sheet splits the cell as "5.6 / 3") and an E support of 0-4 s:
-            % an independent NNLS on the stored data must reproduce it, and
-            % it stays within 0.02 of the true E of problem 3.
+            % SEC06 stores the printed C_out, obtained by rounding the exact
+            % convolution down to one decimal, and an E support of 0-4 s.
+            % An independent NNLS on the stored data must reproduce it and
+            % stay within 0.01 of the true E of problem 3.
             sec06 = sessionReference(root, 'SEC06') ;
             saved = load(fullfile(root, 'saves', 'SEC06.mat'), 'sessionData') ;
             printedOutlet = ...
@@ -191,7 +191,7 @@ classdef NirpConvolutionProblemsTest < matlab.unittest.TestCase
             independent = lsqnonneg(convolutionMatrix, printedOutlet.') ;
             testCase.verifyEqual(sec06(:, 2), independent, 'AbsTol', 1e-6) ;
             testCase.verifyEqual(sec06(:, 2).', [0 .05 .5 .35 .1], ...
-                'AbsTol', 0.02) ;
+                'AbsTol', 0.01) ;
         end
     end
 end

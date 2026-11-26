@@ -521,7 +521,7 @@ function sessionData = buildSEC06()
 tCin = 0:11 ;
 Cin = [0 0 8 6 4 5 6 3 1 0 0 0] ;
 tCout = 0:15 ;
-Cout = [0 0 0 0.4 4.3 6 5.1 4.8 5.6 4.1 2.1 0.6 0.1 0 0 0] ;
+Cout = [0 0 0 0.4 4.3 6 5.1 4.8 5.3 4.1 2.1 0.6 0.1 0 0 0] ;
 signals = struct( ...
     'Cin', tableConvolutionState(tCin, Cin, 's', 'mol/L'), ...
     'Cout', tableConvolutionState(tCout, Cout, 's', 'mol/L')) ;
